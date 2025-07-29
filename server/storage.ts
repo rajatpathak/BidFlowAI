@@ -335,8 +335,8 @@ export class MemStorage implements IStorage {
     // Clear tenders - will be populated from real Excel data
     this.tenders.clear();
 
-    // Clear any existing enhanced tender results to start fresh
-    this.enhancedTenderResults.clear();
+    // DO NOT clear tender results - they should be preserved
+    // this.enhancedTenderResults.clear();
 
     // Initialize company settings
     this.companySettings = {
