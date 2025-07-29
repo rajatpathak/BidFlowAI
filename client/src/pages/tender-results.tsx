@@ -218,15 +218,28 @@ export default function TenderResultsPage() {
     currentPage * itemsPerPage
   );
 
-  // Calculate statistics
+  // Calculate statistics - Focus on Appentus
+  const appentusResults = results.filter(r => {
+    const isWinner = r.awardedTo?.toLowerCase().includes("appentus");
+    const isParticipant = r.participatorBidders?.some(
+      bidder => bidder.toLowerCase().includes("appentus")
+    );
+    return isWinner || isParticipant;
+  });
+  
+  const appentusWon = appentusResults.filter(r => 
+    r.awardedTo?.toLowerCase().includes("appentus")
+  );
+  
   const stats = {
     total: results.length,
-    won: results.filter(r => r.status === "won").length,
-    lost: results.filter(r => r.status === "lost").length,
+    won: appentusWon.length,
+    participated: appentusResults.length,
+    lost: appentusResults.filter(r => r.status === "lost").length,
     rejected: results.filter(r => r.status === "rejected").length,
     missed: results.filter(r => r.status === "missed_opportunity").length,
-    winRate: results.length > 0 ? ((results.filter(r => r.status === "won").length / results.length) * 100).toFixed(1) : "0",
-    totalWonValue: results.filter(r => r.status === "won").reduce((sum, r) => sum + (r.awardedValue || 0), 0),
+    winRate: appentusResults.length > 0 ? ((appentusWon.length / appentusResults.length) * 100).toFixed(1) : "0",
+    totalWonValue: appentusWon.reduce((sum, r) => sum + (r.awardedValue || r.contractValue || 0), 0),
   };
 
   if (resultsLoading || importsLoading) {
@@ -252,7 +265,7 @@ export default function TenderResultsPage() {
       </div>
 
       {/* Statistics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
@@ -261,6 +274,18 @@ export default function TenderResultsPage() {
                 <p className="text-2xl font-bold text-green-600">{stats.winRate}%</p>
               </div>
               <Trophy className="h-8 w-8 text-green-600" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-600">Total Participated</p>
+                <p className="text-2xl font-bold text-blue-600">{stats.participated}</p>
+              </div>
+              <FileSpreadsheet className="h-8 w-8 text-blue-600" />
             </div>
           </CardContent>
         </Card>
