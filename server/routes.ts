@@ -1047,15 +1047,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
                 console.log(`Created tender with ID: ${tender.id}`);
 
-                // Calculate AI match score with company settings (skip for now to avoid delays)
-                // if (companySettings) {
-                //   try {
-                //     const aiScore = await storage.calculateAIMatch(tender, companySettings);
-                //     await storage.updateTender(tender.id, { aiScore });
-                //   } catch (aiError) {
-                //     console.log(`AI scoring failed for tender ${tender.id}:`, aiError);
-                //   }
-                // }
+                // Calculate AI match score with company settings
+                if (companySettings) {
+                  try {
+                    const aiScore = await storage.calculateAIMatch(tender, companySettings);
+                    await storage.updateTender(tender.id, { aiScore });
+                    console.log(`AI score calculated for tender ${tender.id}: ${aiScore}%`);
+                  } catch (aiError) {
+                    console.log(`AI scoring failed for tender ${tender.id}:`, aiError);
+                  }
+                }
 
                 totalTendersImported++;
               } catch (tenderError: any) {
