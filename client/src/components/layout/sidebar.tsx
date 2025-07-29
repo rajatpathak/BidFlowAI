@@ -20,12 +20,14 @@ import {
   Trophy,
   Upload,
   LogOut,
-  Shield
+  Shield,
+  History
 } from "lucide-react";
 
 const navigation = [
   { name: "Dashboard", href: "/", icon: BarChart3 },
   { name: "Excel Upload", href: "/upload-demo", icon: Upload },
+  { name: "Upload History", href: "/excel-upload-history", icon: History },
   { name: "Enhanced Tenders", href: "/enhanced-tenders", icon: FileSpreadsheet },
   { name: "Tender Results", href: "/tender-results", icon: Trophy },
   { name: "Active Tenders", href: "/tenders", icon: FileText },

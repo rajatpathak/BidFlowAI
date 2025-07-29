@@ -16,6 +16,7 @@ import AdminSettings from "@/pages/admin-settings";
 import EnhancedTenders from "@/pages/enhanced-tenders";
 import TenderResults from "@/pages/tender-results";
 import UploadDemo from "@/pages/upload-demo";
+import ExcelUploadHistory from "@/pages/excel-upload-history";
 import Login from "@/pages/login";
 import Unauthorized from "@/pages/unauthorized";
 import NotFound from "@/pages/not-found";
@@ -66,6 +67,7 @@ function Router() {
               <Route path="/enhanced-tenders" component={() => <ProtectedRoute requiredPermission="view_tenders"><EnhancedTenders /></ProtectedRoute>} />
               <Route path="/tender-results" component={() => <ProtectedRoute><TenderResults /></ProtectedRoute>} />
               <Route path="/upload-demo" component={() => <ProtectedRoute><UploadDemo /></ProtectedRoute>} />
+              <Route path="/excel-upload-history" component={() => <ProtectedRoute requiredRole="admin"><ExcelUploadHistory /></ProtectedRoute>} />
               <Route component={NotFound} />
             </Switch>
           </div>

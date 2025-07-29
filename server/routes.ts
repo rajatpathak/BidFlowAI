@@ -1034,6 +1034,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       // Process Excel file
+      const startTime = Date.now();
       try {
         const workbook = XLSX.read(fs.readFileSync(req.file.path), { 
           type: 'buffer',
@@ -1044,8 +1045,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const companySettings = await storage.getCompanySettings();
         
         let totalTendersImported = 0;
+        let totalEntriesProcessed = 0;
+        let entriesDuplicate = 0;
+        let entriesRejected = 0;
         let sheetsProcessed = 0;
         const errors: string[] = [];
+        
+        // Get existing tenders to check for duplicates
+        const existingTenders = await storage.getTenders();
 
         // Process each worksheet
         for (const sheetName of workbook.SheetNames) {
@@ -1063,7 +1070,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
             // Process each tender record
             for (const tenderData of processedData) {
+              totalEntriesProcessed++;
+              
               try {
+                // Check for duplicates based on title and organization
+                const isDuplicate = existingTenders.some(et => 
+                  et.title.toLowerCase() === tenderData.title.toLowerCase() &&
+                  et.organization.toLowerCase() === (tenderData.organization || '').toLowerCase()
+                );
+                
+                if (isDuplicate) {
+                  entriesDuplicate++;
+                  console.log(`Duplicate tender skipped: ${tenderData.title.substring(0, 50)}...`);
+                  continue;
+                }
+                
                 console.log(`Creating tender: ${tenderData.title.substring(0, 50)}...`);
                 
                 const tender = await storage.createTender({
@@ -1100,7 +1121,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 }
 
                 totalTendersImported++;
+                // Add to existing tenders to check future duplicates
+                existingTenders.push(tender);
               } catch (tenderError: any) {
+                entriesRejected++;
                 errors.push(`Row error in ${sheetName}: ${tenderError.message}`);
                 console.error(`Error creating tender in ${sheetName}:`, tenderError.message);
               }
@@ -1112,13 +1136,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
 
         // Update upload record with results
+        const processingTime = Date.now() - startTime;
         const finalStatus = errors.length > 0 && totalTendersImported === 0 ? "failed" : "completed";
         const errorLog = errors.length > 0 ? errors.join('; ') : null;
         
         await storage.updateExcelUpload(uploadRecord.id, {
           status: finalStatus,
           sheetsProcessed,
-          tendersImported: totalTendersImported,
+          entriesAdded: totalTendersImported,
+          entriesRejected,
+          entriesDuplicate,
+          totalEntries: totalEntriesProcessed,
+          processingTime,
           errorLog
         });
 

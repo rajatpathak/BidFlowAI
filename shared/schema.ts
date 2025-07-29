@@ -375,10 +375,14 @@ export const excelUploads = pgTable("excel_uploads", {
   filePath: varchar("file_path").notNull(),
   uploadedAt: timestamp("uploaded_at").defaultNow(),
   uploadedBy: varchar("uploaded_by"),
+  entriesAdded: integer("entries_added").default(0),
+  entriesRejected: integer("entries_rejected").default(0),
+  entriesDuplicate: integer("entries_duplicate").default(0),
+  totalEntries: integer("total_entries").default(0),
   sheetsProcessed: integer("sheets_processed").default(0),
-  tendersImported: integer("tenders_imported").default(0),
   status: varchar("status").notNull().default("processing"), // processing, completed, failed
   errorLog: text("error_log"),
+  processingTime: integer("processing_time"), // in milliseconds
 });
 
 export type ExcelUpload = typeof excelUploads.$inferSelect;

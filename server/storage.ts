@@ -33,7 +33,15 @@ import {
   type PipelineData,
   type TenderWithDetails,
   type FinanceOverview,
-  type UserWithDetails
+  type UserWithDetails,
+  type CompanySettings,
+  type InsertCompanySettings,
+  type ExcelUpload,
+  type InsertExcelUpload,
+  type TenderResultsImport,
+  type InsertTenderResultsImport,
+  type EnhancedTenderResult,
+  type InsertEnhancedTenderResult
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 
@@ -144,6 +152,7 @@ export interface IStorage {
   
   // AI Matching
   calculateAIMatch(tender: Tender, companySettings: CompanySettings): Promise<number>;
+  calculateAIMatchWithBreakdown(tender: Tender, companySettings: CompanySettings | undefined): Promise<any>;
   
   // Tender Results Import
   getTenderResultsImports(): Promise<TenderResultsImport[]>;
