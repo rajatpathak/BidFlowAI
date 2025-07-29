@@ -60,6 +60,22 @@ export default function ActiveTendersTable() {
     },
   });
 
+  // Calculate deadline counts for filter labels
+  const deadlineCounts = {
+    overdue: 0,
+    next7: 0,
+    next15: 0,
+    next30: 0
+  };
+  
+  tenders?.forEach(tender => {
+    const daysLeft = getDaysLeft(tender.deadline);
+    if (daysLeft < 0) deadlineCounts.overdue++;
+    if (daysLeft > 0 && daysLeft <= 7) deadlineCounts.next7++;
+    if (daysLeft > 0 && daysLeft <= 15) deadlineCounts.next15++;
+    if (daysLeft > 0 && daysLeft <= 30) deadlineCounts.next30++;
+  });
+
   const filteredTenders = tenders?.filter(tender => {
     // Search filter
     const matchesSearch = tender.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -189,10 +205,10 @@ export default function ActiveTendersTable() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Deadlines</SelectItem>
-                <SelectItem value="7days">Next 7 Days</SelectItem>
-                <SelectItem value="15days">Next 15 Days</SelectItem>
-                <SelectItem value="30days">Next 30 Days</SelectItem>
-                <SelectItem value="overdue">Overdue</SelectItem>
+                <SelectItem value="overdue">Overdue ({deadlineCounts.overdue})</SelectItem>
+                <SelectItem value="7days">Next 7 Days ({deadlineCounts.next7})</SelectItem>
+                <SelectItem value="15days">Next 15 Days ({deadlineCounts.next15})</SelectItem>
+                <SelectItem value="30days">Next 30 Days ({deadlineCounts.next30})</SelectItem>
               </SelectContent>
             </Select>
             <div className="flex items-center gap-1 border rounded-md p-1">
