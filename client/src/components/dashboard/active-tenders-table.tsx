@@ -15,7 +15,7 @@ import type { Tender } from "@shared/schema";
 export default function ActiveTendersTable() {
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 4;
+  const itemsPerPage = 10;
 
   const { data: tenders, isLoading } = useQuery({
     queryKey: ["/api/tenders"],
@@ -125,88 +125,58 @@ export default function ActiveTendersTable() {
             <Table>
               <TableHeader>
                 <TableRow className="bg-gray-50">
-                  <TableHead className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Tender
+                  <TableHead className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-32">
+                    Reference No
                   </TableHead>
-                  <TableHead className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Value
+                  <TableHead className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-96">
+                    Tender Brief
                   </TableHead>
-                  <TableHead className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <TableHead className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-28">
                     Deadline
                   </TableHead>
-                  <TableHead className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
+                  <TableHead className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-48">
+                    Location
                   </TableHead>
-                  <TableHead className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    AI Score
-                  </TableHead>
-                  <TableHead className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
+                  <TableHead className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider w-36">
+                    Estimated Cost
                   </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody className="bg-white divide-y divide-gray-200">
                 {displayedTenders.map((tender) => {
                   const daysLeft = getDaysLeft(tender.deadline);
+                  const requirements = typeof tender.requirements === 'object' && tender.requirements ? tender.requirements : {};
+                  const refId = (requirements as any).refId || '-';
+                  const location = (requirements as any).location || '-';
                   
                   return (
                     <TableRow key={tender.id} className="hover:bg-gray-50">
-                      <TableCell className="px-6 py-4 whitespace-nowrap">
-                        <div>
-                          <div className="text-sm font-medium text-gray-900">{tender.title}</div>
-                          <div className="text-sm text-gray-500">{tender.organization}</div>
+                      <TableCell className="px-4 py-4 text-sm font-medium text-gray-900 w-32">
+                        {refId}
+                      </TableCell>
+                      <TableCell className="px-4 py-4 w-96">
+                        <div className="overflow-hidden w-full">
+                          <div className="text-sm text-gray-900 animate-marquee whitespace-nowrap hover:animate-none">
+                            {tender.title}
+                          </div>
                         </div>
                       </TableCell>
-                      <TableCell className="px-6 py-4 whitespace-nowrap">
+                      <TableCell className="px-4 py-4 w-28">
                         <div className="text-sm text-gray-900">
-                          ${(tender.value / 100).toLocaleString()}
+                          {format(new Date(tender.deadline), "dd-MM-yyyy")}
+                        </div>
+                        <div className={`text-xs ${daysLeft <= 3 ? 'text-red-600 font-semibold' : 'text-gray-500'}`}>
+                          {daysLeft > 0 ? `${daysLeft} days` : 
+                           daysLeft === 0 ? 'Today' : 
+                           'Overdue'}
                         </div>
                       </TableCell>
-                      <TableCell className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900">
-                          {format(new Date(tender.deadline), "MMM dd, yyyy")}
-                        </div>
-                        <div className="text-sm text-gray-500">
-                          {daysLeft > 0 ? `${daysLeft} days left` : 
-                           daysLeft === 0 ? 'Due today' : 
-                           `${Math.abs(daysLeft)} days overdue`}
-                        </div>
+                      <TableCell className="px-4 py-4 text-sm text-gray-700 w-48">
+                        {location}
                       </TableCell>
-                      <TableCell className="px-6 py-4 whitespace-nowrap">
-                        <Badge className={getStatusColor(tender.status)}>
-                          {getStatusLabel(tender.status)}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center">
-                          <span className={`text-sm font-medium ${
-                            (tender.aiScore || 0) >= 80 ? 'text-green-600' :
-                            (tender.aiScore || 0) >= 60 ? 'text-yellow-600' : 'text-red-600'
-                          }`}>
-                            {tender.aiScore || 0}%
-                          </span>
-                          <Brain className="h-4 w-4 text-purple-500 ml-2" />
-                        </div>
-                      </TableCell>
-                      <TableCell className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        <div className="flex space-x-2">
-                          <Button variant="ghost" size="sm">
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                          <Button variant="ghost" size="sm">
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button variant="ghost" size="sm">
-                            <Brain className="h-4 w-4 text-purple-600" />
-                          </Button>
-                          <Button 
-                            variant="ghost" 
-                            size="sm"
-                            onClick={() => deleteMutation.mutate(tender.id)}
-                            disabled={deleteMutation.isPending}
-                          >
-                            <Trash2 className="h-4 w-4 text-red-600" />
-                          </Button>
+                      <TableCell className="px-4 py-4 text-right w-36">
+                        <div className="text-sm font-semibold text-gray-900">
+                          ₹{(tender.value / 100).toLocaleString('en-IN')}
                         </div>
                       </TableCell>
                     </TableRow>

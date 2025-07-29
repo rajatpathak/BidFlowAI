@@ -2,6 +2,24 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Marquee animation for tender brief text */
+@keyframes marquee {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-100%);
+  }
+}
+
+.animate-marquee {
+  animation: marquee 20s linear infinite;
+}
+
+.animate-marquee:hover {
+  animation-play-state: paused;
+}
+
 :root {
   --background: hsl(0, 0%, 100%);
   --foreground: hsl(222, 84%, 4.9%);
