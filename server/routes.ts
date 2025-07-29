@@ -5,6 +5,8 @@ import { DatabaseStorage } from "./database-storage";
 const storage = new DatabaseStorage();
 import { seedDatabase } from "./seed-database";
 import { openaiService } from "./services/openai";
+import { db } from "./db";
+import { tenderResults } from "@shared/schema";
 import {
   insertTenderSchema,
   insertRecommendationSchema,
@@ -1482,11 +1484,69 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Enhanced Tender Results Routes
+  // Enhanced Tender Results Routes - Now reading from tender_results with reference numbers
   app.get("/api/enhanced-tender-results", async (req, res) => {
     try {
-      const results = await storage.getEnhancedTenderResults();
-      res.json(results);
+      // Get actual tender results from database  
+      const results = await db.select().from(tenderResults).limit(500);
+      
+      // Transform to match frontend expected format
+      const enhancedResults = results.map(result => {
+        // Parse notes to get reference number and other data
+        let parsedNotes: any = {};
+        try {
+          parsedNotes = JSON.parse(result.notes || '{}');
+        } catch (e) {
+          // If notes aren't JSON, treat as plain text
+        }
+        
+        // Extract reference number from parsed notes
+        const referenceNo = parsedNotes.referenceNo || null;
+        const tenderBrief = parsedNotes.tenderBrief || 'Historical tender result';
+        
+        // Transform competitors array to participator bidders
+        const participatorBidders = result.competitors?.map((c: any) => c.name) || [];
+        
+        // Determine status based on Appentus involvement
+        let status = 'lost';
+        const isAppentusWinner = result.winner.toLowerCase().includes('appentus');
+        const hasAppentusParticipant = result.competitors?.some((c: any) => c.isAppentus);
+        
+        if (isAppentusWinner) {
+          status = 'won';
+        } else if (hasAppentusParticipant) {
+          status = 'lost';
+        }
+        
+        return {
+          id: result.id,
+          tenderTitle: tenderBrief,
+          organization: 'Various', // Default since we don't have org data
+          referenceNo: referenceNo,
+          location: null,
+          department: null,
+          tenderValue: null,
+          contractValue: result.winningAmount,
+          marginalDifference: null,
+          tenderStage: 'AOC',
+          ourBidValue: result.ourBidAmount,
+          status: status,
+          awardedTo: result.winner,
+          awardedValue: result.winningAmount,
+          participatorBidders: participatorBidders,
+          resultDate: result.resultDate,
+          assignedTo: null,
+          reasonForLoss: null,
+          missedReason: null,
+          companyEligible: null,
+          aiMatchScore: null,
+          notes: result.notes,
+          createdAt: result.createdAt,
+          link: null
+        };
+      });
+      
+      res.json(enhancedResults);
     } catch (error: any) {
       console.error("Error fetching enhanced tender results:", error);
       res.status(500).json({ error: "Failed to fetch tender results", details: error.message });
