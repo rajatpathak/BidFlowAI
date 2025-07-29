@@ -41,7 +41,21 @@ export async function processTenderExcelFile(filePath: string) {
           
           const organization = getField(['Organization', 'Dept', 'Department', 'Ministry', 'Company', 'OWNERSHIP']);
           const location = getField(['Location', 'City', 'State', 'Region', 'LOCATION']);
-          const referenceNo = getField(['Reference No', 'Ref No', 'ID', 'T247 ID', 'Tender ID', 'Reference', 'TENDER REFERENCE NO']);
+          
+          // For Active Tenders, Reference No is specifically in column C
+          // First try the normal field names
+          let referenceNo = getField(['REFERENCE NO', 'Reference No', 'Ref No', 'ID', 'T247 ID', 'Tender ID', 'Reference', 'TENDER REFERENCE NO']);
+          
+          // If not found, check column C specifically (which might be __EMPTY_1 or other labels)
+          if (!referenceNo) {
+            // In Excel, columns without headers are often labeled as __EMPTY, __EMPTY_1, etc.
+            // Column A = no label or __EMPTY, Column B = __EMPTY or __EMPTY_1, Column C = __EMPTY_1 or __EMPTY_2
+            if (r['__EMPTY_1'] !== undefined && r['__EMPTY_1'] !== null && r['__EMPTY_1'] !== '') {
+              referenceNo = String(r['__EMPTY_1']).trim();
+            } else if (r['__EMPTY_2'] !== undefined && r['__EMPTY_2'] !== null && r['__EMPTY_2'] !== '') {
+              referenceNo = String(r['__EMPTY_2']).trim();
+            }
+          }
           
           // Parse value
           let value = 0;
@@ -85,7 +99,9 @@ export async function processTenderExcelFile(filePath: string) {
             referenceNo,
             link: link || null,
             requirements: {
-              turnover: turnoverStr || ""
+              turnover: turnoverStr || "",
+              referenceNo: referenceNo || "",
+              location: location || ""
             }
           });
           
@@ -97,7 +113,7 @@ export async function processTenderExcelFile(filePath: string) {
           }
           
           totalProcessed++;
-          console.log(`Processed tender: ${title}`);
+          console.log(`Processed tender: ${title} (Ref: ${referenceNo || 'N/A'})`);
           
         } catch (error) {
           console.error(`Error processing row:`, error);
