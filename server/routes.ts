@@ -1272,7 +1272,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 extractedLink = urlMatch[0];
               }
               const organization = getField(['Organization', 'Dept', 'Department', 'Ministry', 'Company', 'Ownership']);
-              const referenceNo = getField(['Reference No', 'Ref No', 'ID', 'TR247 ID', 'T247 ID', 'Tender ID', 'Reference', 'TENDER REFERENCE NO']);
+              // Get reference number from column C specifically (Excel column C = index 2)
+              let referenceNo = "";
+              
+              // First try column C directly (might be labeled as __EMPTY_2 or C)
+              const colCKeys = ['C', '__EMPTY_2', 'c'];
+              for (const key of colCKeys) {
+                if (r[key] !== undefined && r[key] !== null && r[key] !== '') {
+                  referenceNo = String(r[key]).trim();
+                  break;
+                }
+              }
+              
+              // If not found in column C, try other field names
+              if (!referenceNo) {
+                referenceNo = getField(['Reference No', 'Ref No', 'ID', 'TR247 ID', 'T247 ID', 'Tender ID', 'Reference', 'TENDER REFERENCE NO']);
+              }
               const location = getField(['Location', 'City', 'State', 'Region', 'LOCATION']);
               const department = getField(['Department', 'Dept', 'Division', 'Unit', 'Department']);
               const awardedTo = getField(['Awarded To', 'Winner', 'Selected Company', 'L1 Bidder', 'Contract Awarded To', 'Winner bidder']);

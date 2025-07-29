@@ -360,7 +360,7 @@ export default function TenderResultsPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Tender Reference No</TableHead>
+                      <TableHead>Tender Reference No (Col C)</TableHead>
                       <TableHead>Location</TableHead>
                       <TableHead>Department</TableHead>
                       <TableHead>Contract Value</TableHead>
