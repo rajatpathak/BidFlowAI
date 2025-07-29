@@ -1264,12 +1264,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
               
               const tenderTitle = getField(['Title', 'Tender Title', 'Work Description', 'Work Name', 'Brief Description', 'TENDER RESULT BRIEF', 'Result Brief']);
               
-              // Extract link from tender title if it contains a URL
-              let extractedLink = null;
-              const urlRegex = /(https?:\/\/[^\s]+)/g;
-              const urlMatch = tenderTitle.match(urlRegex);
-              if (urlMatch && urlMatch.length > 0) {
-                extractedLink = urlMatch[0];
+              // First try to get link from dedicated Link column
+              let extractedLink = getField(['Link', 'URL', 'Tender Link', 'Website', 'LINK']);
+              
+              // If no dedicated link column, extract link from tender title if it contains a URL
+              if (!extractedLink) {
+                const urlRegex = /(https?:\/\/[^\s]+)/g;
+                const urlMatch = tenderTitle.match(urlRegex);
+                if (urlMatch && urlMatch.length > 0) {
+                  extractedLink = urlMatch[0];
+                }
+              }
+              
+              if (extractedLink) {
+                console.log(`Found link for tender: ${extractedLink}`);
               }
               const organization = getField(['Organization', 'Dept', 'Department', 'Ministry', 'Company', 'Ownership']);
               // Get reference number from column C specifically
