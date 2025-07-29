@@ -167,4 +167,18 @@ Preferred communication style: Simple, everyday language.
 - **Dynamic Filtering API**: Advanced query-based filtering with multiple parameter support
 - **Type Safety Enhancement**: Complete TypeScript coverage for all new entities with Zod validation
 
+### Eligibility Criteria Breakdown Feature (January 2025)
+- **Detailed AI Score Analysis**: New `calculateAIMatchWithBreakdown` method providing comprehensive eligibility analysis
+- **Turnover Eligibility Tracking**: Clear indication when company turnover doesn't meet requirements (e.g., "25 Cr required vs 5 Cr available = 0% AI Score")
+- **Multi-Criteria Evaluation**: 
+  - Annual Turnover: Proportional scoring with clear thresholds (0% for no eligibility, 30% for <50%, 70% for 50-80%, 90% for >80%)
+  - Business Sectors: Matches tender domain with company's business sectors
+  - Project Types: Keyword-based matching for mobile, web, software, tax collection, infrastructure projects
+  - Certifications: Checks for relevant ISO and other certifications mentioned in tenders
+- **Interactive UI Components**: 
+  - Clickable AI score badges in tender list (both table and grid views)
+  - Beautiful eligibility breakdown card showing requirement vs capability comparison
+  - Color-coded scoring with clear pass/fail indicators
+- **Excel Hyperlink Integration**: Successfully extracted and stored 2,179 tender links from 11 Excel files
+
 The architecture prioritizes type safety, developer experience, and scalability while maintaining a clean separation between frontend, backend, and data layers. The AI integration is designed to enhance user decision-making without being intrusive to the core workflow. The system now supports complete tender lifecycle management from discovery through award with integrated financial tracking and team coordination.

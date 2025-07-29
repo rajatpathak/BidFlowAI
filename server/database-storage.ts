@@ -339,7 +339,24 @@ export class DatabaseStorage implements IStorage {
   }
 
   async calculateAIMatch(tender: Tender, companySettings: CompanySettings): Promise<number> {
-    let score = 0;
+    const breakdown = await this.calculateAIMatchWithBreakdown(tender, companySettings);
+    return breakdown.overallScore;
+  }
+  
+  // Calculate AI match score with detailed breakdown
+  async calculateAIMatchWithBreakdown(tender: Tender, companySettings: CompanySettings): Promise<{
+    overallScore: number;
+    breakdown: {
+      criterion: string;
+      requirement: string;
+      companyCapability: string;
+      met: boolean;
+      score: number;
+      reason?: string;
+    }[];
+  }> {
+    const breakdown: any[] = [];
+    let totalScore = 0;
     let totalCriteria = 0;
 
     // Check turnover eligibility
@@ -349,28 +366,81 @@ export class DatabaseStorage implements IStorage {
       const requiredTurnover = parseFloat(requirements.turnover.replace(/[^\d.]/g, '')) || 0;
       const companyTurnover = parseFloat(companySettings.turnoverCriteria.replace(/[^\d.]/g, '')) || 0;
       
+      let criterionScore = 0;
+      let met = false;
+      let reason = '';
+      
       if (requiredTurnover === 0) {
-        score += 85; // Manual review for unspecified turnover
+        criterionScore = 85; // Manual review for unspecified turnover
+        met = true;
+        reason = 'Manual review required - Turnover requirement not specified';
       } else if (companyTurnover >= requiredTurnover) {
-        score += 100; // Meets requirement
+        criterionScore = 100; // Meets requirement
+        met = true;
+        reason = 'Turnover requirement met';
       } else {
         const ratio = companyTurnover / requiredTurnover;
-        score += Math.min(ratio * 80, 80); // Proportional score up to 80%
+        if (ratio === 0) {
+          criterionScore = 0;
+          reason = 'Turnover not eligible';
+        } else if (ratio < 0.5) {
+          criterionScore = 30;
+          reason = 'Significantly below required turnover';
+        } else if (ratio < 0.8) {
+          criterionScore = 70;
+          reason = 'Below required turnover but within range';
+        } else {
+          criterionScore = 90;
+          reason = 'Close to required turnover';
+        }
       }
+      
+      breakdown.push({
+        criterion: 'Annual Turnover',
+        requirement: requiredTurnover > 0 ? `₹${requiredTurnover} Crores` : 'Not specified',
+        companyCapability: `₹${companyTurnover} Crores`,
+        met,
+        score: criterionScore,
+        reason
+      });
+      
+      totalScore += criterionScore;
     } else {
       // No turnover requirement specified
       totalCriteria++;
-      score += 100;
+      totalScore += 100;
+      breakdown.push({
+        criterion: 'Annual Turnover',
+        requirement: 'Not specified',
+        companyCapability: `₹${parseFloat(companySettings.turnoverCriteria.replace(/[^\d.]/g, '')) || 0} Crores`,
+        met: true,
+        score: 100,
+        reason: 'No turnover requirement - Exempted'
+      });
     }
 
     // Check business sectors alignment
     if (companySettings.businessSectors && companySettings.businessSectors.length > 0) {
       totalCriteria++;
-      const tenderDescription = (tender.title + ' ' + tender.description).toLowerCase();
-      const sectorMatch = companySettings.businessSectors.some(sector => 
+      const tenderDescription = (tender.title + ' ' + (tender.description || '')).toLowerCase();
+      const matchedSectors = companySettings.businessSectors.filter(sector => 
         tenderDescription.includes(sector.toLowerCase())
       );
-      score += sectorMatch ? 100 : 60; // Sector match bonus
+      const sectorMatch = matchedSectors.length > 0;
+      const criterionScore = sectorMatch ? 100 : 60;
+      
+      breakdown.push({
+        criterion: 'Business Sectors',
+        requirement: 'Relevant to tender domain',
+        companyCapability: companySettings.businessSectors.join(', '),
+        met: sectorMatch,
+        score: criterionScore,
+        reason: sectorMatch 
+          ? `Matched sectors: ${matchedSectors.join(', ')}` 
+          : 'No direct sector match found'
+      });
+      
+      totalScore += criterionScore;
     }
 
     // Check project types alignment
@@ -389,29 +459,61 @@ export class DatabaseStorage implements IStorage {
         'consulting': ['consulting', 'advisory', 'consultancy', 'study', 'assessment']
       };
       
-      let projectTypeMatch = false;
+      const matchedTypes: string[] = [];
       for (const projectType of companySettings.projectTypes) {
         const keywords = projectTypeKeywords[projectType.toLowerCase()] || [projectType.toLowerCase()];
         if (keywords.some(keyword => tenderText.includes(keyword))) {
-          projectTypeMatch = true;
-          break;
+          matchedTypes.push(projectType);
         }
       }
       
-      score += projectTypeMatch ? 100 : 40; // Project type match bonus
+      const projectTypeMatch = matchedTypes.length > 0;
+      const criterionScore = projectTypeMatch ? 100 : 40;
+      
+      breakdown.push({
+        criterion: 'Project Types',
+        requirement: 'Relevant project type experience',
+        companyCapability: companySettings.projectTypes.join(', '),
+        met: projectTypeMatch,
+        score: criterionScore,
+        reason: projectTypeMatch 
+          ? `Matched project types: ${matchedTypes.join(', ')}` 
+          : 'No matching project type found'
+      });
+      
+      totalScore += criterionScore;
     }
 
     // Check certifications alignment
     if (companySettings.certifications && companySettings.certifications.length > 0) {
       totalCriteria++;
       const tenderText = (tender.title + ' ' + (tender.description || '') + ' ' + JSON.stringify(tender.requirements || {})).toLowerCase();
-      const certMatch = companySettings.certifications.some(cert => 
+      const matchedCerts = companySettings.certifications.filter(cert => 
         tenderText.includes(cert.toLowerCase())
       );
-      score += certMatch ? 100 : 70; // Certification match bonus
+      const certMatch = matchedCerts.length > 0;
+      const criterionScore = certMatch ? 100 : 70;
+      
+      breakdown.push({
+        criterion: 'Certifications',
+        requirement: 'Relevant certifications',
+        companyCapability: companySettings.certifications.join(', '),
+        met: certMatch,
+        score: criterionScore,
+        reason: certMatch 
+          ? `Matched certifications: ${matchedCerts.join(', ')}` 
+          : 'Certifications may still be relevant'
+      });
+      
+      totalScore += criterionScore;
     }
 
-    return totalCriteria > 0 ? Math.round(score / totalCriteria) : 50;
+    const overallScore = totalCriteria > 0 ? Math.round(totalScore / totalCriteria) : 50;
+    
+    return {
+      overallScore,
+      breakdown
+    };
   }
 
   // Missing methods from IStorage interface - add stubs for now

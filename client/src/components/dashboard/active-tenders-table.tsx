@@ -14,6 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { EligibilityBreakdown } from "@/components/eligibility-breakdown";
 import type { Tender } from "@shared/schema";
 
 export default function ActiveTendersTable() {
@@ -24,11 +25,23 @@ export default function ActiveTendersTable() {
   const [detailModalOpen, setDetailModalOpen] = useState(false);
   const [sourceFilter, setSourceFilter] = useState<"all" | "gem" | "non-gem">("all");
   const [deadlineFilter, setDeadlineFilter] = useState<"all" | "7days" | "15days" | "30days" | "overdue">("all");
+  const [showEligibility, setShowEligibility] = useState(false);
   const itemsPerPage = viewMode === "list" ? 10 : 12;
 
   const { data: tenders, isLoading } = useQuery({
     queryKey: ["/api/tenders"],
     queryFn: api.getTenders,
+  });
+  
+  const { data: eligibilityBreakdown, isLoading: eligibilityLoading } = useQuery({
+    queryKey: ["/api/tenders", selectedTender?.id, "eligibility"],
+    queryFn: async () => {
+      if (!selectedTender) return null;
+      const response = await fetch(`/api/tenders/${selectedTender.id}/eligibility`);
+      if (!response.ok) throw new Error('Failed to fetch eligibility');
+      return response.json();
+    },
+    enabled: !!selectedTender && showEligibility,
   });
 
   const getDaysLeft = (deadline: Date) => {
@@ -279,13 +292,19 @@ export default function ActiveTendersTable() {
                         </TableCell>
                         <TableCell className="px-4 py-4 text-center w-20">
                           <Badge 
-                            className={`text-xs font-medium ${
+                            className={`text-xs font-medium cursor-pointer hover:scale-105 transition-transform ${
                               aiScore >= 85 
-                                ? 'bg-green-100 text-green-700' 
+                                ? 'bg-green-100 text-green-700 hover:bg-green-200' 
                                 : aiScore >= 70
-                                ? 'bg-yellow-100 text-yellow-700'
-                                : 'bg-red-100 text-red-700'
+                                ? 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200'
+                                : 'bg-red-100 text-red-700 hover:bg-red-200'
                             }`}
+                            onClick={() => {
+                              setSelectedTender(tender);
+                              setDetailModalOpen(true);
+                              setShowEligibility(true);
+                            }}
+                            title="Click to view eligibility breakdown"
                           >
                             {aiScore}%
                           </Badge>
@@ -467,13 +486,19 @@ export default function ActiveTendersTable() {
                       <div className="flex justify-between items-center">
                         <span className="text-xs text-gray-500">AI Score:</span>
                         <Badge 
-                          className={`text-xs font-medium ${
+                          className={`text-xs font-medium cursor-pointer hover:scale-105 transition-transform ${
                             aiScore >= 85 
-                              ? 'bg-green-100 text-green-700' 
+                              ? 'bg-green-100 text-green-700 hover:bg-green-200' 
                               : aiScore >= 70
-                              ? 'bg-yellow-100 text-yellow-700'
-                              : 'bg-red-100 text-red-700'
+                              ? 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200'
+                              : 'bg-red-100 text-red-700 hover:bg-red-200'
                           }`}
+                          onClick={() => {
+                            setSelectedTender(tender);
+                            setDetailModalOpen(true);
+                            setShowEligibility(true);
+                          }}
+                          title="Click to view eligibility breakdown"
                         >
                           {aiScore}%
                         </Badge>
@@ -569,7 +594,10 @@ export default function ActiveTendersTable() {
       </CardContent>
 
       {/* Detail Modal */}
-      <Dialog open={detailModalOpen} onOpenChange={setDetailModalOpen}>
+      <Dialog open={detailModalOpen} onOpenChange={(open) => {
+        setDetailModalOpen(open);
+        if (!open) setShowEligibility(false); // Reset eligibility view when closing
+      }}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           {selectedTender && (
             <>
@@ -682,7 +710,7 @@ export default function ActiveTendersTable() {
                         <div className="bg-blue-50 p-3 rounded">
                           <p className="text-sm font-medium text-blue-900 mb-1">Eligibility Analysis:</p>
                           <ul className="text-xs text-blue-800 space-y-1">
-                            <li>• Turnover Requirement: {(selectedTender.requirements as any)?.turnover || 'Not specified'}</li>
+                            <li>• Turnover Requirement: {(selectedTender.requirements as any)?.turnover || 'Not specified'} Crores</li>
                             <li>• Your Turnover: 5 Crores (Company Setting)</li>
                             <li>• Match Score: {selectedTender.aiScore || 0}%</li>
                             {(selectedTender.aiScore || 0) >= 85 ? (
@@ -693,6 +721,15 @@ export default function ActiveTendersTable() {
                               <li className="text-red-700 font-medium">✗ Low match - May not meet criteria</li>
                             )}
                           </ul>
+                          <Button 
+                            size="sm" 
+                            variant="outline" 
+                            className="mt-2 w-full"
+                            onClick={() => setShowEligibility(!showEligibility)}
+                          >
+                            <Brain className="h-4 w-4 mr-1" />
+                            {showEligibility ? 'Hide' : 'View'} Detailed Eligibility Breakdown
+                          </Button>
                         </div>
                         <div className="bg-gray-50 p-3 rounded">
                           <p className="text-sm font-medium text-gray-700 mb-1">Project Type Analysis:</p>
@@ -714,6 +751,16 @@ export default function ActiveTendersTable() {
                       </div>
                     </div>
                   </div>
+                  
+                  {/* Detailed Eligibility Breakdown */}
+                  {showEligibility && eligibilityBreakdown && (
+                    <div className="mt-4">
+                      <EligibilityBreakdown 
+                        breakdown={eligibilityBreakdown} 
+                        referenceId={(selectedTender.requirements as any)?.refId}
+                      />
+                    </div>
+                  )}
                 </div>
 
                 <Separator />

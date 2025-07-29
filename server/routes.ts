@@ -395,6 +395,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ error: "Failed to fetch tender" });
     }
   });
+  
+  // Get tender eligibility breakdown
+  app.get("/api/tenders/:id/eligibility", async (req, res) => {
+    try {
+      const tender = await storage.getTender(req.params.id);
+      if (!tender) {
+        return res.status(404).json({ error: "Tender not found" });
+      }
+      
+      const companySettings = await storage.getCompanySettings();
+      const breakdown = await storage.calculateAIMatchWithBreakdown(tender, companySettings);
+      
+      res.json(breakdown);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to calculate eligibility breakdown" });
+    }
+  });
 
   // Create new tender
   app.post("/api/tenders", async (req, res) => {
