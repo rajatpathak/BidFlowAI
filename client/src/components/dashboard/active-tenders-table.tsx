@@ -13,6 +13,7 @@ import { format } from "date-fns";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { Tender } from "@shared/schema";
 
 export default function ActiveTendersTable() {
@@ -21,12 +22,22 @@ export default function ActiveTendersTable() {
   const [viewMode, setViewMode] = useState<"list" | "grid">("list");
   const [selectedTender, setSelectedTender] = useState<Tender | null>(null);
   const [detailModalOpen, setDetailModalOpen] = useState(false);
+  const [sourceFilter, setSourceFilter] = useState<"all" | "gem" | "non-gem">("all");
+  const [deadlineFilter, setDeadlineFilter] = useState<"all" | "7days" | "15days" | "30days" | "overdue">("all");
   const itemsPerPage = viewMode === "list" ? 10 : 12;
 
   const { data: tenders, isLoading } = useQuery({
     queryKey: ["/api/tenders"],
     queryFn: api.getTenders,
   });
+
+  const getDaysLeft = (deadline: Date) => {
+    const today = new Date();
+    const deadlineDate = new Date(deadline);
+    const diffTime = deadlineDate.getTime() - today.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays;
+  };
 
   const deleteMutation = useMutation({
     mutationFn: api.deleteTender,
@@ -35,10 +46,33 @@ export default function ActiveTendersTable() {
     },
   });
 
-  const filteredTenders = tenders?.filter(tender =>
-    tender.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    tender.organization.toLowerCase().includes(searchTerm.toLowerCase())
-  ) || [];
+  const filteredTenders = tenders?.filter(tender => {
+    // Search filter
+    const matchesSearch = tender.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      tender.organization.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    // Source filter (GEM/Non-GEM)
+    const requirements = (tender.requirements || {}) as any;
+    const isGem = requirements.source === 'gem';
+    const matchesSource = sourceFilter === "all" || 
+      (sourceFilter === "gem" && isGem) || 
+      (sourceFilter === "non-gem" && !isGem);
+    
+    // Deadline filter
+    const daysLeft = getDaysLeft(tender.deadline);
+    let matchesDeadline = true;
+    if (deadlineFilter === "7days") {
+      matchesDeadline = daysLeft > 0 && daysLeft <= 7;
+    } else if (deadlineFilter === "15days") {
+      matchesDeadline = daysLeft > 0 && daysLeft <= 15;
+    } else if (deadlineFilter === "30days") {
+      matchesDeadline = daysLeft > 0 && daysLeft <= 30;
+    } else if (deadlineFilter === "overdue") {
+      matchesDeadline = daysLeft < 0;
+    }
+    
+    return matchesSearch && matchesSource && matchesDeadline;
+  }) || [];
 
   const totalPages = Math.ceil(filteredTenders.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
@@ -76,14 +110,6 @@ export default function ActiveTendersTable() {
     }
   };
 
-  const getDaysLeft = (deadline: Date) => {
-    const today = new Date();
-    const deadlineDate = new Date(deadline);
-    const diffTime = deadlineDate.getTime() - today.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    return diffDays;
-  };
-
   const handleViewDetails = (tender: Tender) => {
     setSelectedTender(tender);
     setDetailModalOpen(true);
@@ -118,10 +144,28 @@ export default function ActiveTendersTable() {
                 className="pl-10 pr-4 py-2 w-64"
               />
             </div>
-            <Button variant="outline" size="sm">
-              <Filter className="h-4 w-4 mr-2" />
-              Filter
-            </Button>
+            <Select value={sourceFilter} onValueChange={(value: any) => setSourceFilter(value)}>
+              <SelectTrigger className="w-40">
+                <SelectValue placeholder="All Tenders" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Tenders</SelectItem>
+                <SelectItem value="gem">GEM Only</SelectItem>
+                <SelectItem value="non-gem">Non-GEM Only</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={deadlineFilter} onValueChange={(value: any) => setDeadlineFilter(value)}>
+              <SelectTrigger className="w-40">
+                <SelectValue placeholder="All Deadlines" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Deadlines</SelectItem>
+                <SelectItem value="7days">Next 7 Days</SelectItem>
+                <SelectItem value="15days">Next 15 Days</SelectItem>
+                <SelectItem value="30days">Next 30 Days</SelectItem>
+                <SelectItem value="overdue">Overdue</SelectItem>
+              </SelectContent>
+            </Select>
             <div className="flex items-center gap-1 border rounded-md p-1">
               <Button
                 variant={viewMode === "list" ? "default" : "ghost"}
