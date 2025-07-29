@@ -710,7 +710,7 @@ export default function ActiveTendersTable() {
                         <div className="bg-blue-50 p-3 rounded">
                           <p className="text-sm font-medium text-blue-900 mb-1">Eligibility Analysis:</p>
                           <ul className="text-xs text-blue-800 space-y-1">
-                            <li>• Turnover Requirement: {(selectedTender.requirements as any)?.turnover || 'Not specified'} Crores</li>
+                            <li>• Turnover Requirement: {(selectedTender.requirements as any)?.turnover ? `${(selectedTender.requirements as any).turnover} Crores` : 'Not specified'}</li>
                             <li>• Your Turnover: 5 Crores (Company Setting)</li>
                             <li>• Match Score: {selectedTender.aiScore || 0}%</li>
                             {(selectedTender.aiScore || 0) >= 85 ? (
