@@ -101,21 +101,22 @@ function processExcelData(worksheet: any, sheetName: string) {
   });
 
   // Process rows
-  return rows.map((row: any[], rowIndex: number) => {
+  return rows.map((row: unknown, rowIndex: number) => {
     try {
-      if (!row || row.length === 0) return null;
+      const rowArray = row as any[];
+      if (!rowArray || rowArray.length === 0) return null;
 
-      const title = columnMap.has('title') ? String(row[columnMap.get('title')!] || '').trim() : '';
+      const title = columnMap.has('title') ? String(rowArray[columnMap.get('title')!] || '').trim() : '';
       if (!title) return null; // Skip rows without title
 
-      const organization = columnMap.has('organization') ? String(row[columnMap.get('organization')!] || '').trim() : '';
-      const location = columnMap.has('location') ? String(row[columnMap.get('location')!] || '').trim() : '';
-      const referenceNo = columnMap.has('referenceNo') ? String(row[columnMap.get('referenceNo')!] || '').trim() : '';
+      const organization = columnMap.has('organization') ? String(rowArray[columnMap.get('organization')!] || '').trim() : '';
+      const location = columnMap.has('location') ? String(rowArray[columnMap.get('location')!] || '').trim() : '';
+      const referenceNo = columnMap.has('referenceNo') ? String(rowArray[columnMap.get('referenceNo')!] || '').trim() : '';
 
       // Parse value
       let value = 0;
       if (columnMap.has('value')) {
-        const valueStr = String(row[columnMap.get('value')!] || '0');
+        const valueStr = String(rowArray[columnMap.get('value')!] || '0');
         const numStr = valueStr.replace(/[^0-9.-]/g, '');
         value = parseFloat(numStr) || 0;
       }
@@ -123,7 +124,7 @@ function processExcelData(worksheet: any, sheetName: string) {
       // Parse turnover
       let eligibilityTurnover = 0;
       if (columnMap.has('turnover')) {
-        const turnoverStr = String(row[columnMap.get('turnover')!] || '0');
+        const turnoverStr = String(rowArray[columnMap.get('turnover')!] || '0');
         const numStr = turnoverStr.replace(/[^0-9.-]/g, '');
         eligibilityTurnover = parseFloat(numStr) || 0;
       }
@@ -131,7 +132,7 @@ function processExcelData(worksheet: any, sheetName: string) {
       // Parse deadline
       let deadline = null;
       if (columnMap.has('deadline')) {
-        const deadlineValue = row[columnMap.get('deadline')!];
+        const deadlineValue = rowArray[columnMap.get('deadline')!];
         if (deadlineValue) {
           if (typeof deadlineValue === 'number') {
             // Excel date serial number
@@ -1237,7 +1238,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               const tenderStage = getField(['Tender Stage', 'Stage', 'Status', 'Phase']);
               const participatorBiddersStr = getField(['Participator Bidders', 'Bidders', 'Participants', 'Companies']);
               const participatorBidders = participatorBiddersStr ? 
-                participatorBiddersStr.split(/[,;]/).map(b => b.trim()).filter(b => b) : [];
+                participatorBiddersStr.split(/[,;]/).map((b: string) => b.trim()).filter((b: string) => b) : [];
               const resultDateStr = getField(['Result Date', 'Award Date', 'Date of Award', 'Contract Date']);
               const resultDate = resultDateStr ? new Date(resultDateStr) : new Date();
               
@@ -1351,8 +1352,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const results = await storage.getEnhancedTenderResults();
       res.json(results);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to fetch tender results" });
+    } catch (error: any) {
+      console.error("Error fetching enhanced tender results:", error);
+      res.status(500).json({ error: "Failed to fetch tender results", details: error.message });
     }
   });
 

@@ -311,8 +311,6 @@ export class MemStorage implements IStorage {
       id: randomUUID(),
       userId: adminUser.id,
       roleId: adminRole.id,
-      departmentId: adminDept.id,
-      assignedBy: null,
       assignedAt: new Date(),
     };
 
@@ -320,8 +318,6 @@ export class MemStorage implements IStorage {
       id: randomUUID(),
       userId: financeManager.id,
       roleId: financeRole.id,
-      departmentId: financeDept.id,
-      assignedBy: adminUser.id,
       assignedAt: new Date(),
     };
 
@@ -329,8 +325,6 @@ export class MemStorage implements IStorage {
       id: randomUUID(),
       userId: bidder.id,
       roleId: bidderRole.id,
-      departmentId: bidsDept.id,
-      assignedBy: adminUser.id,
       assignedAt: new Date(),
     };
 
@@ -347,6 +341,7 @@ export class MemStorage implements IStorage {
       value: 15000000,
       deadline: new Date(Date.now() + 45 * 24 * 60 * 60 * 1000),
       status: "active",
+      source: "non_gem",
       createdAt: new Date(),
       updatedAt: new Date(),
       aiScore: 95,
@@ -355,9 +350,9 @@ export class MemStorage implements IStorage {
         experience: "5+ years in smart city projects",
         location: "Delhi NCR" 
       },
-      documents: [],
-      bidContent: null,
-      submittedAt: null,
+      location: "Delhi NCR",
+      referenceNo: "SC/2025/01",
+      link: null,
     };
 
     const tender2: Tender = {
@@ -368,6 +363,7 @@ export class MemStorage implements IStorage {
       value: 25000000,
       deadline: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000),
       status: "active",
+      source: "non_gem",
       createdAt: new Date(),
       updatedAt: new Date(),
       aiScore: 88,
@@ -376,9 +372,9 @@ export class MemStorage implements IStorage {
         experience: "3+ years in road construction",
         location: "Mumbai" 
       },
-      documents: [],
-      bidContent: null,
-      submittedAt: null,
+      location: "Mumbai",
+      referenceNo: "PWD/2025/02",
+      link: null,
     };
 
     const tender3: Tender = {
@@ -389,6 +385,7 @@ export class MemStorage implements IStorage {
       value: 8000000,
       deadline: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
       status: "active",
+      source: "gem",
       createdAt: new Date(),
       updatedAt: new Date(),
       aiScore: 72,
@@ -397,14 +394,97 @@ export class MemStorage implements IStorage {
         experience: "2+ years in medical equipment",
         location: "Any" 
       },
-      documents: [],
-      bidContent: null,
-      submittedAt: null,
+      location: "Any",
+      referenceNo: "HEALTH/2025/03",
+      link: null,
     };
 
     this.tenders.set(tender1.id, tender1);
     this.tenders.set(tender2.id, tender2);
     this.tenders.set(tender3.id, tender3);
+
+    // Add sample enhanced tender results
+    const enhancedResult1: EnhancedTenderResult = {
+      id: randomUUID(),
+      tenderTitle: "Smart City Infrastructure Development",
+      organization: "Municipal Corporation",
+      referenceNo: "SC/2025/01",
+      location: "Delhi NCR",
+      department: "Infrastructure Development",
+      tenderValue: 15000000, // 150 lakhs estimated
+      contractValue: 14500000, // 145 lakhs actual
+      marginalDifference: -500000, // 5 lakh below estimate
+      tenderStage: "Completed",
+      ourBidValue: 14800000,
+      status: "won",
+      awardedTo: "TechConstruct Pvt Ltd",
+      awardedValue: 14500000,
+      participatorBidders: ["TechConstruct Pvt Ltd", "BuildCorp India", "Metro Infra Solutions", "City Developers Ltd", "Smart Solutions Inc"],
+      resultDate: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
+      assignedTo: bidder.id,
+      reasonForLoss: null,
+      missedReason: null,
+      companyEligible: true,
+      aiMatchScore: 95,
+      notes: "Successfully executed with quality standards",
+      createdAt: new Date(),
+    };
+
+    const enhancedResult2: EnhancedTenderResult = {
+      id: randomUUID(),
+      tenderTitle: "Tax Collection Software Implementation",
+      organization: "Revenue Department",
+      referenceNo: "TAX/2025/02",
+      location: "Mumbai",
+      department: "IT Department",
+      tenderValue: 8000000, // 80 lakhs estimated
+      contractValue: 7500000, // 75 lakhs actual
+      marginalDifference: -500000,
+      tenderStage: "Completed",
+      ourBidValue: 7800000,
+      status: "lost",
+      awardedTo: "TaxSoft Solutions",
+      awardedValue: 7500000,
+      participatorBidders: ["TechConstruct Pvt Ltd", "TaxSoft Solutions", "Revenue Systems Ltd", "Digital Tax Corp"],
+      resultDate: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000),
+      assignedTo: bidder.id,
+      reasonForLoss: "Lower price offered by competitor",
+      missedReason: null,
+      companyEligible: true,
+      aiMatchScore: 85,
+      notes: "Lost on pricing despite technical superiority",
+      createdAt: new Date(),
+    };
+
+    const enhancedResult3: EnhancedTenderResult = {
+      id: randomUUID(),
+      tenderTitle: "Medical Equipment Supply and Installation",
+      organization: "State Health Department",
+      referenceNo: "HEALTH/2025/03",
+      location: "Chennai",
+      department: "Procurement Division",
+      tenderValue: 5000000, // 50 lakhs estimated
+      contractValue: 4800000, // 48 lakhs actual
+      marginalDifference: -200000,
+      tenderStage: "Completed",
+      ourBidValue: null,
+      status: "missed_opportunity",
+      awardedTo: "MedTech Supplies",
+      awardedValue: 4800000,
+      participatorBidders: ["MedTech Supplies", "HealthCare Solutions", "Medical Systems India"],
+      resultDate: new Date(Date.now() - 21 * 24 * 60 * 60 * 1000),
+      assignedTo: null,
+      reasonForLoss: null,
+      missedReason: "Tender was not assigned to any bidder",
+      companyEligible: false,
+      aiMatchScore: 45,
+      notes: "Low AI match due to lack of medical equipment experience",
+      createdAt: new Date(),
+    };
+
+    this.enhancedTenderResults.set(enhancedResult1.id, enhancedResult1);
+    this.enhancedTenderResults.set(enhancedResult2.id, enhancedResult2);
+    this.enhancedTenderResults.set(enhancedResult3.id, enhancedResult3);
 
     // Initialize company settings
     this.companySettings = {
@@ -460,8 +540,11 @@ export class MemStorage implements IStorage {
       ...insertTender,
       id,
       description: insertTender.description || null,
+      source: insertTender.source || "non_gem",
       createdAt: new Date(),
       updatedAt: new Date(),
+      aiScore: null,
+      link: null,
     };
     this.tenders.set(id, tender);
     return tender;
@@ -918,8 +1001,6 @@ export class MemStorage implements IStorage {
       assignedAt: new Date(),
       userId: insertUserRole.userId || null,
       roleId: insertUserRole.roleId || null,
-      departmentId: insertUserRole.departmentId || null,
-      assignedBy: insertUserRole.assignedBy || null,
     };
     this.userRoles.set(id, userRole);
     return userRole;
@@ -1011,6 +1092,113 @@ export class MemStorage implements IStorage {
     // Partial match based on how close we are
     const ratio = companyTurnover / requiredTurnover;
     return Math.max(30, Math.min(85, Math.floor(ratio * 100)));
+  }
+  
+  // Calculate AI match score with detailed breakdown
+  async calculateAIMatchWithBreakdown(tender: Tender, companySettings: CompanySettings | undefined): Promise<{
+    overallScore: number;
+    breakdown: {
+      criterion: string;
+      requirement: string;
+      companyCapability: string;
+      met: boolean;
+      score: number;
+      reason?: string;
+    }[];
+  }> {
+    if (!companySettings) {
+      return {
+        overallScore: 0,
+        breakdown: [{
+          criterion: 'Company Settings',
+          requirement: 'Company criteria configured',
+          companyCapability: 'Not configured',
+          met: false,
+          score: 0,
+          reason: 'Please configure company settings first'
+        }]
+      };
+    }
+
+    const breakdown: any[] = [];
+    let totalScore = 0;
+    let totalCriteria = 0;
+
+    // Check turnover eligibility
+    const requirements = tender.requirements as any;
+    if (requirements?.turnover) {
+      totalCriteria++;
+      const parseAmount = (str: string): number => {
+        const match = str.match(/(\d+(?:\.\d+)?)\s*cr/i);
+        return match ? parseFloat(match[1]) : 0;
+      };
+      
+      const requiredTurnover = parseAmount(requirements.turnover);
+      const companyTurnover = parseAmount(companySettings.turnoverCriteria);
+      
+      let criterionScore = 0;
+      let met = false;
+      let reason = '';
+      
+      if (requirements.turnover.toLowerCase().includes("exempted")) {
+        criterionScore = 100;
+        met = true;
+        reason = 'Turnover requirement exempted';
+      } else if (requiredTurnover === 0) {
+        criterionScore = 85;
+        met = true;
+        reason = 'Manual review required - Turnover requirement not specified';
+      } else if (companyTurnover >= requiredTurnover) {
+        criterionScore = 100;
+        met = true;
+        reason = 'Turnover requirement met';
+      } else {
+        const ratio = companyTurnover / requiredTurnover;
+        if (ratio === 0) {
+          criterionScore = 0;
+          reason = 'Turnover not eligible';
+        } else if (ratio < 0.5) {
+          criterionScore = 30;
+          reason = 'Significantly below required turnover';
+        } else if (ratio < 0.8) {
+          criterionScore = 70;
+          reason = 'Below required turnover but within range';
+        } else {
+          criterionScore = 90;
+          reason = 'Close to required turnover';
+        }
+      }
+      
+      breakdown.push({
+        criterion: 'Annual Turnover',
+        requirement: requiredTurnover > 0 ? `₹${requiredTurnover} Crores` : 'Not specified',
+        companyCapability: `₹${companyTurnover} Crores`,
+        met,
+        score: criterionScore,
+        reason
+      });
+      
+      totalScore += criterionScore;
+    } else {
+      // No turnover requirement specified
+      totalCriteria++;
+      totalScore += 100;
+      breakdown.push({
+        criterion: 'Annual Turnover',
+        requirement: 'Not specified',
+        companyCapability: companySettings.turnoverCriteria,
+        met: true,
+        score: 100,
+        reason: 'No turnover requirement - Exempted'
+      });
+    }
+
+    const overallScore = totalCriteria > 0 ? Math.round(totalScore / totalCriteria) : 0;
+    
+    return {
+      overallScore,
+      breakdown
+    };
   }
 
   // Tender Results Import Methods
@@ -1118,7 +1306,7 @@ export class MemStorage implements IStorage {
   }
 }
 
-import { DatabaseStorage } from "./database-storage";
+// import { DatabaseStorage } from "./database-storage";
 
-// Use database storage for scalable backend
-export const storage = new DatabaseStorage() as IStorage;
+// Use memory storage for now to avoid database schema issues
+export const storage = new MemStorage() as IStorage;

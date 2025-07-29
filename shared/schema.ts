@@ -300,6 +300,31 @@ export type InsertRole = z.infer<typeof insertRoleSchema>;
 export type UserRole = typeof userRoles.$inferSelect;
 export type InsertUserRole = z.infer<typeof insertUserRoleSchema>;
 
+export type CompanySettings = typeof companySettings.$inferSelect;
+export type InsertCompanySettings = z.infer<typeof insertCompanySettingsSchema>;
+
+export type ExcelUpload = typeof excelUploads.$inferSelect;
+export type InsertExcelUpload = z.infer<typeof insertExcelUploadSchema>;
+
+export type TenderResultsImport = typeof tenderResultsImports.$inferSelect;
+export type InsertTenderResultsImport = z.infer<typeof insertTenderResultsImportSchema>;
+
+export type EnhancedTenderResult = typeof enhancedTenderResults.$inferSelect;
+export type InsertEnhancedTenderResult = z.infer<typeof insertEnhancedTenderResultSchema>;
+export type InsertTenderResult = z.infer<typeof insertTenderResultSchema>;
+
+export type Checklist = typeof checklists.$inferSelect;
+export type InsertChecklist = z.infer<typeof insertChecklistSchema>;
+
+export type Department = typeof departments.$inferSelect;
+export type InsertDepartment = z.infer<typeof insertDepartmentSchema>;
+
+export type Role = typeof roles.$inferSelect;
+export type InsertRole = z.infer<typeof insertRoleSchema>;
+
+export type UserRole = typeof userRoles.$inferSelect;
+export type InsertUserRole = z.infer<typeof insertUserRoleSchema>;
+
 // API Response types
 export type DashboardStats = {
   activeTenders: number;
