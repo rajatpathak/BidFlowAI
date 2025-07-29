@@ -287,13 +287,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (companySettings && tender.requirements) {
           const requirements = typeof tender.requirements === 'object' ? tender.requirements : {};
           const turnoverReq = parseFloat((requirements as any).turnover || '0');
-          const companyTurnover = companySettings.annualTurnover || 0;
+          
+          // Parse company turnover from string (e.g., "5 Crores" -> 50000000)
+          let companyTurnover = 0;
+          if (companySettings.turnoverCriteria) {
+            const turnoverStr = companySettings.turnoverCriteria.toLowerCase();
+            const match = turnoverStr.match(/(\d+\.?\d*)\s*(crore|cr|lakh|lac|million|m)/);
+            if (match) {
+              const value = parseFloat(match[1]);
+              const unit = match[2];
+              if (unit.includes('crore') || unit === 'cr') {
+                companyTurnover = value * 10000000; // 1 crore = 10 million
+              } else if (unit.includes('lakh') || unit === 'lac') {
+                companyTurnover = value * 100000; // 1 lakh = 100 thousand
+              } else if (unit.includes('million') || unit === 'm') {
+                companyTurnover = value * 1000000;
+              }
+            }
+          }
           
           // AI Scoring logic:
           // 1. If turnover is exempted (0 or not specified), give 100% match
           // 2. If company turnover meets or exceeds requirement, give 100% match
-          // 3. If company turnover is less, calculate proportional score
-          // 4. If no clear turnover requirement, give 85% (needs manual review)
+          // 3. If company turnover is less but > 50%, give proportional score
+          // 4. If company turnover is < 50% of requirement, not eligible (0%)
+          // 5. If no clear requirement, give 85% (needs manual review)
           
           if (turnoverReq === 0) {
             // Turnover exempted or not specified
@@ -303,7 +321,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
             aiScore = 100;
           } else if (companyTurnover > 0 && turnoverReq > 0) {
             // Calculate proportional score
-            aiScore = Math.round((companyTurnover / turnoverReq) * 100);
+            const ratio = companyTurnover / turnoverReq;
+            if (ratio >= 0.8) {
+              aiScore = 90; // Very close match
+            } else if (ratio >= 0.5) {
+              aiScore = 70; // Moderate match
+            } else {
+              aiScore = 30; // Poor match
+            }
           } else {
             // No clear requirement, needs manual review
             aiScore = 85;
