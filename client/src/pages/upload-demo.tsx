@@ -138,9 +138,18 @@ export default function UploadDemoPage() {
     if (!resultsFile) return;
     
     setIsUploading(true);
+    setUploadProgress(0);
     const formData = new FormData();
     formData.append("resultsFile", resultsFile);
     formData.append("uploadedBy", "admin");
+
+    // Simulate progress updates
+    const progressInterval = setInterval(() => {
+      setUploadProgress(prev => {
+        if (prev >= 90) return prev;
+        return prev + Math.random() * 15;
+      });
+    }, 500);
 
     try {
       const response = await fetch("/api/tender-results-imports", {
@@ -148,8 +157,12 @@ export default function UploadDemoPage() {
         body: formData,
       });
 
+      clearInterval(progressInterval);
+      setUploadProgress(100);
+
       if (!response.ok) {
-        throw new Error("Upload failed");
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Upload failed");
       }
 
       const result = await response.json();
@@ -160,13 +173,16 @@ export default function UploadDemoPage() {
       
       setResultsFile(null);
     } catch (error) {
+      clearInterval(progressInterval);
+      console.error('Results upload error:', error);
       toast({
         title: "Upload failed",
-        description: "Failed to process results file. Please check the format and try again.",
+        description: error instanceof Error ? error.message : "Failed to process results file. Please check the format and try again.",
         variant: "destructive",
       });
     } finally {
       setIsUploading(false);
+      setTimeout(() => setUploadProgress(0), 1000);
     }
   };
 
@@ -381,16 +397,29 @@ export default function UploadDemoPage() {
                 </div>
               </div>
 
-              <div className="flex justify-center">
-                <Button
-                  onClick={handleResultsUpload}
-                  disabled={!resultsFile || isUploading}
-                  className="px-8 py-2"
-                  size="lg"
-                >
-                  <Upload className="h-4 w-4 mr-2" />
-                  {isUploading ? "Processing..." : "Upload Tender Results"}
-                </Button>
+              <div className="space-y-4">
+                <div className="flex justify-center">
+                  <Button
+                    onClick={handleResultsUpload}
+                    disabled={!resultsFile || isUploading}
+                    className="px-8 py-2"
+                    size="lg"
+                  >
+                    <Upload className="h-4 w-4 mr-2" />
+                    {isUploading ? "Processing..." : "Upload Tender Results"}
+                  </Button>
+                </div>
+                
+                {/* Progress Bar */}
+                {isUploading && (
+                  <div className="space-y-2 max-w-md mx-auto">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-gray-600">Uploading and processing results...</span>
+                      <span className="font-medium">{Math.round(uploadProgress)}%</span>
+                    </div>
+                    <Progress value={uploadProgress} className="h-2" />
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>

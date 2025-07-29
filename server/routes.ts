@@ -1211,12 +1211,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
           for (const row of data) {
             try {
               const r = row as any; // Type assertion for Excel data
-              const tenderTitle = r['Title'] || r['Tender Title'] || r['Work Description'] || "";
-              const organization = r['Organization'] || r['Dept'] || r['Department'] || "";
-              const referenceNo = r['Reference No'] || r['Ref No'] || r['ID'] || "";
-              const awardedTo = r['Awarded To'] || r['Winner'] || r['Selected Company'] || "";
-              const awardedValue = parseFloat(r['Awarded Value'] || r['Winning Amount'] || r['Final Value'] || "0") * 100;
-              const resultDate = r['Result Date'] || r['Award Date'] || new Date();
+              
+              // Be more flexible with column names
+              const getField = (fieldNames: string[]) => {
+                for (const name of fieldNames) {
+                  if (r[name] !== undefined && r[name] !== null && r[name] !== '') {
+                    return r[name];
+                  }
+                }
+                return "";
+              };
+              
+              const tenderTitle = getField(['Title', 'Tender Title', 'Work Description', 'Work Name', 'Brief Description']);
+              const organization = getField(['Organization', 'Dept', 'Department', 'Ministry', 'Company']);
+              const referenceNo = getField(['Reference No', 'Ref No', 'ID', 'T247 ID', 'Tender ID', 'Reference']);
+              const awardedTo = getField(['Awarded To', 'Winner', 'Selected Company', 'L1 Bidder', 'Contract Awarded To']);
+              const awardedValueStr = getField(['Awarded Value', 'Winning Amount', 'Final Value', 'Contract Value', 'L1 Amount']);
+              const awardedValue = parseFloat(awardedValueStr.toString().replace(/[^0-9.-]/g, '') || "0") * 100;
+              const resultDateStr = getField(['Result Date', 'Award Date', 'Date of Award', 'Contract Date']);
+              const resultDate = resultDateStr ? new Date(resultDateStr) : new Date();
               
               // Find if this tender was assigned to any of our bidders
               const assignment = assignments.find(a => 
@@ -1258,22 +1271,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 }
               }
 
+              // Skip if no title (empty row)
+              if (!tenderTitle) {
+                continue;
+              }
+              
+              const tenderValueStr = getField(['Tender Value', 'EMD', 'Estimated Value', 'Tender Amount']);
+              const ourBidValueStr = getField(['Our Bid', 'Our Amount', 'Our Quote', 'Bid Value']);
+              
               await storage.createEnhancedTenderResult({
                 tenderTitle,
                 organization,
                 referenceNo,
-                tenderValue: parseFloat(r['Tender Value'] || r['EMD'] || "0") * 100,
-                ourBidValue: parseFloat(r['Our Bid'] || r['Our Amount'] || "0") * 100,
+                tenderValue: parseFloat(tenderValueStr.toString().replace(/[^0-9.-]/g, '') || "0") * 100,
+                ourBidValue: parseFloat(ourBidValueStr.toString().replace(/[^0-9.-]/g, '') || "0") * 100,
                 status,
                 awardedTo,
                 awardedValue,
-                resultDate: new Date(resultDate),
+                resultDate: resultDate instanceof Date && !isNaN(resultDate.getTime()) ? resultDate : new Date(),
                 assignedTo,
-                reasonForLoss: r['Reason'] || r['Comments'] || null,
+                reasonForLoss: getField(['Reason', 'Comments', 'Remarks', 'Loss Reason']) || null,
                 missedReason: status === "missed_opportunity" ? missedReason : null,
                 companyEligible,
-                aiMatchScore: companySettings ? await storage.calculateAIMatch({ requirements: { turnover: r['Turnover Requirement'] || "" } } as any, companySettings) : null,
-                notes: r['Notes'] || r['Remarks'] || null,
+                aiMatchScore: companySettings ? await storage.calculateAIMatch({ requirements: { turnover: getField(['Turnover Requirement', 'Eligibility', 'Turnover']) || "" } } as any, companySettings) : null,
+                notes: getField(['Notes', 'Remarks', 'Comments']) || null,
               });
 
               totalResultsProcessed++;
