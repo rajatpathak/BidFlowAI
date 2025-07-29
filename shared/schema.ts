@@ -355,6 +355,7 @@ export const companySettings = pgTable("company_settings", {
   establishedYear: integer("established_year"),
   certifications: text("certifications").array(),
   businessSectors: text("business_sectors").array(),
+  projectTypes: text("project_types").array(), // e.g., ["mobile", "web", "software", "tax collection", "infrastructure"]
   updatedAt: timestamp("updated_at").defaultNow(),
   updatedBy: varchar("updated_by"),
 });

@@ -373,6 +373,34 @@ export class DatabaseStorage implements IStorage {
       score += sectorMatch ? 100 : 60; // Sector match bonus
     }
 
+    // Check project types alignment
+    if (companySettings.projectTypes && companySettings.projectTypes.length > 0) {
+      totalCriteria++;
+      const tenderText = (tender.title + ' ' + (tender.description || '') + ' ' + JSON.stringify(tender.requirements || {})).toLowerCase();
+      
+      // Define keywords for each project type
+      const projectTypeKeywords: Record<string, string[]> = {
+        'mobile': ['mobile app', 'android', 'ios', 'smartphone', 'mobile application'],
+        'web': ['website', 'web application', 'web portal', 'online platform', 'web development'],
+        'software': ['software', 'application', 'system', 'platform', 'solution'],
+        'tax collection': ['tax', 'revenue', 'collection', 'e-tax', 'tax system'],
+        'infrastructure': ['infrastructure', 'construction', 'building', 'roads', 'civil works'],
+        'hardware': ['hardware', 'equipment', 'device', 'machine', 'installation'],
+        'consulting': ['consulting', 'advisory', 'consultancy', 'study', 'assessment']
+      };
+      
+      let projectTypeMatch = false;
+      for (const projectType of companySettings.projectTypes) {
+        const keywords = projectTypeKeywords[projectType.toLowerCase()] || [projectType.toLowerCase()];
+        if (keywords.some(keyword => tenderText.includes(keyword))) {
+          projectTypeMatch = true;
+          break;
+        }
+      }
+      
+      score += projectTypeMatch ? 100 : 40; // Project type match bonus
+    }
+
     // Check certifications alignment
     if (companySettings.certifications && companySettings.certifications.length > 0) {
       totalCriteria++;

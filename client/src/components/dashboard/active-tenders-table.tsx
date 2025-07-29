@@ -370,7 +370,7 @@ export default function ActiveTendersTable() {
           <div className="p-4">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {displayedTenders.map((tender) => {
-                const requirements = tender.requirements || {};
+                const requirements = (tender.requirements || {}) as any;
                 const refId = requirements.refId || '';
                 const location = requirements.location || '';
                 const turnover = requirements.turnover || '0';
@@ -553,11 +553,11 @@ export default function ActiveTendersTable() {
                     <div>
                       <p className="text-sm text-gray-500">GEM/Non-GEM:</p>
                       <Badge className={`text-xs font-medium ${
-                        selectedTender.requirements?.source === 'gem'
+                        (selectedTender.requirements as any)?.source === 'gem'
                           ? 'bg-emerald-100 text-emerald-700' 
                           : 'bg-amber-100 text-amber-700'
                       }`}>
-                        {selectedTender.requirements?.source === 'gem' ? 'GEM' : 'NON-GEM'}
+                        {(selectedTender.requirements as any)?.source === 'gem' ? 'GEM' : 'NON-GEM'}
                       </Badge>
                     </div>
                   </div>
@@ -601,7 +601,7 @@ export default function ActiveTendersTable() {
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <p className="text-sm text-gray-500">Tender ID:</p>
-                        <p className="text-sm font-medium">{selectedTender.requirements?.refId || selectedTender.id}</p>
+                        <p className="text-sm font-medium">{(selectedTender.requirements as any)?.refId || selectedTender.id}</p>
                       </div>
                       <div>
                         <p className="text-sm text-gray-500">Organization:</p>
@@ -633,16 +633,40 @@ export default function ActiveTendersTable() {
                       </div>
                     </div>
                     <div>
-                      <p className="text-sm text-gray-500">AI Summary:</p>
-                      <div className="mt-2 flex gap-2">
-                        <Button size="sm" variant="outline">
-                          <ExternalLink className="h-4 w-4 mr-1" />
-                          PDF Download
-                        </Button>
-                        <Button size="sm" variant="outline">
-                          <ExternalLink className="h-4 w-4 mr-1" />
-                          Excel Download
-                        </Button>
+                      <p className="text-sm text-gray-500">AI Analysis:</p>
+                      <div className="mt-2 space-y-2">
+                        <div className="bg-blue-50 p-3 rounded">
+                          <p className="text-sm font-medium text-blue-900 mb-1">Eligibility Analysis:</p>
+                          <ul className="text-xs text-blue-800 space-y-1">
+                            <li>• Turnover Requirement: {(selectedTender.requirements as any)?.turnover || 'Not specified'}</li>
+                            <li>• Your Turnover: 5 Crores (Company Setting)</li>
+                            <li>• Match Score: {selectedTender.aiScore || 0}%</li>
+                            {(selectedTender.aiScore || 0) >= 85 ? (
+                              <li className="text-green-700 font-medium">✓ Eligible for this tender</li>
+                            ) : (selectedTender.aiScore || 0) >= 70 ? (
+                              <li className="text-yellow-700 font-medium">⚠ Moderate match - Review requirements</li>
+                            ) : (
+                              <li className="text-red-700 font-medium">✗ Low match - May not meet criteria</li>
+                            )}
+                          </ul>
+                        </div>
+                        <div className="bg-gray-50 p-3 rounded">
+                          <p className="text-sm font-medium text-gray-700 mb-1">Project Type Analysis:</p>
+                          <p className="text-xs text-gray-600">
+                            This tender appears to be for {(selectedTender.requirements as any)?.source === 'gem' ? 'government procurement' : 'general procurement'}.
+                            The AI will analyze project type alignment based on your configured project types in settings.
+                          </p>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button size="sm" variant="outline">
+                            <ExternalLink className="h-4 w-4 mr-1" />
+                            PDF Download
+                          </Button>
+                          <Button size="sm" variant="outline">
+                            <ExternalLink className="h-4 w-4 mr-1" />
+                            Excel Download
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -656,7 +680,7 @@ export default function ActiveTendersTable() {
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <p className="text-sm text-gray-500">GSIT ID:</p>
-                      <p className="text-sm font-medium">{selectedTender.requirements?.refId || '90005120'}</p>
+                      <p className="text-sm font-medium">{(selectedTender.requirements as any)?.refId || '90005120'}</p>
                     </div>
                     <div>
                       <p className="text-sm text-gray-500">Quantity:</p>
@@ -668,7 +692,7 @@ export default function ActiveTendersTable() {
                     </div>
                     <div>
                       <p className="text-sm text-gray-500">Site Location:</p>
-                      <p className="text-sm font-medium">{selectedTender.requirements?.location || 'New Delhi, Delhi'}</p>
+                      <p className="text-sm font-medium">{(selectedTender.requirements as any)?.location || 'New Delhi, Delhi'}</p>
                     </div>
                     <div>
                       <p className="text-sm text-gray-500">Contact Person:</p>
@@ -679,10 +703,10 @@ export default function ActiveTendersTable() {
                       <p className="text-sm font-medium">Refer To Documents</p>
                     </div>
                   </div>
-                  {selectedTender.requirements?.link && (
+                  {(selectedTender.requirements as any)?.link && (
                     <div className="mt-4">
                       <Button asChild>
-                        <a href={selectedTender.requirements.link} target="_blank" rel="noopener noreferrer">
+                        <a href={(selectedTender.requirements as any).link} target="_blank" rel="noopener noreferrer">
                           <ExternalLink className="h-4 w-4 mr-2" />
                           View Tender on Website
                         </a>

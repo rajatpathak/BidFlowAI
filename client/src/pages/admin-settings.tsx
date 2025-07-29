@@ -32,6 +32,7 @@ type CompanySettings = {
   establishedYear: number | null;
   certifications: string[] | null;
   businessSectors: string[] | null;
+  projectTypes: string[] | null;
   updatedAt: Date | null;
   updatedBy: string | null;
 };
@@ -51,6 +52,7 @@ type ExcelUpload = {
 const companySettingsFormSchema = insertCompanySettingsSchema.extend({
   certifications: z.string().optional(),
   businessSectors: z.string().optional(),
+  projectTypes: z.string().optional(),
 });
 
 export default function AdminSettingsPage() {
@@ -75,6 +77,7 @@ export default function AdminSettingsPage() {
       establishedYear: companySettings?.establishedYear || undefined,
       certifications: companySettings?.certifications?.join(", ") || "",
       businessSectors: companySettings?.businessSectors?.join(", ") || "",
+      projectTypes: companySettings?.projectTypes?.join(", ") || "",
     },
   });
 
@@ -88,6 +91,7 @@ export default function AdminSettingsPage() {
         establishedYear: companySettings.establishedYear || undefined,
         certifications: companySettings.certifications?.join(", ") || "",
         businessSectors: companySettings.businessSectors?.join(", ") || "",
+        projectTypes: companySettings.projectTypes?.join(", ") || "",
       });
     }
   });
@@ -98,6 +102,7 @@ export default function AdminSettingsPage() {
         ...data,
         certifications: data.certifications ? data.certifications.split(",").map(s => s.trim()) : [],
         businessSectors: data.businessSectors ? data.businessSectors.split(",").map(s => s.trim()) : [],
+        projectTypes: data.projectTypes ? data.projectTypes.split(",").map(s => s.trim()) : [],
       };
       
       const response = await fetch("/api/company-settings", {
@@ -311,6 +316,23 @@ export default function AdminSettingsPage() {
                         <FormControl>
                           <Input 
                             placeholder="Infrastructure, IT Solutions, Construction (comma separated)" 
+                            {...field} 
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={settingsForm.control}
+                    name="projectTypes"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Project Types</FormLabel>
+                        <FormControl>
+                          <Input 
+                            placeholder="mobile, web, software, tax collection, infrastructure (comma separated)" 
                             {...field} 
                           />
                         </FormControl>

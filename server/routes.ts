@@ -148,13 +148,30 @@ function processExcelData(worksheet: any, sheetName: string) {
         }
       }
 
-      // Extract hyperlink if available (for title cell)
+      // Extract hyperlink if available (check both title and tender brief columns)
       let link = '';
+      
+      // First try to get link from title column
       if (columnMap.has('title')) {
         const titleCell = worksheet[XLSX.utils.encode_cell({r: rowIndex + 1, c: columnMap.get('title')!})];
         if (titleCell && titleCell.l && titleCell.l.Target) {
           link = titleCell.l.Target;
+          console.log(`Found link in title column: ${link}`);
         }
+      }
+      
+      // If no link found in title, check tender brief column
+      if (!link && columnMap.has('tender brief')) {
+        const briefCell = worksheet[XLSX.utils.encode_cell({r: rowIndex + 1, c: columnMap.get('tender brief')!})];
+        if (briefCell && briefCell.l && briefCell.l.Target) {
+          link = briefCell.l.Target;
+          console.log(`Found link in tender brief column: ${link}`);
+        }
+      }
+      
+      // Debug log to check what we're getting
+      if (!link) {
+        console.log(`No hyperlink found for row ${rowIndex + 2} with title: ${title.substring(0, 50)}...`);
       }
       
       return {

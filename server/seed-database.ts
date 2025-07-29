@@ -90,6 +90,7 @@ export async function seedDatabase() {
       turnoverCriteria: "5 Crores",
       businessSectors: ["Construction", "Infrastructure", "Roads", "Buildings", "Civil Engineering"],
       certifications: ["ISO 9001", "ISO 14001", "OHSAS 18001", "CPWD", "PWD"],
+      projectTypes: ["mobile", "web", "software", "infrastructure", "construction"],
       headquarters: "Tech Park, Sector 5, Gurgaon, Haryana 122001",
       establishedYear: 2015,
       updatedBy: adminUser.id,
