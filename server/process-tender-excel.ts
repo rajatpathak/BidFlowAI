@@ -101,9 +101,6 @@ export async function processTenderExcelFile(filePath: string) {
             deadline,
             status: 'active',
             source,
-            location,
-            referenceNo,
-            link: link || null,
             requirements: {
               turnover: turnoverStr || "",
               referenceNo: referenceNo || "",
