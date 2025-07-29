@@ -330,6 +330,11 @@ export type DashboardStats = {
   activeTenders: number;
   winRate: number;
   totalValue: number;
+  wonValue?: number;
+  lostValue?: number;
+  totalWon?: number;
+  totalLost?: number;
+  totalParticipated?: number;
   aiScore: number;
   trendActiveTenders: number;
   trendWinRate: number;

@@ -80,6 +80,9 @@ export default function TenderResultsPage() {
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [statusFilter, setStatusFilter] = useState("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 50;
   const { toast } = useToast();
 
   const { data: results = [], isLoading: resultsLoading } = useQuery<EnhancedTenderResult[]>({
@@ -166,9 +169,25 @@ export default function TenderResultsPage() {
     }).format(amount / 100);
   };
 
-  const filteredResults = (statusFilter === "all" 
-    ? results 
-    : results.filter(r => r.status === statusFilter))
+  const filteredResults = results
+    .filter(r => {
+      // Status filter
+      if (statusFilter !== "all" && r.status !== statusFilter) return false;
+      
+      // Search filter
+      if (searchQuery) {
+        const query = searchQuery.toLowerCase();
+        return (
+          r.tenderTitle.toLowerCase().includes(query) ||
+          r.organization.toLowerCase().includes(query) ||
+          (r.location && r.location.toLowerCase().includes(query)) ||
+          (r.referenceNo && r.referenceNo.toLowerCase().includes(query)) ||
+          (r.awardedTo && r.awardedTo.toLowerCase().includes(query))
+        );
+      }
+      
+      return true;
+    })
     .sort((a, b) => {
       // Check if Appentus won
       const aIsAppentusWon = a.awardedTo?.toLowerCase().includes("appentus");
@@ -191,6 +210,13 @@ export default function TenderResultsPage() {
       // Sort by date for same category
       return new Date(b.resultDate || 0).getTime() - new Date(a.resultDate || 0).getTime();
     });
+  
+  // Pagination
+  const totalPages = Math.ceil(filteredResults.length / itemsPerPage);
+  const paginatedResults = filteredResults.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
 
   // Calculate statistics
   const stats = {
@@ -287,20 +313,36 @@ export default function TenderResultsPage() {
           {/* Filters */}
           <Card>
             <CardContent className="p-4">
-              <div className="flex items-center gap-4">
-                <Label htmlFor="status-filter">Filter by Status:</Label>
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger id="status-filter" className="w-48">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Results</SelectItem>
-                    <SelectItem value="won">Won</SelectItem>
-                    <SelectItem value="lost">Lost</SelectItem>
-                    <SelectItem value="rejected">Rejected</SelectItem>
-                    <SelectItem value="missed_opportunity">Missed Opportunities</SelectItem>
-                  </SelectContent>
-                </Select>
+              <div className="flex flex-col md:flex-row items-center gap-4">
+                <div className="flex items-center gap-4 flex-1">
+                  <Input
+                    placeholder="Search by title, organization, location..."
+                    value={searchQuery}
+                    onChange={(e) => {
+                      setSearchQuery(e.target.value);
+                      setCurrentPage(1);
+                    }}
+                    className="max-w-md"
+                  />
+                </div>
+                <div className="flex items-center gap-4">
+                  <Label htmlFor="status-filter">Filter by Status:</Label>
+                  <Select value={statusFilter} onValueChange={(value) => {
+                    setStatusFilter(value);
+                    setCurrentPage(1);
+                  }}>
+                    <SelectTrigger id="status-filter" className="w-48">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Results</SelectItem>
+                      <SelectItem value="won">Won</SelectItem>
+                      <SelectItem value="lost">Lost</SelectItem>
+                      <SelectItem value="rejected">Rejected</SelectItem>
+                      <SelectItem value="missed_opportunity">Missed Opportunities</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -331,7 +373,7 @@ export default function TenderResultsPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredResults.map((result) => (
+                    {paginatedResults.map((result) => (
                       <TableRow key={result.id}>
                         {/* Tender Reference No */}
                         <TableCell>
@@ -434,7 +476,7 @@ export default function TenderResultsPage() {
                         
                         {/* Participator Bidders */}
                         <TableCell>
-                          <div className="flex flex-wrap gap-1 max-w-xs">
+                          <div className="max-w-[200px]">
                             {result.participatorBidders && result.participatorBidders.length > 0 ? (
                               (() => {
                                 // Sort bidders to put Appentus first
@@ -446,22 +488,27 @@ export default function TenderResultsPage() {
                                   return 0;
                                 });
                                 
-                                return sortedBidders.map((bidder, index) => {
-                                  const isAppentus = bidder.toLowerCase().includes("appentus");
-                                  return (
-                                    <Badge
-                                      key={index}
-                                      variant={isAppentus ? "default" : "secondary"}
-                                      className={`text-xs cursor-pointer ${
-                                        isAppentus 
-                                          ? "bg-blue-600 text-white hover:bg-blue-700" 
-                                          : "hover:bg-secondary/80"
-                                      }`}
-                                    >
-                                      • {bidder}
-                                    </Badge>
-                                  );
-                                });
+                                const displayCount = 2;
+                                const visibleBidders = sortedBidders.slice(0, displayCount);
+                                const remainingCount = sortedBidders.length - displayCount;
+                                
+                                return (
+                                  <div className="flex flex-col gap-1">
+                                    {visibleBidders.map((bidder, index) => {
+                                      const isAppentus = bidder.toLowerCase().includes("appentus");
+                                      return (
+                                        <div key={index} className={`text-xs ${isAppentus ? "font-semibold text-blue-600" : "text-gray-600"}`}>
+                                          {isAppentus && "• "}{bidder}
+                                        </div>
+                                      );
+                                    })}
+                                    {remainingCount > 0 && (
+                                      <span className="text-xs text-gray-400 cursor-pointer hover:text-gray-600" title={sortedBidders.join(", ")}>
+                                        ...+{remainingCount} more
+                                      </span>
+                                    )}
+                                  </div>
+                                );
                               })()
                             ) : (
                               <span className="text-gray-400 text-xs">No bidders info</span>
@@ -490,6 +537,36 @@ export default function TenderResultsPage() {
                   </TableBody>
                 </Table>
               </div>
+              
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between px-2 py-4">
+                  <div className="text-sm text-gray-600">
+                    Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, filteredResults.length)} of {filteredResults.length} results
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                      disabled={currentPage === 1}
+                    >
+                      Previous
+                    </Button>
+                    <span className="text-sm text-gray-600">
+                      Page {currentPage} of {totalPages}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                      disabled={currentPage === totalPages}
+                    >
+                      Next
+                    </Button>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

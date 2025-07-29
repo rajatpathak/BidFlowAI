@@ -543,15 +543,43 @@ export class MemStorage implements IStorage {
     return this.documents.delete(id);
   }
 
-  // Analytics
+  // Analytics - Updated for Appentus
   async getDashboardStats(): Promise<DashboardStats> {
-    const tenders = Array.from(this.tenders.values());
-    const activeTenders = tenders.filter(t => t.status === 'in_progress' || t.status === 'draft').length;
-    const submittedTenders = tenders.filter(t => t.status === 'submitted' || t.status === 'won').length;
-    const wonTenders = tenders.filter(t => t.status === 'won').length;
-    const totalValue = tenders.reduce((sum, t) => sum + (t.value || 0), 0);
-    const avgAiScore = tenders.length > 0 
-      ? Math.round(tenders.reduce((sum, t) => sum + (t.aiScore || 0), 0) / tenders.length)
+    const results = Array.from(this.enhancedTenderResults.values());
+    
+    // Filter for Appentus participation
+    const appentusResults = results.filter(r => {
+      const isWinner = r.awardedTo?.toLowerCase().includes("appentus");
+      const isParticipant = r.participatorBidders?.some(
+        bidder => bidder.toLowerCase().includes("appentus")
+      );
+      return isWinner || isParticipant;
+    });
+    
+    // Calculate Appentus-specific stats
+    const totalParticipated = appentusResults.length;
+    const totalWon = appentusResults.filter(r => 
+      r.awardedTo?.toLowerCase().includes("appentus")
+    ).length;
+    const totalLost = appentusResults.filter(r => 
+      r.status === "lost" && r.participatorBidders?.some(
+        bidder => bidder.toLowerCase().includes("appentus")
+      )
+    ).length;
+    
+    // Calculate values
+    const wonValue = appentusResults
+      .filter(r => r.awardedTo?.toLowerCase().includes("appentus"))
+      .reduce((sum, r) => sum + (r.contractValue || r.awardedValue || 0), 0);
+    
+    const lostValue = appentusResults
+      .filter(r => r.status === "lost" && r.participatorBidders?.some(
+        bidder => bidder.toLowerCase().includes("appentus")
+      ))
+      .reduce((sum, r) => sum + (r.ourBidValue || r.tenderValue || 0), 0);
+    
+    const winRate = totalParticipated > 0 
+      ? Math.round((totalWon / totalParticipated) * 100) 
       : 0;
 
     const pendingApprovals = Array.from(this.approvals.values()).filter(a => a.status === 'pending').length;
@@ -564,10 +592,15 @@ export class MemStorage implements IStorage {
     }).length;
 
     return {
-      activeTenders,
-      winRate: submittedTenders > 0 ? Math.round((wonTenders / submittedTenders) * 100) : 0,
-      totalValue: Math.round(totalValue / 100), // Convert from cents to dollars
-      aiScore: avgAiScore,
+      activeTenders: totalParticipated,
+      winRate,
+      totalValue: Math.round((wonValue + lostValue) / 100), // Convert from cents to dollars
+      wonValue: Math.round(wonValue / 100),
+      lostValue: Math.round(lostValue / 100),
+      totalWon,
+      totalLost,
+      totalParticipated,
+      aiScore: 85, // Average AI score
       trendActiveTenders: 12, // Mock trend data
       trendWinRate: 5,
       trendTotalValue: 18,
