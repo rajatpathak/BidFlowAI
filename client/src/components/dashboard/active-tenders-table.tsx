@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Search, Filter, Eye, Edit, Brain, Trash2 } from "lucide-react";
+import { Search, Filter, Eye, Edit, Brain, Trash2, ExternalLink } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format } from "date-fns";
 import type { Tender } from "@shared/schema";
@@ -147,25 +147,62 @@ export default function ActiveTendersTable() {
                   {displayedTenders.map((tender) => {
                     const daysLeft = getDaysLeft(tender.deadline);
                     const requirements = typeof tender.requirements === 'object' && tender.requirements ? tender.requirements : {};
-                    const refId = (requirements as any).refId || '-';
+                    const refId = (requirements as any).refId || '';
                     const location = (requirements as any).location || '-';
+                    const link = (requirements as any).link || '';
+                    const source = (requirements as any).source || tender.source || 'non_gem';
+                    const isGem = source === 'gem' || (tender.description && tender.description.toLowerCase().includes('gem'));
                     
                     return (
                       <TableRow key={tender.id} className="hover:bg-gray-50">
-                        <TableCell className="px-4 py-4 text-sm font-medium text-gray-900 w-32">
-                          {refId}
+                        <TableCell className="px-4 py-4 text-sm w-32">
+                          <div className="flex flex-col gap-1">
+                            <span className="font-medium text-gray-900">{refId || '-'}</span>
+                            <Badge 
+                              className={`text-xs font-medium ${
+                                isGem 
+                                  ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' 
+                                  : 'bg-amber-100 text-amber-700 hover:bg-amber-200'
+                              }`}
+                            >
+                              {isGem ? 'GEM' : 'NON-GEM'}
+                            </Badge>
+                          </div>
                         </TableCell>
                         <TableCell className="px-4 py-4 w-96">
-                          <div className="flex items-center gap-1 overflow-hidden w-full">
-                            <span className="text-sm text-gray-900 flex-shrink-0">
-                              {tender.title.split(' ').slice(0, 2).join(' ')}
-                            </span>
-                            {tender.title.split(' ').length > 2 && (
-                              <div className="overflow-hidden flex-1">
-                                <div className="text-sm text-gray-900 animate-marquee whitespace-nowrap hover:animate-none">
-                                  {tender.title.split(' ').slice(2).join(' ')}
-                                </div>
-                              </div>
+                          <div className="flex items-center gap-1 overflow-hidden w-full group">
+                            {link ? (
+                              <a 
+                                href={link} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-1 overflow-hidden w-full hover:text-blue-600"
+                              >
+                                <span className="text-sm text-gray-900 flex-shrink-0 group-hover:text-blue-600">
+                                  {tender.title.split(' ').slice(0, 2).join(' ')}
+                                </span>
+                                {tender.title.split(' ').length > 2 && (
+                                  <div className="overflow-hidden flex-1">
+                                    <div className="text-sm text-gray-900 animate-marquee whitespace-nowrap hover:animate-none group-hover:text-blue-600">
+                                      {tender.title.split(' ').slice(2).join(' ')}
+                                    </div>
+                                  </div>
+                                )}
+                                <ExternalLink className="h-3 w-3 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
+                              </a>
+                            ) : (
+                              <>
+                                <span className="text-sm text-gray-900 flex-shrink-0">
+                                  {tender.title.split(' ').slice(0, 2).join(' ')}
+                                </span>
+                                {tender.title.split(' ').length > 2 && (
+                                  <div className="overflow-hidden flex-1">
+                                    <div className="text-sm text-gray-900 animate-marquee whitespace-nowrap hover:animate-none">
+                                      {tender.title.split(' ').slice(2).join(' ')}
+                                    </div>
+                                  </div>
+                                )}
+                              </>
                             )}
                           </div>
                         </TableCell>

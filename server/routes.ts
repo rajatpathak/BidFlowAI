@@ -46,12 +46,15 @@ const upload = multer({
 });
 
 // Helper function to process Excel data with flexible column mapping
-function processExcelData(worksheet: any) {
+function processExcelData(worksheet: any, sheetName: string) {
   const data = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
   if (data.length === 0) return [];
 
   const headers = data[0] as string[];
   const rows = data.slice(1);
+  
+  // Determine source type based on sheet name
+  const source = sheetName.toLowerCase().includes('gem') ? 'gem' : 'non_gem';
 
   // Flexible column mapping - matches various header names
   const columnMap = new Map<string, number>();
@@ -145,6 +148,15 @@ function processExcelData(worksheet: any) {
         }
       }
 
+      // Extract hyperlink if available (for title cell)
+      let link = '';
+      if (columnMap.has('title')) {
+        const titleCell = worksheet[XLSX.utils.encode_cell({r: rowIndex + 1, c: columnMap.get('title')!})];
+        if (titleCell && titleCell.l && titleCell.l.Target) {
+          link = titleCell.l.Target;
+        }
+      }
+      
       return {
         title,
         organization,
@@ -153,8 +165,9 @@ function processExcelData(worksheet: any) {
         eligibilityTurnover,
         location,
         referenceNo,
+        link,
         status: 'active',
-        source: 'excel_import'
+        source
       };
     } catch (error) {
       console.error(`Error processing row ${rowIndex + 2}:`, error);
@@ -920,7 +933,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             sheetsProcessed++;
             
             // Use the robust data processing function
-            const processedData = processExcelData(worksheet);
+            const processedData = processExcelData(worksheet, sheetName);
             
             if (processedData.length === 0) {
               errors.push(`Sheet '${sheetName}' contains no valid data`);
@@ -942,12 +955,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   requirements: {
                     turnover: (tenderData.eligibilityTurnover || 0).toString(),
                     location: tenderData.location || '',
-                    refId: tenderData.referenceNo || ''
+                    refId: tenderData.referenceNo || '',
+                    link: tenderData.link || '',
+                    source: tenderData.source || 'non_gem'
                   },
                   documents: [],
                   bidContent: null,
                   submittedAt: null,
-                  source: tenderData.source || 'excel_import'
+                  source: tenderData.source || 'non_gem'
                 });
 
                 console.log(`Created tender with ID: ${tender.id}`);
