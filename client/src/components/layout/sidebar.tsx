@@ -14,15 +14,17 @@ import {
   UserCog,
   FileSpreadsheet,
   Cog,
-  Trophy
+  Trophy,
+  Upload
 } from "lucide-react";
 
 const navigation = [
   { name: "Dashboard", href: "/", icon: BarChart3 },
-  { name: "Active Tenders", href: "/tenders", icon: FileText },
+  { name: "Excel Upload", href: "/upload-demo", icon: Upload },
   { name: "Enhanced Tenders", href: "/enhanced-tenders", icon: FileSpreadsheet },
-  { name: "Create Bid", href: "/create-bid", icon: Plus },
   { name: "Tender Results", href: "/tender-results", icon: Trophy },
+  { name: "Active Tenders", href: "/tenders", icon: FileText },
+  { name: "Create Bid", href: "/create-bid", icon: Plus },
   { name: "Meetings", href: "/meetings", icon: Calendar },
   { name: "Finance", href: "/finance", icon: DollarSign },
   { name: "AI Insights", href: "/ai-insights", icon: Brain },

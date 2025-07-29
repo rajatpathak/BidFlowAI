@@ -407,16 +407,14 @@ export default function TenderResultsPage() {
               <div className="border-2 border-dashed border-gray-300 rounded-lg p-6">
                 <div className="text-center">
                   <FileSpreadsheet className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                  <div className="space-y-2">
-                    <Label htmlFor="results-file" className="cursor-pointer">
+                  <div className="space-y-4">
+                    <div>
                       <div className="text-lg font-medium">Choose Results File</div>
                       <div className="text-sm text-gray-500">Upload .xlsx files with tender results</div>
-                    </Label>
+                    </div>
                     <Input
-                      id="results-file"
                       type="file"
                       accept=".xlsx,.xls"
-                      className="hidden"
                       onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
                     />
                   </div>

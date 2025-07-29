@@ -336,33 +336,48 @@ export default function AdminSettingsPage() {
               <div className="flex items-center gap-2">
                 <Upload className="h-5 w-5" />
                 <div>
-                  <CardTitle>Excel Upload</CardTitle>
+                  <CardTitle>Tender Excel Upload</CardTitle>
                   <CardDescription>
-                    Upload Excel files containing tender data with multiple sheets
+                    Upload Excel files containing active tender data with multiple sheets
                   </CardDescription>
                 </div>
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
+              <div className="bg-blue-50 p-4 rounded-lg mb-4">
+                <h4 className="font-medium text-blue-900 mb-2">Expected Excel Format for Active Tenders:</h4>
+                <div className="text-sm text-blue-800 space-y-1">
+                  <p>• <strong>Title</strong>: Tender title or work description</p>
+                  <p>• <strong>Organization</strong>: Department or organization name</p>
+                  <p>• <strong>Value</strong>: Tender value or EMD amount</p>
+                  <p>• <strong>Deadline</strong>: Last date for submission</p>
+                  <p>• <strong>Turnover</strong>: Eligibility turnover requirement</p>
+                  <p>• <strong>Location</strong>: Place or location of work</p>
+                  <p>• <strong>Reference No</strong>: Tender reference number</p>
+                </div>
+              </div>
+
               <div className="border-2 border-dashed border-gray-300 rounded-lg p-6">
                 <div className="text-center">
                   <FileSpreadsheet className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                   <div className="space-y-2">
-                    <Label htmlFor="excel-file" className="cursor-pointer">
+                    <label htmlFor="excel-file" className="cursor-pointer block">
                       <div className="text-lg font-medium">Choose Excel File</div>
                       <div className="text-sm text-gray-500">Upload .xlsx files with tender data</div>
-                    </Label>
-                    <Input
-                      id="excel-file"
-                      type="file"
-                      accept=".xlsx,.xls"
-                      className="hidden"
-                      onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
-                    />
+                      <Input
+                        id="excel-file"
+                        type="file"
+                        accept=".xlsx,.xls"
+                        className="mt-2"
+                        onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
+                      />
+                    </label>
                   </div>
                   {uploadFile && (
                     <div className="mt-4">
-                      <Badge variant="secondary">{uploadFile.name}</Badge>
+                      <Badge variant="secondary" className="text-sm px-3 py-1">
+                        Selected: {uploadFile.name}
+                      </Badge>
                     </div>
                   )}
                 </div>
@@ -372,9 +387,10 @@ export default function AdminSettingsPage() {
                 <Button
                   onClick={handleFileUpload}
                   disabled={!uploadFile || isUploading}
-                  className="w-full md:w-auto"
+                  className="w-full md:w-auto px-8 py-2"
+                  size="lg"
                 >
-                  {isUploading ? "Processing..." : "Upload and Process"}
+                  {isUploading ? "Processing..." : "Upload and Process Tenders"}
                 </Button>
               </div>
             </CardContent>

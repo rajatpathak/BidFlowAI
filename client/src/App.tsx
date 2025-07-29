@@ -14,6 +14,7 @@ import UserManagement from "@/pages/user-management";
 import AdminSettings from "@/pages/admin-settings";
 import EnhancedTenders from "@/pages/enhanced-tenders";
 import TenderResults from "@/pages/tender-results";
+import UploadDemo from "@/pages/upload-demo";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -32,6 +33,7 @@ function Router() {
           <Route path="/admin-settings" component={AdminSettings} />
           <Route path="/enhanced-tenders" component={EnhancedTenders} />
           <Route path="/tender-results" component={TenderResults} />
+          <Route path="/upload-demo" component={UploadDemo} />
           <Route component={NotFound} />
         </Switch>
       </div>
