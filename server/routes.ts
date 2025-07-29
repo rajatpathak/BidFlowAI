@@ -1009,171 +1009,100 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Excel Upload Routes
-  app.get("/api/excel-uploads", async (req, res) => {
-    try {
-      const uploads = await storage.getExcelUploads();
-      res.json(uploads);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to fetch excel uploads" });
-    }
-  });
-
+  // Simple Excel Upload
   app.post("/api/excel-uploads", upload.single('excelFile'), async (req, res) => {
     try {
       if (!req.file) {
         return res.status(400).json({ error: "No file uploaded" });
       }
 
-      // Create upload record
-      const uploadRecord = await storage.createExcelUpload({
-        fileName: req.file.originalname,
-        filePath: req.file.path,
-        uploadedBy: req.body.uploadedBy || "admin",
-        status: "processing",
+      const workbook = XLSX.read(fs.readFileSync(req.file.path), { 
+        type: 'buffer',
+        cellHTML: true,
+        cellNF: true,
+        cellStyles: true
       });
+      
+      const companySettings = await storage.getCompanySettings();
+      let totalImported = 0;
+      let duplicates = 0;
+      const errors: string[] = [];
+      
+      // Get existing tenders for duplicate check
+      const existingTenders = await storage.getTenders();
 
-      // Process Excel file
-      const startTime = Date.now();
-      try {
-        const workbook = XLSX.read(fs.readFileSync(req.file.path), { 
-          type: 'buffer',
-          cellHTML: true,
-          cellNF: true,
-          cellStyles: true
-        });
-        const companySettings = await storage.getCompanySettings();
+      // Process each worksheet
+      for (const sheetName of workbook.SheetNames) {
+        const worksheet = workbook.Sheets[sheetName];
+        const processedData = processExcelData(worksheet, sheetName);
         
-        let totalTendersImported = 0;
-        let totalEntriesProcessed = 0;
-        let entriesDuplicate = 0;
-        let entriesRejected = 0;
-        let sheetsProcessed = 0;
-        const errors: string[] = [];
-        
-        // Get existing tenders to check for duplicates
-        const existingTenders = await storage.getTenders();
-
-        // Process each worksheet
-        for (const sheetName of workbook.SheetNames) {
-          try {
-            const worksheet = workbook.Sheets[sheetName];
-            sheetsProcessed++;
-            
-            // Use the robust data processing function
-            const processedData = processExcelData(worksheet, sheetName);
-            
-            if (processedData.length === 0) {
-              errors.push(`Sheet '${sheetName}' contains no valid data`);
-              continue;
-            }
-
-            // Process each tender record
-            for (const tenderData of processedData) {
-              totalEntriesProcessed++;
-              
-              try {
-                // Check for duplicates based on title and organization
-                const isDuplicate = existingTenders.some(et => 
-                  et.title.toLowerCase() === tenderData.title.toLowerCase() &&
-                  et.organization.toLowerCase() === (tenderData.organization || '').toLowerCase()
-                );
-                
-                if (isDuplicate) {
-                  entriesDuplicate++;
-                  console.log(`Duplicate tender skipped: ${tenderData.title.substring(0, 50)}...`);
-                  continue;
-                }
-                
-                console.log(`Creating tender: ${tenderData.title.substring(0, 50)}...`);
-                
-                const tender = await storage.createTender({
-                  title: tenderData.title,
-                  organization: tenderData.organization || 'Unknown Organization',
-                  description: `Imported from Excel sheet: ${sheetName}`,
-                  value: Math.round((tenderData.value || 0) * 100), // Convert to cents for storage
-                  deadline: tenderData.deadline ? new Date(tenderData.deadline) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-                  status: tenderData.status || 'active',
-                  requirements: {
-                    turnover: (tenderData.eligibilityTurnover || 0).toString(),
-                    location: tenderData.location || '',
-                    refId: tenderData.referenceNo || '',
-                    link: tenderData.link || '',
-                    source: tenderData.source || 'non_gem'
-                  },
-                  documents: [],
-                  bidContent: null,
-                  submittedAt: null,
-                  source: tenderData.source || 'non_gem'
-                });
-
-                console.log(`Created tender with ID: ${tender.id}`);
-
-                // Calculate AI match score with company settings
-                if (companySettings) {
-                  try {
-                    const aiScore = await storage.calculateAIMatch(tender, companySettings);
-                    await storage.updateTender(tender.id, { aiScore });
-                    console.log(`AI score calculated for tender ${tender.id}: ${aiScore}%`);
-                  } catch (aiError) {
-                    console.log(`AI scoring failed for tender ${tender.id}:`, aiError);
-                  }
-                }
-
-                totalTendersImported++;
-                // Add to existing tenders to check future duplicates
-                existingTenders.push(tender);
-              } catch (tenderError: any) {
-                entriesRejected++;
-                errors.push(`Row error in ${sheetName}: ${tenderError.message}`);
-                console.error(`Error creating tender in ${sheetName}:`, tenderError.message);
-              }
-            }
-          } catch (sheetError: any) {
-            errors.push(`Sheet '${sheetName}' processing failed: ${sheetError.message}`);
-            console.error(`Error processing sheet ${sheetName}:`, sheetError);
-          }
+        if (processedData.length === 0) {
+          continue;
         }
 
-        // Update upload record with results
-        const processingTime = Date.now() - startTime;
-        const finalStatus = errors.length > 0 && totalTendersImported === 0 ? "failed" : "completed";
-        const errorLog = errors.length > 0 ? errors.join('; ') : null;
-        
-        await storage.updateExcelUpload(uploadRecord.id, {
-          status: finalStatus,
-          sheetsProcessed,
-          entriesAdded: totalTendersImported,
-          entriesRejected,
-          entriesDuplicate,
-          totalEntries: totalEntriesProcessed,
-          processingTime,
-          errorLog
-        });
+        // Process each tender (filter out null values)
+        const validData = processedData.filter(data => data !== null);
+        for (const tenderData of validData) {
+          try {
+            // Check for duplicates
+            const isDuplicate = existingTenders.some(et => 
+              et.title.toLowerCase() === tenderData.title.toLowerCase() &&
+              et.organization.toLowerCase() === (tenderData.organization || '').toLowerCase()
+            );
+            
+            if (isDuplicate) {
+              duplicates++;
+              continue;
+            }
+            
+            const tender = await storage.createTender({
+              title: tenderData.title,
+              organization: tenderData.organization || 'Unknown Organization',
+              description: `Imported from Excel`,
+              value: Math.round((tenderData.value || 0) * 100),
+              deadline: tenderData.deadline ? new Date(tenderData.deadline) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+              status: 'active',
+              requirements: {
+                turnover: (tenderData.eligibilityTurnover || 0).toString(),
+                location: tenderData.location || '',
+                refId: tenderData.referenceNo || '',
+                link: tenderData.link || '',
+                source: tenderData.source || 'non_gem'
+              },
+              documents: [],
+              bidContent: null,
+              submittedAt: null,
+              source: tenderData.source || 'non_gem'
+            });
 
-        res.json({
-          id: uploadRecord.id,
-          fileName: uploadRecord.fileName,
-          sheetsProcessed,
-          tendersImported: totalTendersImported,
-          status: finalStatus,
-          errors: errors.length > 0 ? errors : undefined,
-          message: totalTendersImported > 0 
-            ? `Successfully imported ${totalTendersImported} tenders from ${sheetsProcessed} sheets`
-            : "No valid tenders found in uploaded file"
-        });
+            // Calculate AI score if settings exist
+            if (companySettings) {
+              try {
+                const aiScore = await storage.calculateAIMatch(tender, companySettings);
+                await storage.updateTender(tender.id, { aiScore });
+              } catch (aiError) {
+                // Ignore AI scoring errors
+              }
+            }
 
-      } catch (error: any) {
-        await storage.updateExcelUpload(uploadRecord.id, {
-          status: "failed",
-          errorLog: error.message,
-        });
-        
-        res.status(500).json({ error: "Failed to process Excel file", details: error.message });
+            totalImported++;
+            existingTenders.push(tender);
+          } catch (error: any) {
+            errors.push(`Error: ${error.message}`);
+          }
+        }
       }
 
-    } catch (error) {
-      res.status(500).json({ error: "Failed to upload file" });
+      res.json({
+        success: true,
+        tendersImported: totalImported,
+        duplicatesSkipped: duplicates,
+        message: `Imported ${totalImported} tenders, skipped ${duplicates} duplicates`
+      });
+
+    } catch (error: any) {
+      console.error("Excel upload error:", error);
+      res.status(500).json({ error: "Failed to process Excel file", details: error.message });
     }
   });
 

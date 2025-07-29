@@ -40,7 +40,7 @@ export default function UploadDemoPage() {
       const result = await response.json();
       toast({
         title: "Success!",
-        description: `Processed ${result.tendersImported} tenders from ${result.sheetsProcessed} sheets.`,
+        description: result.message || `Imported ${result.tendersImported} tenders, skipped ${result.duplicatesSkipped} duplicates.`,
       });
       
       setTenderFile(null);
