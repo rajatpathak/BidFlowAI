@@ -278,7 +278,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/tenders", async (req, res) => {
     try {
       const tenders = await storage.getTenders();
-      res.json(tenders);
+      const companySettings = await storage.getCompanySettings();
+      
+      // Calculate AI score for each tender based on turnover requirements
+      const tendersWithAIScore = tenders.map(tender => {
+        let aiScore = 0;
+        
+        if (companySettings && tender.requirements) {
+          const requirements = typeof tender.requirements === 'object' ? tender.requirements : {};
+          const turnoverReq = parseFloat((requirements as any).turnover || '0');
+          const companyTurnover = companySettings.annualTurnover || 0;
+          
+          // AI Scoring logic:
+          // 1. If turnover is exempted (0 or not specified), give 100% match
+          // 2. If company turnover meets or exceeds requirement, give 100% match
+          // 3. If company turnover is less, calculate proportional score
+          // 4. If no clear turnover requirement, give 85% (needs manual review)
+          
+          if (turnoverReq === 0) {
+            // Turnover exempted or not specified
+            aiScore = 100;
+          } else if (companyTurnover >= turnoverReq) {
+            // Company meets or exceeds requirement
+            aiScore = 100;
+          } else if (companyTurnover > 0 && turnoverReq > 0) {
+            // Calculate proportional score
+            aiScore = Math.round((companyTurnover / turnoverReq) * 100);
+          } else {
+            // No clear requirement, needs manual review
+            aiScore = 85;
+          }
+        }
+        
+        return {
+          ...tender,
+          aiScore
+        };
+      });
+      
+      res.json(tendersWithAIScore);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch tenders" });
     }

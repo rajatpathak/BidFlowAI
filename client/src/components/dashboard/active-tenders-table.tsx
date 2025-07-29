@@ -138,8 +138,14 @@ export default function ActiveTendersTable() {
                     <TableHead className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[150px]">
                       Location
                     </TableHead>
+                    <TableHead className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[80px]">
+                      AI Score
+                    </TableHead>
                     <TableHead className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[140px]">
                       Estimated Cost
+                    </TableHead>
+                    <TableHead className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[100px]">
+                      Action
                     </TableHead>
                   </TableRow>
                 </TableHeader>
@@ -150,8 +156,9 @@ export default function ActiveTendersTable() {
                     const refId = (requirements as any).refId || '';
                     const location = (requirements as any).location || '-';
                     const link = (requirements as any).link || '';
-                    const source = (requirements as any).source || tender.source || 'non_gem';
-                    const isGem = source === 'gem' || (tender.description && tender.description.toLowerCase().includes('gem'));
+                    const source = (requirements as any).source || 'non_gem';
+                    const isGem = source === 'gem';
+                    const aiScore = tender.aiScore || 0;
                     
                     return (
                       <TableRow key={tender.id} className="hover:bg-gray-50">
@@ -179,12 +186,12 @@ export default function ActiveTendersTable() {
                                 className="flex items-center gap-1 overflow-hidden w-full hover:text-blue-600"
                               >
                                 <span className="text-sm text-gray-900 flex-shrink-0 group-hover:text-blue-600">
-                                  {tender.title.split(' ').slice(0, 2).join(' ')}
+                                  {tender.title.split(' ').slice(0, 4).join(' ')}
                                 </span>
-                                {tender.title.split(' ').length > 2 && (
+                                {tender.title.split(' ').length > 4 && (
                                   <div className="overflow-hidden flex-1">
                                     <div className="text-sm text-gray-900 animate-marquee whitespace-nowrap hover:animate-none group-hover:text-blue-600">
-                                      {tender.title.split(' ').slice(2).join(' ')}
+                                      {tender.title.split(' ').slice(4).join(' ')}
                                     </div>
                                   </div>
                                 )}
@@ -193,12 +200,12 @@ export default function ActiveTendersTable() {
                             ) : (
                               <>
                                 <span className="text-sm text-gray-900 flex-shrink-0">
-                                  {tender.title.split(' ').slice(0, 2).join(' ')}
+                                  {tender.title.split(' ').slice(0, 4).join(' ')}
                                 </span>
-                                {tender.title.split(' ').length > 2 && (
+                                {tender.title.split(' ').length > 4 && (
                                   <div className="overflow-hidden flex-1">
                                     <div className="text-sm text-gray-900 animate-marquee whitespace-nowrap hover:animate-none">
-                                      {tender.title.split(' ').slice(2).join(' ')}
+                                      {tender.title.split(' ').slice(4).join(' ')}
                                     </div>
                                   </div>
                                 )}
@@ -219,10 +226,36 @@ export default function ActiveTendersTable() {
                         <TableCell className="px-4 py-4 text-sm text-gray-700 w-48">
                           {location}
                         </TableCell>
+                        <TableCell className="px-4 py-4 text-center w-20">
+                          <Badge 
+                            className={`text-xs font-medium ${
+                              aiScore >= 85 
+                                ? 'bg-green-100 text-green-700' 
+                                : aiScore >= 70
+                                ? 'bg-yellow-100 text-yellow-700'
+                                : 'bg-red-100 text-red-700'
+                            }`}
+                          >
+                            {aiScore}%
+                          </Badge>
+                        </TableCell>
                         <TableCell className="px-4 py-4 text-right w-36">
                           <div className="text-sm font-semibold text-gray-900">
                             ₹{(tender.value / 100).toLocaleString('en-IN')}
                           </div>
+                        </TableCell>
+                        <TableCell className="px-4 py-4 text-center w-24">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-xs"
+                            onClick={() => {
+                              // TODO: Implement assign functionality
+                              console.log('Assign tender:', tender.id);
+                            }}
+                          >
+                            Assign
+                          </Button>
                         </TableCell>
                       </TableRow>
                     );
