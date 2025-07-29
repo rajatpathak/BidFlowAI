@@ -1277,10 +1277,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
               const department = getField(['Department', 'Dept', 'Division', 'Unit', 'Department']);
               const awardedTo = getField(['Awarded To', 'Winner', 'Selected Company', 'L1 Bidder', 'Contract Awarded To', 'Winner bidder']);
               const contractValueStr = getField(['Contract Value', 'Awarded Value', 'Winning Amount', 'Final Value', 'L1 Amount']);
-              const contractValue = parseFloat(contractValueStr.toString().replace(/[^0-9.-]/g, '') || "0");
+              const contractValue = parseFloat(contractValueStr.toString().replace(/[^0-9.-]/g, '') || "0") * 100; // Convert to cents
               const awardedValue = contractValue; // same as contract value
               const estimatedValueStr = getField(['Estimated Value', 'Tender Value', 'EMD', 'Budget']);
-              const estimatedValue = parseFloat(estimatedValueStr.toString().replace(/[^0-9.-]/g, '') || "0");
+              const estimatedValue = parseFloat(estimatedValueStr.toString().replace(/[^0-9.-]/g, '') || "0") * 100; // Convert to cents
               const marginalDifference = contractValue && estimatedValue ? contractValue - estimatedValue : null;
               const tenderStage = getField(['Tender Stage', 'Stage', 'Status', 'Phase']);
               const participatorBiddersStr = getField(['Participator Bidders', 'Bidders', 'Participants', 'Companies', 'Participator Bidders']);
