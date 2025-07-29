@@ -216,10 +216,68 @@ export default function EnhancedTendersPage() {
           <h1 className="text-3xl font-bold">Active Tenders</h1>
           <p className="text-gray-600">View and manage tenders with AI matching and filtering</p>
         </div>
-        <Badge variant="outline" className="text-lg px-4 py-2">
-          {tenders.length} Tenders
-        </Badge>
+        <div className="flex items-center gap-4">
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2"
+            onClick={() => document.getElementById('tender-upload-input')?.click()}
+          >
+            <Upload className="h-4 w-4" />
+            Upload Tender Excel
+          </Button>
+          <Badge variant="outline" className="text-lg px-4 py-2">
+            {tenders.length} Tenders
+          </Badge>
+        </div>
       </div>
+      
+      {/* Hidden file input for tender upload */}
+      <input
+        id="tender-upload-input"
+        type="file"
+        accept=".xlsx,.xls"
+        className="hidden"
+        onChange={async (e) => {
+          const file = e.target.files?.[0];
+          if (!file) return;
+          
+          const formData = new FormData();
+          formData.append('file', file);
+          
+          try {
+            toast({
+              title: "Uploading tenders...",
+              description: "Processing Excel file, please wait.",
+            });
+            
+            const response = await fetch('/api/upload-tenders', {
+              method: 'POST',
+              body: formData,
+            });
+            
+            if (response.ok) {
+              const result = await response.json();
+              toast({
+                title: "Tenders uploaded successfully",
+                description: `Processed ${result.processed} tenders from Excel file.`,
+              });
+              queryClient.invalidateQueries({ queryKey: ["/api/tenders"] });
+            } else {
+              throw new Error('Upload failed');
+            }
+          } catch (error) {
+            toast({
+              title: "Upload failed",
+              description: "Failed to process tender file. Please check the format.",
+              variant: "destructive",
+            });
+          }
+          
+          // Reset the input
+          e.target.value = '';
+        }}
+      />
 
       {/* Enhanced Filters */}
       <Card>

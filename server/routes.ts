@@ -292,6 +292,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Upload tenders from Excel
+  app.post("/api/upload-tenders", upload.single('file'), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+
+      const { processTenderExcelFile } = await import('./process-tender-excel');
+      const result = await processTenderExcelFile(req.file.path);
+      
+      res.json({
+        message: "Tenders uploaded successfully",
+        ...result
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to process tender file", details: error.message });
+    }
+  });
+
   app.get("/api/dashboard/stats", async (req, res) => {
     try {
       const stats = await storage.getDashboardStats();

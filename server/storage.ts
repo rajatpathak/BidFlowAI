@@ -332,76 +332,8 @@ export class MemStorage implements IStorage {
     this.userRoles.set(financeUserRole.id, financeUserRole);
     this.userRoles.set(bidderUserRole.id, bidderUserRole);
 
-    // Add some sample tenders with AI scoring
-    const tender1: Tender = {
-      id: randomUUID(),
-      title: "Smart City Infrastructure Development",
-      organization: "Municipal Corporation",
-      description: "Development of smart infrastructure including IoT sensors and traffic management",
-      value: 15000000,
-      deadline: new Date(Date.now() + 45 * 24 * 60 * 60 * 1000),
-      status: "active",
-      source: "non_gem",
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      aiScore: 95,
-      requirements: { 
-        turnover: "10 cr", 
-        experience: "5+ years in smart city projects",
-        location: "Delhi NCR" 
-      },
-      location: "Delhi NCR",
-      referenceNo: "SC/2025/01",
-      link: null,
-    };
-
-    const tender2: Tender = {
-      id: randomUUID(),
-      title: "Road Construction Project",
-      organization: "Public Works Department",
-      description: "Construction of 50km highway with modern safety features",
-      value: 25000000,
-      deadline: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000),
-      status: "active",
-      source: "non_gem",
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      aiScore: 88,
-      requirements: { 
-        turnover: "3 cr", 
-        experience: "3+ years in road construction",
-        location: "Mumbai" 
-      },
-      location: "Mumbai",
-      referenceNo: "PWD/2025/02",
-      link: null,
-    };
-
-    const tender3: Tender = {
-      id: randomUUID(),
-      title: "Hospital Equipment Supply",
-      organization: "State Health Department",
-      description: "Supply of medical equipment for 5 government hospitals",
-      value: 8000000,
-      deadline: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-      status: "active",
-      source: "gem",
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      aiScore: 72,
-      requirements: { 
-        turnover: "turnover exempted", 
-        experience: "2+ years in medical equipment",
-        location: "Any" 
-      },
-      location: "Any",
-      referenceNo: "HEALTH/2025/03",
-      link: null,
-    };
-
-    this.tenders.set(tender1.id, tender1);
-    this.tenders.set(tender2.id, tender2);
-    this.tenders.set(tender3.id, tender3);
+    // Clear tenders - will be populated from real Excel data
+    this.tenders.clear();
 
     // Clear any existing enhanced tender results to start fresh
     this.enhancedTenderResults.clear();
