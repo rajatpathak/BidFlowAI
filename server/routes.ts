@@ -1460,10 +1460,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           resultsProcessed: totalResultsProcessed,
         });
 
+        // Send response immediately to avoid timeout
         res.json({
           ...importRecord,
           resultsProcessed: totalResultsProcessed,
-          status: "completed"
+          status: "completed",
+          message: `Successfully imported ${totalResultsProcessed} tender results`
         });
 
       } catch (error: any) {
