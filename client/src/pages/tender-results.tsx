@@ -360,7 +360,7 @@ export default function TenderResultsPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Tender Reference No (Col C)</TableHead>
+                      <TableHead>Tender Reference No</TableHead>
                       <TableHead>Location</TableHead>
                       <TableHead>Department</TableHead>
                       <TableHead>Contract Value</TableHead>
@@ -369,6 +369,7 @@ export default function TenderResultsPage() {
                       <TableHead>Tender Stage</TableHead>
                       <TableHead>Winner Bidder</TableHead>
                       <TableHead>Participator Bidders</TableHead>
+                      <TableHead>AI Analysis</TableHead>
                       <TableHead>Link</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -514,6 +515,20 @@ export default function TenderResultsPage() {
                               <span className="text-gray-400 text-xs">No bidders info</span>
                             )}
                           </div>
+                        </TableCell>
+                        
+                        {/* AI Analysis */}
+                        <TableCell>
+                          {result.notes && (result.notes.includes("APPENTUS") || result.awardedTo?.toLowerCase().includes("appentus") || 
+                            result.participatorBidders?.some(b => b.toLowerCase().includes("appentus"))) ? (
+                            <div className="max-w-[300px]">
+                              <p className="text-xs text-gray-700 line-clamp-3" title={result.notes || ""}>
+                                {result.notes}
+                              </p>
+                            </div>
+                          ) : (
+                            <span className="text-gray-400 text-xs">-</span>
+                          )}
                         </TableCell>
                         
                         {/* Link */}

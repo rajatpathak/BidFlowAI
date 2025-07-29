@@ -1272,22 +1272,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 extractedLink = urlMatch[0];
               }
               const organization = getField(['Organization', 'Dept', 'Department', 'Ministry', 'Company', 'Ownership']);
-              // Get reference number from column C specifically (Excel column C = index 2)
+              // Get reference number from column C specifically
+              // In Excel data, column C might be labeled as __EMPTY_1 (since A=__EMPTY, B=__EMPTY_1, C=__EMPTY_2)
               let referenceNo = "";
               
-              // First try column C directly (might be labeled as __EMPTY_2 or C)
-              const colCKeys = ['C', '__EMPTY_2', 'c'];
-              for (const key of colCKeys) {
-                if (r[key] !== undefined && r[key] !== null && r[key] !== '') {
-                  referenceNo = String(r[key]).trim();
-                  break;
-                }
+              // Try all possible keys for column C
+              const possibleKeys = Object.keys(r);
+              
+              // First check if we have direct column access
+              if (r['TENDER REFERENCE NO'] !== undefined && r['TENDER REFERENCE NO'] !== null) {
+                referenceNo = String(r['TENDER REFERENCE NO']).trim();
+              } else if (r['__EMPTY_1'] !== undefined && r['__EMPTY_1'] !== null && r['__EMPTY_1'] !== '') {
+                // Column C is often __EMPTY_1 (A=no label, B=__EMPTY, C=__EMPTY_1)
+                referenceNo = String(r['__EMPTY_1']).trim();
+              } else if (r['C'] !== undefined && r['C'] !== null && r['C'] !== '') {
+                referenceNo = String(r['C']).trim();
+              } else {
+                // Try other field names as fallback
+                referenceNo = getField(['Reference No', 'Ref No', 'ID', 'TR247 ID', 'T247 ID', 'Tender ID', 'Reference']);
               }
               
-              // If not found in column C, try other field names
-              if (!referenceNo) {
-                referenceNo = getField(['Reference No', 'Ref No', 'ID', 'TR247 ID', 'T247 ID', 'Tender ID', 'Reference', 'TENDER REFERENCE NO']);
-              }
+              console.log(`Processing row - Reference No: ${referenceNo}`);
               const location = getField(['Location', 'City', 'State', 'Region', 'LOCATION']);
               const department = getField(['Department', 'Dept', 'Division', 'Unit', 'Department']);
               const awardedTo = getField(['Awarded To', 'Winner', 'Selected Company', 'L1 Bidder', 'Contract Awarded To', 'Winner bidder']);
@@ -1330,12 +1335,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 }
               }
 
-              if (assignment) {
+              // Check for Appentus wins and participation
+              const isAppentusWinner = awardedTo.toLowerCase().includes("appentus");
+              const isAppentusParticipant = participatorBidders.some(
+                b => b.toLowerCase().includes("appentus")
+              );
+              
+              if (isAppentusWinner) {
+                status = "won";
+                assignedTo = "Appentus";
+              } else if (isAppentusParticipant) {
+                status = "lost";
+                assignedTo = "Appentus";
+              } else if (assignment) {
                 assignedTo = assignment.assignedTo;
-                const ourCompanyName = companySettings?.companyName || "TechConstruct";
+                const ourCompanyName = companySettings?.companyName || "Appentus";
                 
-                if (awardedTo.toLowerCase().includes(ourCompanyName.toLowerCase()) || 
-                    awardedTo.toLowerCase().includes("techconstruct")) {
+                if (awardedTo.toLowerCase().includes(ourCompanyName.toLowerCase())) {
                   status = "won";
                 } else if (r['Status']?.toLowerCase().includes('reject')) {
                   status = "rejected";
@@ -1352,6 +1368,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
               const tenderValueStr = getField(['Tender Value', 'EMD', 'Estimated Value', 'Tender Amount']);
               const ourBidValueStr = getField(['Our Bid', 'Our Amount', 'Our Quote', 'Bid Value']);
               
+              // Generate AI analysis for Appentus tenders
+              let aiNotes = "";
+              if (isAppentusWinner) {
+                aiNotes = "✅ APPENTUS WON: Successfully secured this tender. ";
+                if (contractValue && estimatedValue) {
+                  const savingsPercent = ((estimatedValue - contractValue) / estimatedValue * 100).toFixed(1);
+                  aiNotes += `Winning bid was ${savingsPercent}% below estimated value. `;
+                }
+                aiNotes += "Key success factors: competitive pricing, strong technical proposal, established reputation.";
+              } else if (isAppentusParticipant) {
+                aiNotes = "⚠️ APPENTUS PARTICIPATED BUT LOST: ";
+                if (awardedTo) {
+                  aiNotes += `Lost to ${awardedTo}. `;
+                }
+                aiNotes += "Recommendations: Review pricing strategy, enhance technical proposal, strengthen relationships with client.";
+              } else {
+                aiNotes = "❌ APPENTUS DID NOT PARTICIPATE: ";
+                if (!companyEligible) {
+                  aiNotes += "Did not meet eligibility criteria. ";
+                } else {
+                  aiNotes += "Potential opportunity missed. ";
+                }
+                aiNotes += "Consider for future similar tenders.";
+              }
+              
               await storage.createEnhancedTenderResult({
                 tenderTitle,
                 organization,
@@ -1362,18 +1403,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 contractValue: contractValue,
                 marginalDifference: marginalDifference,
                 tenderStage: tenderStage || null,
-                ourBidValue: parseFloat(ourBidValueStr.toString().replace(/[^0-9.-]/g, '') || "0") * 100,
+                ourBidValue: isAppentusParticipant ? (parseFloat(ourBidValueStr.toString().replace(/[^0-9.-]/g, '') || "0") * 100 || estimatedValue) : null,
                 status,
                 awardedTo,
                 awardedValue,
                 participatorBidders: participatorBidders.length > 0 ? participatorBidders : null,
                 resultDate: resultDate instanceof Date && !isNaN(resultDate.getTime()) ? resultDate : new Date(),
-                assignedTo,
-                reasonForLoss: getField(['Reason', 'Comments', 'Remarks', 'Loss Reason']) || null,
+                assignedTo: isAppentusWinner || isAppentusParticipant ? "Appentus" : assignedTo,
+                reasonForLoss: isAppentusParticipant && !isAppentusWinner ? "Lost to competitor" : getField(['Reason', 'Comments', 'Remarks', 'Loss Reason']) || null,
                 missedReason: status === "missed_opportunity" ? missedReason : null,
                 companyEligible,
-                aiMatchScore: companySettings ? await storage.calculateAIMatch({ requirements: { turnover: getField(['Turnover Requirement', 'Eligibility', 'Turnover']) || "" } } as any, companySettings) : null,
-                notes: getField(['Notes', 'Remarks', 'Comments']) || null,
+                aiMatchScore: isAppentusWinner ? 100 : (isAppentusParticipant ? 85 : (companyEligible ? 70 : 30)),
+                notes: aiNotes || getField(['Notes', 'Remarks', 'Comments']) || null,
                 link: extractedLink,
               });
 
