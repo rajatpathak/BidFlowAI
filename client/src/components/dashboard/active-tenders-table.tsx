@@ -129,9 +129,6 @@ export default function ActiveTendersTable() {
                     <TableHead className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[120px]">
                       Reference No
                     </TableHead>
-                    <TableHead className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[300px]">
-                      Tender Brief
-                    </TableHead>
                     <TableHead className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[100px]">
                       Deadline
                     </TableHead>
@@ -174,43 +171,6 @@ export default function ActiveTendersTable() {
                             >
                               {isGem ? 'GEM' : 'NON-GEM'}
                             </Badge>
-                          </div>
-                        </TableCell>
-                        <TableCell className="px-4 py-4 w-96">
-                          <div className="flex items-center gap-1 overflow-hidden w-full group">
-                            {link ? (
-                              <a 
-                                href={link} 
-                                target="_blank" 
-                                rel="noopener noreferrer"
-                                className="flex items-center gap-1 overflow-hidden w-full hover:text-blue-600"
-                              >
-                                <span className="text-sm text-gray-900 flex-shrink-0 group-hover:text-blue-600">
-                                  {tender.title.split(' ').slice(0, 4).join(' ')}
-                                </span>
-                                {tender.title.split(' ').length > 4 && (
-                                  <div className="overflow-hidden flex-1">
-                                    <div className="text-sm text-gray-900 animate-marquee whitespace-nowrap hover:animate-none group-hover:text-blue-600">
-                                      {tender.title.split(' ').slice(4).join(' ')}
-                                    </div>
-                                  </div>
-                                )}
-                                <ExternalLink className="h-3 w-3 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
-                              </a>
-                            ) : (
-                              <>
-                                <span className="text-sm text-gray-900 flex-shrink-0">
-                                  {tender.title.split(' ').slice(0, 4).join(' ')}
-                                </span>
-                                {tender.title.split(' ').length > 4 && (
-                                  <div className="overflow-hidden flex-1">
-                                    <div className="text-sm text-gray-900 animate-marquee whitespace-nowrap hover:animate-none">
-                                      {tender.title.split(' ').slice(4).join(' ')}
-                                    </div>
-                                  </div>
-                                )}
-                              </>
-                            )}
                           </div>
                         </TableCell>
                         <TableCell className="px-4 py-4 w-28">
