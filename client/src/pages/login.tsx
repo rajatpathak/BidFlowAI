@@ -38,7 +38,8 @@ export default function Login() {
         title: "Login Successful",
         description: `Welcome ${data.user.name}!`,
       });
-      navigate("/dashboard");
+      // Force reload to ensure clean authentication state
+      window.location.href = "/dashboard";
     },
     onError: (error: any) => {
       toast({

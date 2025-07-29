@@ -32,14 +32,24 @@ function Router() {
     );
   }
 
+  // Redirect to login if not authenticated
+  if (!isAuthenticated) {
+    return (
+      <Switch>
+        <Route path="/login" component={Login} />
+        <Route component={Login} />
+      </Switch>
+    );
+  }
+
   return (
     <Switch>
       {/* Public routes */}
       <Route path="/login" component={Login} />
       <Route path="/unauthorized" component={Unauthorized} />
       
-      {/* Protected routes */}
-      {isAuthenticated ? (
+      {/* Protected routes with authenticated layout */}
+      <Route>
         <div className="flex h-screen overflow-hidden">
           <Sidebar />
           <div className="flex-1 overflow-auto">
@@ -60,9 +70,7 @@ function Router() {
             </Switch>
           </div>
         </div>
-      ) : (
-        <Route component={Login} />
-      )}
+      </Route>
     </Switch>
   );
 }

@@ -48,7 +48,8 @@ export function useAuth() {
     localStorage.removeItem('user');
     setUser(null);
     setIsAuthenticated(false);
-    window.location.href = '/login';
+    // Force reload to ensure clean state
+    window.location.reload();
   };
 
   const hasPermission = (permission: string): boolean => {
