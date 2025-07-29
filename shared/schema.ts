@@ -21,6 +21,7 @@ export const tenders = pgTable("tenders", {
   value: bigint("value", { mode: "number" }).notNull(), // in cents
   deadline: timestamp("deadline").notNull(),
   status: text("status").notNull().default("draft"), // draft, in_progress, submitted, won, lost
+  source: text("source").notNull().default("non_gem"), // gem, non_gem
   aiScore: integer("ai_score").default(0), // 0-100
   requirements: jsonb("requirements").default([]),
   documents: jsonb("documents").default([]),

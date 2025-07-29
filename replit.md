@@ -179,6 +179,16 @@ Preferred communication style: Simple, everyday language.
   - Clickable AI score badges in tender list (both table and grid views)
   - Beautiful eligibility breakdown card showing requirement vs capability comparison
   - Color-coded scoring with clear pass/fail indicators
-- **Excel Hyperlink Integration**: Successfully extracted and stored 2,179 tender links from 11 Excel files
+- **Excel Hyperlink Integration**: Successfully extracted and stored 1,896 tender links from 11 Excel files (75.3% coverage)
+
+### Active Tender Filters Fix (January 2025)
+- **Database Schema Update**: Added missing `source` field to tenders table with default value 'non_gem'
+- **Data Migration**: Successfully updated all 2,519 tenders with correct source values (64 GEM, 2,455 Non-GEM)
+- **Filter Implementation**: 
+  - Fixed GEM/Non-GEM filter to check tender.source field directly
+  - Added Eligibility Status filter (Eligible ≥70%, Not Eligible <70%)
+  - Verified all filters working: Search, Source, Deadline, and Eligibility
+- **Unit Testing**: Created and passed 15 comprehensive filter tests covering all filter combinations
+- **Data Distribution**: 212 eligible tenders (8.4%), 2,307 not eligible (91.6%)
 
 The architecture prioritizes type safety, developer experience, and scalability while maintaining a clean separation between frontend, backend, and data layers. The AI integration is designed to enhance user decision-making without being intrusive to the core workflow. The system now supports complete tender lifecycle management from discovery through award with integrated financial tracking and team coordination.
