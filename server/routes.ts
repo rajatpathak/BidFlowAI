@@ -715,17 +715,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Process each row as a tender
           for (const row of data) {
             try {
+              const r = row as any; // Type assertion for Excel data
               const tender = await storage.createTender({
-                title: row['Title'] || row['Tender Title'] || `Tender from ${sheetName}`,
-                organization: row['Organization'] || row['Dept'] || row['Department'] || "Unknown",
-                description: row['Description'] || row['Work Description'] || "",
-                value: parseFloat(row['Value'] || row['EMD'] || row['Amount'] || "0") * 100, // Convert to cents
-                deadline: new Date(row['Deadline'] || row['Last Date'] || Date.now() + 30 * 24 * 60 * 60 * 1000),
+                title: r['Title'] || r['Tender Title'] || `Tender from ${sheetName}`,
+                organization: r['Organization'] || r['Dept'] || r['Department'] || "Unknown",
+                description: r['Description'] || r['Work Description'] || "",
+                value: parseFloat(r['Value'] || r['EMD'] || r['Amount'] || "0") * 100, // Convert to cents
+                deadline: new Date(r['Deadline'] || r['Last Date'] || Date.now() + 30 * 24 * 60 * 60 * 1000),
                 status: "active",
                 requirements: {
-                  turnover: row['Turnover'] || row['Eligibility'] || "",
-                  location: row['Location'] || row['Place'] || "",
-                  refId: row['Reference No'] || row['Ref No'] || row['ID'] || ""
+                  turnover: r['Turnover'] || r['Eligibility'] || "",
+                  location: r['Location'] || r['Place'] || "",
+                  refId: r['Reference No'] || r['Ref No'] || r['ID'] || ""
                 },
                 documents: [],
                 bidContent: null,
@@ -739,8 +740,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
               }
 
               totalTendersImported++;
-            } catch (error) {
-              console.log(`Error processing row in ${sheetName}:`, error);
+            } catch (error: any) {
+              console.log(`Error processing row in ${sheetName}:`, error.message);
             }
           }
         }
@@ -759,7 +760,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           status: "completed"
         });
 
-      } catch (error) {
+      } catch (error: any) {
         await storage.updateExcelUpload(uploadRecord.id, {
           status: "failed",
           errorLog: error.message,
@@ -877,12 +878,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Process each row as a tender result
           for (const row of data) {
             try {
-              const tenderTitle = row['Title'] || row['Tender Title'] || row['Work Description'] || "";
-              const organization = row['Organization'] || row['Dept'] || row['Department'] || "";
-              const referenceNo = row['Reference No'] || row['Ref No'] || row['ID'] || "";
-              const awardedTo = row['Awarded To'] || row['Winner'] || row['Selected Company'] || "";
-              const awardedValue = parseFloat(row['Awarded Value'] || row['Winning Amount'] || row['Final Value'] || "0") * 100;
-              const resultDate = row['Result Date'] || row['Award Date'] || new Date();
+              const r = row as any; // Type assertion for Excel data
+              const tenderTitle = r['Title'] || r['Tender Title'] || r['Work Description'] || "";
+              const organization = r['Organization'] || r['Dept'] || r['Department'] || "";
+              const referenceNo = r['Reference No'] || r['Ref No'] || r['ID'] || "";
+              const awardedTo = r['Awarded To'] || r['Winner'] || r['Selected Company'] || "";
+              const awardedValue = parseFloat(r['Awarded Value'] || r['Winning Amount'] || r['Final Value'] || "0") * 100;
+              const resultDate = r['Result Date'] || r['Award Date'] || new Date();
               
               // Find if this tender was assigned to any of our bidders
               const assignment = assignments.find(a => 
@@ -899,7 +901,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               if (companySettings) {
                 const mockTender = {
                   requirements: {
-                    turnover: row['Turnover Requirement'] || row['Eligibility'] || "",
+                    turnover: r['Turnover Requirement'] || r['Eligibility'] || "",
                   }
                 };
                 const aiScore = await storage.calculateAIMatch(mockTender as any, companySettings);
@@ -917,7 +919,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 if (awardedTo.toLowerCase().includes(ourCompanyName.toLowerCase()) || 
                     awardedTo.toLowerCase().includes("techconstruct")) {
                   status = "won";
-                } else if (row['Status']?.toLowerCase().includes('reject')) {
+                } else if (r['Status']?.toLowerCase().includes('reject')) {
                   status = "rejected";
                 } else {
                   status = "lost";
@@ -928,23 +930,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 tenderTitle,
                 organization,
                 referenceNo,
-                tenderValue: parseFloat(row['Tender Value'] || row['EMD'] || "0") * 100,
-                ourBidValue: parseFloat(row['Our Bid'] || row['Our Amount'] || "0") * 100,
+                tenderValue: parseFloat(r['Tender Value'] || r['EMD'] || "0") * 100,
+                ourBidValue: parseFloat(r['Our Bid'] || r['Our Amount'] || "0") * 100,
                 status,
                 awardedTo,
                 awardedValue,
                 resultDate: new Date(resultDate),
                 assignedTo,
-                reasonForLoss: row['Reason'] || row['Comments'] || null,
+                reasonForLoss: r['Reason'] || r['Comments'] || null,
                 missedReason: status === "missed_opportunity" ? missedReason : null,
                 companyEligible,
-                aiMatchScore: companySettings ? await storage.calculateAIMatch({ requirements: { turnover: row['Turnover Requirement'] || "" } } as any, companySettings) : null,
-                notes: row['Notes'] || row['Remarks'] || null,
+                aiMatchScore: companySettings ? await storage.calculateAIMatch({ requirements: { turnover: r['Turnover Requirement'] || "" } } as any, companySettings) : null,
+                notes: r['Notes'] || r['Remarks'] || null,
               });
 
               totalResultsProcessed++;
-            } catch (error) {
-              console.log(`Error processing result row in ${sheetName}:`, error);
+            } catch (error: any) {
+              console.log(`Error processing result row in ${sheetName}:`, error.message);
             }
           }
         }
@@ -961,7 +963,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           status: "completed"
         });
 
-      } catch (error) {
+      } catch (error: any) {
         await storage.updateTenderResultsImport(importRecord.id, {
           status: "failed",
           errorLog: error.message,

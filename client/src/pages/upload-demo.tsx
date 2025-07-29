@@ -24,7 +24,7 @@ export default function UploadDemoPage() {
     
     setIsUploading(true);
     const formData = new FormData();
-    formData.append("file", tenderFile);
+    formData.append("excelFile", tenderFile);
     formData.append("uploadedBy", "admin");
 
     try {
