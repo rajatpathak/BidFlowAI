@@ -151,27 +151,46 @@ function processExcelData(worksheet: any, sheetName: string) {
       // Extract hyperlink if available (check both title and tender brief columns)
       let link = '';
       
-      // First try to get link from title column
-      if (columnMap.has('title')) {
-        const titleCell = worksheet[XLSX.utils.encode_cell({r: rowIndex + 1, c: columnMap.get('title')!})];
-        if (titleCell && titleCell.l && titleCell.l.Target) {
-          link = titleCell.l.Target;
-          console.log(`Found link in title column: ${link}`);
+      // Check tender brief column first (where links usually are)
+      if (columnMap.has('tender brief')) {
+        const briefCol = columnMap.get('tender brief')!;
+        const briefCell = worksheet[XLSX.utils.encode_cell({r: rowIndex + 1, c: briefCol})];
+        
+        // Check for hyperlink in cell
+        if (briefCell && briefCell.l) {
+          link = briefCell.l.Target || '';
+          console.log(`Found hyperlink in tender brief: ${link}`);
+        }
+        
+        // Also check if worksheet has hyperlinks array
+        if (!link && worksheet['!links']) {
+          const cellAddress = XLSX.utils.encode_cell({r: rowIndex + 1, c: briefCol});
+          const hyperlink = worksheet['!links'].find((l: any) => l.ref === cellAddress);
+          if (hyperlink) {
+            link = hyperlink.target || '';
+            console.log(`Found hyperlink from links array: ${link}`);
+          }
         }
       }
       
-      // If no link found in title, check tender brief column
-      if (!link && columnMap.has('tender brief')) {
-        const briefCell = worksheet[XLSX.utils.encode_cell({r: rowIndex + 1, c: columnMap.get('tender brief')!})];
-        if (briefCell && briefCell.l && briefCell.l.Target) {
-          link = briefCell.l.Target;
-          console.log(`Found link in tender brief column: ${link}`);
+      // If no link found in tender brief, check title column
+      if (!link && columnMap.has('title')) {
+        const titleCol = columnMap.get('title')!;
+        const titleCell = worksheet[XLSX.utils.encode_cell({r: rowIndex + 1, c: titleCol})];
+        
+        if (titleCell && titleCell.l) {
+          link = titleCell.l.Target || '';
+          console.log(`Found hyperlink in title: ${link}`);
         }
       }
       
       // Debug log to check what we're getting
       if (!link) {
-        console.log(`No hyperlink found for row ${rowIndex + 2} with title: ${title.substring(0, 50)}...`);
+        const briefCol = columnMap.get('tender brief');
+        if (briefCol !== undefined) {
+          const briefCell = worksheet[XLSX.utils.encode_cell({r: rowIndex + 1, c: briefCol})];
+          console.log(`Row ${rowIndex + 2} - Brief cell:`, briefCell);
+        }
       }
       
       return {
@@ -999,7 +1018,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Process Excel file
       try {
-        const workbook = XLSX.read(fs.readFileSync(req.file.path), { type: 'buffer' });
+        const workbook = XLSX.read(fs.readFileSync(req.file.path), { 
+          type: 'buffer',
+          cellHTML: true,
+          cellNF: true,
+          cellStyles: true
+        });
         const companySettings = await storage.getCompanySettings();
         
         let totalTendersImported = 0;
