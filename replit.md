@@ -191,6 +191,18 @@ Preferred communication style: Simple, everyday language.
 - **Unit Testing**: Created and passed 15 comprehensive filter tests covering all filter combinations
 - **Data Distribution**: 212 eligible tenders (8.4%), 2,307 not eligible (91.6%)
 
+### Enhanced Tender Results with Appentus Highlighting (January 2025)
+- **Appentus Winner Detection**: Automatically shows green "WON" badge when "Appentus" appears in the Winner Bidder field
+- **Participator Highlighting**: 
+  - Appentus entities are highlighted with blue badges in the participator bidders list
+  - Automatically sorted to appear first in the list for better visibility
+  - Applies to any variation containing "Appentus" (case-insensitive)
+- **Visual Indicators**: 
+  - Winner: Green "WON" badge next to company name
+  - Participant: Blue highlighted badge with hover effects
+  - Clear distinction between Appentus and other bidders
+- **TypeScript Error Fixes**: Resolved UserRole type mismatches and database storage issues
+
 ### Simplified Excel Upload with Progress Tracking (January 2025)
 - **Streamlined Excel Upload**: 
   - Removed complex database tracking system for simplicity

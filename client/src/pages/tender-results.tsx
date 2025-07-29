@@ -394,7 +394,16 @@ export default function TenderResultsPage() {
                         {/* Winner Bidder */}
                         <TableCell>
                           <div className="text-sm font-medium">
-                            {result.awardedTo || "-"}
+                            {result.awardedTo ? (
+                              <div className="flex items-center gap-2">
+                                {result.awardedTo}
+                                {result.awardedTo.toLowerCase().includes("appentus") && (
+                                  <Badge className="bg-green-600 text-white">WON</Badge>
+                                )}
+                              </div>
+                            ) : (
+                              "-"
+                            )}
                           </div>
                         </TableCell>
                         
@@ -402,15 +411,33 @@ export default function TenderResultsPage() {
                         <TableCell>
                           <div className="flex flex-wrap gap-1 max-w-xs">
                             {result.participatorBidders && result.participatorBidders.length > 0 ? (
-                              result.participatorBidders.map((bidder, index) => (
-                                <Badge
-                                  key={index}
-                                  variant="secondary"
-                                  className="text-xs cursor-pointer hover:bg-secondary/80"
-                                >
-                                  • {bidder}
-                                </Badge>
-                              ))
+                              (() => {
+                                // Sort bidders to put Appentus first
+                                const sortedBidders = [...result.participatorBidders].sort((a, b) => {
+                                  const aIsAppentus = a.toLowerCase().includes("appentus");
+                                  const bIsAppentus = b.toLowerCase().includes("appentus");
+                                  if (aIsAppentus && !bIsAppentus) return -1;
+                                  if (!aIsAppentus && bIsAppentus) return 1;
+                                  return 0;
+                                });
+                                
+                                return sortedBidders.map((bidder, index) => {
+                                  const isAppentus = bidder.toLowerCase().includes("appentus");
+                                  return (
+                                    <Badge
+                                      key={index}
+                                      variant={isAppentus ? "default" : "secondary"}
+                                      className={`text-xs cursor-pointer ${
+                                        isAppentus 
+                                          ? "bg-blue-600 text-white hover:bg-blue-700" 
+                                          : "hover:bg-secondary/80"
+                                      }`}
+                                    >
+                                      • {bidder}
+                                    </Badge>
+                                  );
+                                });
+                              })()
                             ) : (
                               <span className="text-gray-400 text-xs">No bidders info</span>
                             )}
