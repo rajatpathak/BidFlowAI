@@ -35,13 +35,13 @@ export function useAuth() {
     setIsLoading(false);
   }, []);
 
-  // Verify token with server (optional - for enhanced security)
-  const { data: verifiedUser, isLoading: isVerifying } = useQuery({
-    queryKey: ['/api/auth/verify'],
-    enabled: isAuthenticated && !!localStorage.getItem('auth_token'),
-    retry: false,
-    staleTime: 5 * 60 * 1000, // 5 minutes
-  });
+  // Don't verify token automatically to avoid loading loops
+  // const { data: verifiedUser, isLoading: isVerifying } = useQuery({
+  //   queryKey: ['/api/auth/verify'],
+  //   enabled: isAuthenticated && !!localStorage.getItem('auth_token'),
+  //   retry: false,
+  //   staleTime: 5 * 60 * 1000, // 5 minutes
+  // });
 
   const logout = () => {
     localStorage.removeItem('auth_token');
@@ -86,7 +86,7 @@ export function useAuth() {
   return {
     user,
     isAuthenticated,
-    isLoading: isLoading || isVerifying,
+    isLoading: isLoading,
     logout,
     hasPermission,
     hasRole,

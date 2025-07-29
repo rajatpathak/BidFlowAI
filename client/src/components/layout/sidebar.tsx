@@ -85,12 +85,10 @@ export default function Sidebar() {
             const Icon = item.icon;
             const isActive = location === item.href;
             
-            // Filter navigation based on permissions
-            if (item.href === "/user-management" && !hasPermission("admin")) return null;
-            if (item.href === "/admin-settings" && !hasPermission("admin")) return null;
-            if (item.href === "/create-bid" && !hasPermission("create_bids")) return null;
-            if (item.href === "/finance" && !hasPermission("view_finance")) return null;
-            if (item.href === "/ai-insights" && !hasPermission("use_ai_insights")) return null;
+            // Filter navigation based on user role
+            if (item.href === "/user-management" && user?.role !== "admin") return null;
+            if (item.href === "/admin-settings" && user?.role !== "admin") return null;
+            if (item.href === "/finance" && user?.role !== "finance_manager" && user?.role !== "admin") return null;
             
             return (
               <Link
