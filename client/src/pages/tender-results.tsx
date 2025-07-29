@@ -42,11 +42,17 @@ type EnhancedTenderResult = {
   tenderTitle: string;
   organization: string;
   referenceNo: string | null;
-  tenderValue: number | null;
+  location: string | null;
+  department: string | null;
+  tenderValue: number | null; // estimated value
+  contractValue: number | null; // actual contract value
+  marginalDifference: number | null; // contractValue - tenderValue
+  tenderStage: string | null;
   ourBidValue: number | null;
   status: string; // won, lost, rejected, missed_opportunity
-  awardedTo: string | null;
+  awardedTo: string | null; // winner bidder
   awardedValue: number | null;
+  participatorBidders: string[] | null; // list of all participating bidders
   resultDate: Date | null;
   assignedTo: string | null;
   reasonForLoss: string | null;
@@ -280,7 +286,7 @@ export default function TenderResultsPage() {
             <CardHeader>
               <CardTitle>Tender Results ({filteredResults.length})</CardTitle>
               <CardDescription>
-                Complete tracking of tender outcomes with assignment status
+                Complete tracking of tender outcomes with detailed analysis
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -288,97 +294,126 @@ export default function TenderResultsPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Tender / Organization</TableHead>
-                      <TableHead>Value</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Awarded To</TableHead>
-                      <TableHead>Assigned To</TableHead>
-                      <TableHead>Result Date</TableHead>
-                      <TableHead>Notes</TableHead>
+                      <TableHead>Tender Reference No</TableHead>
+                      <TableHead>Location</TableHead>
+                      <TableHead>Department</TableHead>
+                      <TableHead>Contract Value</TableHead>
+                      <TableHead>Estimated Value</TableHead>
+                      <TableHead>Marginal Difference</TableHead>
+                      <TableHead>Tender Stage</TableHead>
+                      <TableHead>Winner Bidder</TableHead>
+                      <TableHead>Participator Bidders</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {filteredResults.map((result) => (
                       <TableRow key={result.id}>
+                        {/* Tender Reference No */}
                         <TableCell>
-                          <div className="space-y-1">
-                            <div className="flex items-center gap-2">
-                              {result.referenceNo && (
-                                <Badge variant="outline" className="text-xs">
-                                  {result.referenceNo}
-                                </Badge>
-                              )}
-                            </div>
-                            <div className="font-medium">{result.tenderTitle}</div>
-                            <div className="flex items-center gap-1 text-sm text-gray-500">
-                              <Building2 className="h-3 w-3" />
-                              {result.organization}
-                            </div>
-                          </div>
+                          {result.referenceNo ? (
+                            <Badge variant="outline" className="text-xs font-mono">
+                              {result.referenceNo}
+                            </Badge>
+                          ) : (
+                            <span className="text-gray-400">-</span>
+                          )}
                         </TableCell>
                         
-                        <TableCell>
-                          <div className="space-y-1">
-                            <div className="text-sm text-gray-600">
-                              Tender: {formatCurrency(result.tenderValue)}
-                            </div>
-                            {result.ourBidValue && (
-                              <div className="text-sm text-blue-600">
-                                Our Bid: {formatCurrency(result.ourBidValue)}
-                              </div>
-                            )}
-                            {result.awardedValue && (
-                              <div className="text-sm text-green-600">
-                                Awarded: {formatCurrency(result.awardedValue)}
-                              </div>
-                            )}
-                          </div>
-                        </TableCell>
-                        
-                        <TableCell>
-                          <div className="space-y-1">
-                            {getStatusBadge(result.status)}
-                            {result.aiMatchScore && (
-                              <div className="text-xs text-gray-500">
-                                AI Match: {result.aiMatchScore}%
-                              </div>
-                            )}
-                          </div>
-                        </TableCell>
-                        
+                        {/* Location */}
                         <TableCell>
                           <div className="text-sm">
+                            {result.location || "-"}
+                          </div>
+                        </TableCell>
+                        
+                        {/* Department */}
+                        <TableCell>
+                          <div className="flex items-center gap-1 text-sm">
+                            <Building2 className="h-3 w-3 text-gray-400" />
+                            {result.department || result.organization || "-"}
+                          </div>
+                        </TableCell>
+                        
+                        {/* Contract Value */}
+                        <TableCell>
+                          <div className="text-sm font-medium text-green-600">
+                            {result.contractValue || result.awardedValue ? 
+                              formatCurrency(result.contractValue || result.awardedValue) : "-"}
+                          </div>
+                        </TableCell>
+                        
+                        {/* Estimated Value */}
+                        <TableCell>
+                          <div className="text-sm text-gray-600">
+                            {result.tenderValue ? formatCurrency(result.tenderValue) : "-"}
+                          </div>
+                        </TableCell>
+                        
+                        {/* Marginal Difference */}
+                        <TableCell>
+                          <div className="text-sm">
+                            {(() => {
+                              const contractVal = result.contractValue || result.awardedValue || 0;
+                              const estimatedVal = result.tenderValue || 0;
+                              const difference = result.marginalDifference || (contractVal - estimatedVal);
+                              
+                              if (!contractVal || !estimatedVal) return "-";
+                              
+                              const percentDiff = estimatedVal > 0 ? 
+                                ((difference / estimatedVal) * 100).toFixed(1) : 0;
+                              
+                              return (
+                                <div className={`font-medium ${difference > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                                  {formatCurrency(Math.abs(difference))}
+                                  <span className="text-xs ml-1">
+                                    ({difference > 0 ? '+' : ''}{percentDiff}%)
+                                  </span>
+                                </div>
+                              );
+                            })()}
+                          </div>
+                        </TableCell>
+                        
+                        {/* Tender Stage */}
+                        <TableCell>
+                          <div className="text-sm">
+                            {result.tenderStage ? (
+                              <Badge variant={
+                                result.tenderStage === "completed" ? "success" :
+                                result.tenderStage === "in_progress" ? "secondary" :
+                                "outline"
+                              }>
+                                {result.tenderStage}
+                              </Badge>
+                            ) : (
+                              getStatusBadge(result.status)
+                            )}
+                          </div>
+                        </TableCell>
+                        
+                        {/* Winner Bidder */}
+                        <TableCell>
+                          <div className="text-sm font-medium">
                             {result.awardedTo || "-"}
                           </div>
                         </TableCell>
                         
+                        {/* Participator Bidders */}
                         <TableCell>
-                          <div className="space-y-1">
-                            <div className="text-sm">
-                              {result.assignedTo ? (
-                                <Badge variant="secondary">{result.assignedTo}</Badge>
-                              ) : (
-                                <span className="text-gray-400">Not assigned</span>
-                              )}
-                            </div>
-                            {result.status === "missed_opportunity" && result.missedReason && (
-                              <div className="text-xs text-orange-600">
-                                {result.missedReason}
-                              </div>
+                          <div className="flex flex-wrap gap-1 max-w-xs">
+                            {result.participatorBidders && result.participatorBidders.length > 0 ? (
+                              result.participatorBidders.map((bidder, index) => (
+                                <Badge
+                                  key={index}
+                                  variant="secondary"
+                                  className="text-xs cursor-pointer hover:bg-secondary/80"
+                                >
+                                  • {bidder}
+                                </Badge>
+                              ))
+                            ) : (
+                              <span className="text-gray-400 text-xs">No bidders info</span>
                             )}
-                          </div>
-                        </TableCell>
-                        
-                        <TableCell>
-                          <div className="flex items-center gap-1 text-sm">
-                            <Calendar className="h-3 w-3 text-gray-400" />
-                            {result.resultDate ? new Date(result.resultDate).toLocaleDateString() : "-"}
-                          </div>
-                        </TableCell>
-                        
-                        <TableCell>
-                          <div className="text-xs text-gray-500 max-w-xs">
-                            {result.reasonForLoss || result.notes || "-"}
                           </div>
                         </TableCell>
                       </TableRow>

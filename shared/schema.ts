@@ -417,11 +417,17 @@ export const enhancedTenderResults = pgTable("enhanced_tender_results", {
   tenderTitle: varchar("tender_title").notNull(),
   organization: varchar("organization").notNull(),
   referenceNo: varchar("reference_no"),
-  tenderValue: integer("tender_value"), // in cents
+  location: varchar("location"), // new field
+  department: varchar("department"), // new field
+  tenderValue: integer("tender_value"), // in cents (estimated value)
+  contractValue: integer("contract_value"), // in cents (actual awarded value)
+  marginalDifference: integer("marginal_difference"), // in cents (contractValue - tenderValue)
+  tenderStage: varchar("tender_stage"), // new field
   ourBidValue: integer("our_bid_value"), // in cents
   status: varchar("status").notNull(), // won, lost, rejected, missed_opportunity
-  awardedTo: varchar("awarded_to"), // company name who won
+  awardedTo: varchar("awarded_to"), // company name who won (winner bidder)
   awardedValue: integer("awarded_value"), // winning bid amount in cents
+  participatorBidders: text("participator_bidders").array(), // new field - list of all bidders
   resultDate: timestamp("result_date"),
   assignedTo: varchar("assigned_to"), // our bidder who worked on it
   reasonForLoss: varchar("reason_for_loss"),

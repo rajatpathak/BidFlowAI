@@ -1224,10 +1224,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
               
               const tenderTitle = getField(['Title', 'Tender Title', 'Work Description', 'Work Name', 'Brief Description']);
               const organization = getField(['Organization', 'Dept', 'Department', 'Ministry', 'Company']);
-              const referenceNo = getField(['Reference No', 'Ref No', 'ID', 'T247 ID', 'Tender ID', 'Reference']);
-              const awardedTo = getField(['Awarded To', 'Winner', 'Selected Company', 'L1 Bidder', 'Contract Awarded To']);
-              const awardedValueStr = getField(['Awarded Value', 'Winning Amount', 'Final Value', 'Contract Value', 'L1 Amount']);
-              const awardedValue = parseFloat(awardedValueStr.toString().replace(/[^0-9.-]/g, '') || "0") * 100;
+              const referenceNo = getField(['Reference No', 'Ref No', 'ID', 'T247 ID', 'Tender ID', 'Reference', 'TENDER REFERENCE NO']);
+              const location = getField(['Location', 'City', 'State', 'Region', 'LOCATION']);
+              const department = getField(['Department', 'Dept', 'Division', 'Unit']);
+              const awardedTo = getField(['Awarded To', 'Winner', 'Selected Company', 'L1 Bidder', 'Contract Awarded To', 'Winner bidder']);
+              const contractValueStr = getField(['Contract Value', 'Awarded Value', 'Winning Amount', 'Final Value', 'L1 Amount']);
+              const contractValue = parseFloat(contractValueStr.toString().replace(/[^0-9.-]/g, '') || "0") * 100;
+              const awardedValue = contractValue; // same as contract value
+              const estimatedValueStr = getField(['Estimated Value', 'Tender Value', 'EMD', 'Budget']);
+              const estimatedValue = parseFloat(estimatedValueStr.toString().replace(/[^0-9.-]/g, '') || "0") * 100;
+              const marginalDifference = contractValue && estimatedValue ? contractValue - estimatedValue : null;
+              const tenderStage = getField(['Tender Stage', 'Stage', 'Status', 'Phase']);
+              const participatorBiddersStr = getField(['Participator Bidders', 'Bidders', 'Participants', 'Companies']);
+              const participatorBidders = participatorBiddersStr ? 
+                participatorBiddersStr.split(/[,;]/).map(b => b.trim()).filter(b => b) : [];
               const resultDateStr = getField(['Result Date', 'Award Date', 'Date of Award', 'Contract Date']);
               const resultDate = resultDateStr ? new Date(resultDateStr) : new Date();
               
@@ -1283,11 +1293,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 tenderTitle,
                 organization,
                 referenceNo,
-                tenderValue: parseFloat(tenderValueStr.toString().replace(/[^0-9.-]/g, '') || "0") * 100,
+                location: location || null,
+                department: department || null,
+                tenderValue: estimatedValue,
+                contractValue: contractValue,
+                marginalDifference: marginalDifference,
+                tenderStage: tenderStage || null,
                 ourBidValue: parseFloat(ourBidValueStr.toString().replace(/[^0-9.-]/g, '') || "0") * 100,
                 status,
                 awardedTo,
                 awardedValue,
+                participatorBidders: participatorBidders.length > 0 ? participatorBidders : null,
                 resultDate: resultDate instanceof Date && !isNaN(resultDate.getTime()) ? resultDate : new Date(),
                 assignedTo,
                 reasonForLoss: getField(['Reason', 'Comments', 'Remarks', 'Loss Reason']) || null,
