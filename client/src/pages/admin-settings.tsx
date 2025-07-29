@@ -262,7 +262,7 @@ export default function AdminSettingsPage() {
                         <FormItem>
                           <FormLabel>Headquarters</FormLabel>
                           <FormControl>
-                            <Input placeholder="e.g., Mumbai, India" {...field} />
+                            <Input placeholder="e.g., Mumbai, India" {...field} value={field.value || ''} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>

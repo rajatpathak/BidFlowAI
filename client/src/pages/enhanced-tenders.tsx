@@ -66,11 +66,17 @@ export default function EnhancedTendersPage() {
   const { toast } = useToast();
 
   // Build query string for filtering
-  const buildQueryString = (filters: typeof filters) => {
+  const buildQueryString = (filterParams: {
+    status: string;
+    search: string;
+    minMatch: string;
+    location: string;
+    organization: string;
+  }) => {
     const params = new URLSearchParams();
-    Object.entries(filters).forEach(([key, value]) => {
+    Object.entries(filterParams).forEach(([key, value]) => {
       if (value && value !== 'all') {
-        params.append(key, value);
+        params.append(key, String(value));
       }
     });
     return params.toString();
