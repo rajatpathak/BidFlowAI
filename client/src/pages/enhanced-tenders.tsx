@@ -57,7 +57,7 @@ export default function EnhancedTendersPage() {
   const [filters, setFilters] = useState({
     status: 'all',
     search: '',
-    minMatch: '',
+    minMatch: 'any',
     location: '',
     organization: '',
   });
