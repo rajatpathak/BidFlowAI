@@ -7,15 +7,21 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Search, Filter, Eye, Edit, Brain, Trash2, ExternalLink } from "lucide-react";
+import { Search, Filter, Eye, Edit, Brain, Trash2, ExternalLink, Grid, List } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format } from "date-fns";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
 import type { Tender } from "@shared/schema";
 
 export default function ActiveTendersTable() {
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
+  const [viewMode, setViewMode] = useState<"list" | "grid">("list");
+  const [selectedTender, setSelectedTender] = useState<Tender | null>(null);
+  const [detailModalOpen, setDetailModalOpen] = useState(false);
+  const itemsPerPage = viewMode === "list" ? 10 : 12;
 
   const { data: tenders, isLoading } = useQuery({
     queryKey: ["/api/tenders"],
@@ -78,6 +84,11 @@ export default function ActiveTendersTable() {
     return diffDays;
   };
 
+  const handleViewDetails = (tender: Tender) => {
+    setSelectedTender(tender);
+    setDetailModalOpen(true);
+  };
+
   if (isLoading) {
     return (
       <Card className="bg-white shadow-sm border border-gray-100">
@@ -111,6 +122,24 @@ export default function ActiveTendersTable() {
               <Filter className="h-4 w-4 mr-2" />
               Filter
             </Button>
+            <div className="flex items-center gap-1 border rounded-md p-1">
+              <Button
+                variant={viewMode === "list" ? "default" : "ghost"}
+                size="sm"
+                onClick={() => setViewMode("list")}
+                className="p-1.5 h-7"
+              >
+                <List className="h-4 w-4" />
+              </Button>
+              <Button
+                variant={viewMode === "grid" ? "default" : "ghost"}
+                size="sm"
+                onClick={() => setViewMode("grid")}
+                className="p-1.5 h-7"
+              >
+                <Grid className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
         </div>
       </CardHeader>
@@ -120,7 +149,7 @@ export default function ActiveTendersTable() {
           <div className="text-center py-8">
             <p className="text-gray-500">No tenders found</p>
           </div>
-        ) : (
+        ) : viewMode === "list" ? (
           <>
             <div className="overflow-x-auto">
               <Table>
@@ -222,18 +251,29 @@ export default function ActiveTendersTable() {
                             ₹{(tender.value / 100).toLocaleString('en-IN')}
                           </div>
                         </TableCell>
-                        <TableCell className="px-4 py-4 text-center w-24">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="text-xs"
-                            onClick={() => {
-                              // TODO: Implement assign functionality
-                              console.log('Assign tender:', tender.id);
-                            }}
-                          >
-                            Assign
-                          </Button>
+                        <TableCell className="px-4 py-4 text-center w-32">
+                          <div className="flex items-center justify-center gap-1">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="p-1.5 h-8 w-8"
+                              onClick={() => handleViewDetails(tender)}
+                              title="View Details"
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="text-xs"
+                              onClick={() => {
+                                // TODO: Implement assign functionality
+                                console.log('Assign tender:', tender.id);
+                              }}
+                            >
+                              Assign
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     );
@@ -325,8 +365,354 @@ export default function ActiveTendersTable() {
               </div>
             </div>
           </>
+        ) : (
+          // Grid View
+          <div className="p-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {displayedTenders.map((tender) => {
+                const requirements = tender.requirements || {};
+                const refId = requirements.refId || '';
+                const location = requirements.location || '';
+                const turnover = requirements.turnover || '0';
+                const link = requirements.link || '';
+                const isGem = requirements.source === 'gem';
+                const aiScore = tender.aiScore || 0;
+                const daysLeft = getDaysLeft(tender.deadline);
+
+                return (
+                  <div key={tender.id} className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+                    <div className="flex justify-between items-start mb-3">
+                      <div className="flex-1">
+                        <h3 className="text-sm font-semibold text-gray-900 line-clamp-2 mb-1">
+                          {tender.title}
+                        </h3>
+                        <p className="text-xs text-gray-600">{tender.organization}</p>
+                      </div>
+                      <Badge 
+                        className={`text-xs font-medium ml-2 ${
+                          isGem 
+                            ? 'bg-emerald-100 text-emerald-700' 
+                            : 'bg-amber-100 text-amber-700'
+                        }`}
+                      >
+                        {isGem ? 'GEM' : 'NON-GEM'}
+                      </Badge>
+                    </div>
+
+                    <div className="space-y-2 mb-3">
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs text-gray-500">Reference:</span>
+                        <span className="text-xs font-medium text-gray-700">{refId || '-'}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs text-gray-500">Deadline:</span>
+                        <span className={`text-xs font-medium ${daysLeft <= 3 ? 'text-red-600' : 'text-gray-700'}`}>
+                          {format(new Date(tender.deadline), "dd-MM-yyyy")}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs text-gray-500">Location:</span>
+                        <span className="text-xs text-gray-700 text-right max-w-[150px] truncate">{location}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs text-gray-500">Value:</span>
+                        <span className="text-xs font-semibold text-gray-900">
+                          ₹{(tender.value / 100).toLocaleString('en-IN')}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs text-gray-500">AI Score:</span>
+                        <Badge 
+                          className={`text-xs font-medium ${
+                            aiScore >= 85 
+                              ? 'bg-green-100 text-green-700' 
+                              : aiScore >= 70
+                              ? 'bg-yellow-100 text-yellow-700'
+                              : 'bg-red-100 text-red-700'
+                          }`}
+                        >
+                          {aiScore}%
+                        </Badge>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="flex-1"
+                        onClick={() => handleViewDetails(tender)}
+                      >
+                        <Eye className="h-4 w-4 mr-1" />
+                        View
+                      </Button>
+                      {link && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          asChild
+                        >
+                          <a href={link} target="_blank" rel="noopener noreferrer">
+                            <ExternalLink className="h-4 w-4" />
+                          </a>
+                        </Button>
+                      )}
+                      <Button
+                        size="sm"
+                        variant="default"
+                        className="flex-1"
+                        onClick={() => console.log('Assign tender:', tender.id)}
+                      >
+                        Assign
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="bg-white px-4 py-3 mt-4 border-t border-gray-200">
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div className="text-sm text-gray-500 text-center sm:text-left">
+                  Showing {startIndex + 1} to {Math.min(startIndex + itemsPerPage, filteredTenders.length)} of {filteredTenders.length} results
+                </div>
+                <div className="flex items-center gap-2 flex-wrap justify-center">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                    disabled={currentPage === 1}
+                  >
+                    Previous
+                  </Button>
+                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                    let pageNum;
+                    if (totalPages <= 5) {
+                      pageNum = i + 1;
+                    } else if (currentPage <= 3) {
+                      pageNum = i + 1;
+                    } else if (currentPage >= totalPages - 2) {
+                      pageNum = totalPages - 4 + i;
+                    } else {
+                      pageNum = currentPage - 2 + i;
+                    }
+                    
+                    return (
+                      <Button
+                        key={pageNum}
+                        variant={currentPage === pageNum ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setCurrentPage(pageNum)}
+                        className="min-w-[40px]"
+                      >
+                        {pageNum}
+                      </Button>
+                    );
+                  })}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                    disabled={currentPage === totalPages}
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
         )}
       </CardContent>
+
+      {/* Detail Modal */}
+      <Dialog open={detailModalOpen} onOpenChange={setDetailModalOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          {selectedTender && (
+            <>
+              <DialogHeader>
+                <DialogTitle className="text-xl font-semibold">Tender Details</DialogTitle>
+              </DialogHeader>
+              
+              <div className="space-y-6 mt-4">
+                {/* Basic Information */}
+                <div>
+                  <h3 className="text-lg font-semibold mb-3">Basic Information</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-sm text-gray-500">Brief:</p>
+                      <p className="text-sm font-medium">{selectedTender.title}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500">Organization:</p>
+                      <p className="text-sm font-medium">{selectedTender.organization}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500">Description:</p>
+                      <p className="text-sm">{selectedTender.description || 'No description available'}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500">GEM/Non-GEM:</p>
+                      <Badge className={`text-xs font-medium ${
+                        selectedTender.requirements?.source === 'gem'
+                          ? 'bg-emerald-100 text-emerald-700' 
+                          : 'bg-amber-100 text-amber-700'
+                      }`}>
+                        {selectedTender.requirements?.source === 'gem' ? 'GEM' : 'NON-GEM'}
+                      </Badge>
+                    </div>
+                  </div>
+                </div>
+
+                <Separator />
+
+                {/* Dates and Cost */}
+                <div>
+                  <h3 className="text-lg font-semibold mb-3">Important Dates & Cost</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-sm text-gray-500">Submission Date:</p>
+                      <p className="text-sm font-medium">{format(new Date(selectedTender.deadline), "dd-MM-yyyy HH:mm")}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500">Opening Date:</p>
+                      <p className="text-sm font-medium">{format(new Date(selectedTender.deadline), "dd-MM-yyyy HH:mm")}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500">Tender Estimated Cost:</p>
+                      <p className="text-sm font-medium">₹{(selectedTender.value / 100).toLocaleString('en-IN')}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500">EMD:</p>
+                      <p className="text-sm font-medium">₹{((selectedTender.value / 100) * 0.02).toLocaleString('en-IN')}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500">Tender Document Fees:</p>
+                      <p className="text-sm font-medium">Refer Document</p>
+                    </div>
+                  </div>
+                </div>
+
+                <Separator />
+
+                {/* AI Generated Summary */}
+                <div>
+                  <h3 className="text-lg font-semibold mb-3">AI Generated Tender Summary / Eligibility Criteria</h3>
+                  <div className="bg-gray-50 p-4 rounded-lg space-y-3">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-sm text-gray-500">Tender ID:</p>
+                        <p className="text-sm font-medium">{selectedTender.requirements?.refId || selectedTender.id}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-500">Organization:</p>
+                        <p className="text-sm font-medium">{selectedTender.organization}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-500">Ministry/State Name:</p>
+                        <p className="text-sm font-medium">Ministry of Power</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-500">Department Name:</p>
+                        <p className="text-sm font-medium">Grid Controller Of India Limited</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-500">Total Quantity:</p>
+                        <p className="text-sm font-medium">243</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-500">Item Category:</p>
+                        <p className="text-sm font-medium">Database Management System Software (V2) (Q2) ( PAC Only )</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-500">MSE Exemption:</p>
+                        <p className="text-sm font-medium">No</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-500">Startup Exemption:</p>
+                        <p className="text-sm font-medium">No</p>
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500">AI Summary:</p>
+                      <div className="mt-2 flex gap-2">
+                        <Button size="sm" variant="outline">
+                          <ExternalLink className="h-4 w-4 mr-1" />
+                          PDF Download
+                        </Button>
+                        <Button size="sm" variant="outline">
+                          <ExternalLink className="h-4 w-4 mr-1" />
+                          Excel Download
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <Separator />
+
+                {/* Tender Overview */}
+                <div>
+                  <h3 className="text-lg font-semibold mb-3">Tender Overview</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-sm text-gray-500">GSIT ID:</p>
+                      <p className="text-sm font-medium">{selectedTender.requirements?.refId || '90005120'}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500">Quantity:</p>
+                      <p className="text-sm font-medium">243</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500">Memo Exemption:</p>
+                      <p className="text-sm font-medium">No</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500">Site Location:</p>
+                      <p className="text-sm font-medium">{selectedTender.requirements?.location || 'New Delhi, Delhi'}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500">Contact Person:</p>
+                      <p className="text-sm font-medium">Refer To Documents</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500">Contact Email:</p>
+                      <p className="text-sm font-medium">Refer To Documents</p>
+                    </div>
+                  </div>
+                  {selectedTender.requirements?.link && (
+                    <div className="mt-4">
+                      <Button asChild>
+                        <a href={selectedTender.requirements.link} target="_blank" rel="noopener noreferrer">
+                          <ExternalLink className="h-4 w-4 mr-2" />
+                          View Tender on Website
+                        </a>
+                      </Button>
+                    </div>
+                  )}
+                </div>
+
+                <Separator />
+
+                {/* Tender Documents */}
+                <div>
+                  <h3 className="text-lg font-semibold mb-3">Tender Documents</h3>
+                  <div className="space-y-2">
+                    <p className="text-sm text-gray-500">NIT</p>
+                    <div className="flex gap-2">
+                      <Button size="sm" variant="outline">Download Tender Document 1</Button>
+                      <Button size="sm" variant="outline">Download Tender Document 2</Button>
+                      <Button size="sm" variant="outline">Download Tender Document 3</Button>
+                    </div>
+                  </div>
+                  <div className="mt-4">
+                    <p className="text-sm font-semibold">Download All Documents</p>
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }
