@@ -3,6 +3,7 @@ import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { useAuth } from "@/hooks/useAuth";
 import Sidebar from "@/components/layout/sidebar";
 import Dashboard from "@/pages/dashboard";
 import Tenders from "@/pages/tenders";
@@ -15,29 +16,54 @@ import AdminSettings from "@/pages/admin-settings";
 import EnhancedTenders from "@/pages/enhanced-tenders";
 import TenderResults from "@/pages/tender-results";
 import UploadDemo from "@/pages/upload-demo";
+import Login from "@/pages/login";
+import Unauthorized from "@/pages/unauthorized";
 import NotFound from "@/pages/not-found";
+import { ProtectedRoute } from "@/components/ProtectedRoute";
 
 function Router() {
-  return (
-    <div className="flex h-screen overflow-hidden">
-      <Sidebar />
-      <div className="flex-1 overflow-auto">
-        <Switch>
-          <Route path="/" component={Dashboard} />
-          <Route path="/tenders" component={Tenders} />
-          <Route path="/create-bid" component={CreateBid} />
-          <Route path="/ai-insights" component={AIInsights} />
-          <Route path="/finance" component={Finance} />
-          <Route path="/meetings" component={Meetings} />
-          <Route path="/user-management" component={UserManagement} />
-          <Route path="/admin-settings" component={AdminSettings} />
-          <Route path="/enhanced-tenders" component={EnhancedTenders} />
-          <Route path="/tender-results" component={TenderResults} />
-          <Route path="/upload-demo" component={UploadDemo} />
-          <Route component={NotFound} />
-        </Switch>
+  const { isAuthenticated, isLoading } = useAuth();
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
       </div>
-    </div>
+    );
+  }
+
+  return (
+    <Switch>
+      {/* Public routes */}
+      <Route path="/login" component={Login} />
+      <Route path="/unauthorized" component={Unauthorized} />
+      
+      {/* Protected routes */}
+      {isAuthenticated ? (
+        <div className="flex h-screen overflow-hidden">
+          <Sidebar />
+          <div className="flex-1 overflow-auto">
+            <Switch>
+              <Route path="/" component={() => <ProtectedRoute><Dashboard /></ProtectedRoute>} />
+              <Route path="/dashboard" component={() => <ProtectedRoute><Dashboard /></ProtectedRoute>} />
+              <Route path="/tenders" component={() => <ProtectedRoute requiredPermission="view_tenders"><Tenders /></ProtectedRoute>} />
+              <Route path="/create-bid" component={() => <ProtectedRoute requiredPermission="create_bids"><CreateBid /></ProtectedRoute>} />
+              <Route path="/ai-insights" component={() => <ProtectedRoute requiredPermission="use_ai_insights"><AIInsights /></ProtectedRoute>} />
+              <Route path="/finance" component={() => <ProtectedRoute requiredPermission="view_finance"><Finance /></ProtectedRoute>} />
+              <Route path="/meetings" component={() => <ProtectedRoute><Meetings /></ProtectedRoute>} />
+              <Route path="/user-management" component={() => <ProtectedRoute requiredRole="admin"><UserManagement /></ProtectedRoute>} />
+              <Route path="/admin-settings" component={() => <ProtectedRoute requiredRole="admin"><AdminSettings /></ProtectedRoute>} />
+              <Route path="/enhanced-tenders" component={() => <ProtectedRoute requiredPermission="view_tenders"><EnhancedTenders /></ProtectedRoute>} />
+              <Route path="/tender-results" component={() => <ProtectedRoute><TenderResults /></ProtectedRoute>} />
+              <Route path="/upload-demo" component={() => <ProtectedRoute><UploadDemo /></ProtectedRoute>} />
+              <Route component={NotFound} />
+            </Switch>
+          </div>
+        </div>
+      ) : (
+        <Route component={Login} />
+      )}
+    </Switch>
   );
 }
 

@@ -1,5 +1,8 @@
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/hooks/useAuth";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { 
   BarChart3, 
   FileText, 
@@ -15,7 +18,9 @@ import {
   FileSpreadsheet,
   Cog,
   Trophy,
-  Upload
+  Upload,
+  LogOut,
+  Shield
 } from "lucide-react";
 
 const navigation = [
@@ -36,6 +41,7 @@ const navigation = [
 
 export default function Sidebar() {
   const [location] = useLocation();
+  const { user, logout, hasPermission } = useAuth();
 
   return (
     <div className="hidden lg:flex lg:flex-shrink-0">
@@ -50,11 +56,41 @@ export default function Sidebar() {
           </div>
         </div>
 
+        {/* User Info */}
+        {user && (
+          <div className="px-4 py-3 border-b border-gray-200">
+            <div className="flex items-center space-x-3">
+              <div className="flex-shrink-0">
+                <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                  <User className="h-4 w-4 text-blue-600" />
+                </div>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-gray-900 truncate">{user.name}</p>
+                <Badge variant="outline" className="text-xs">
+                  {user.role === 'admin' && <Shield className="h-3 w-3 mr-1" />}
+                  {user.role === 'finance_manager' && <DollarSign className="h-3 w-3 mr-1" />}
+                  {user.role === 'bidder' && <FileText className="h-3 w-3 mr-1" />}
+                  {user.role === 'admin' ? 'Admin' : 
+                   user.role === 'finance_manager' ? 'Finance' : 'Bidder'}
+                </Badge>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Navigation Menu */}
         <nav className="flex-1 px-4 py-4 space-y-2">
           {navigation.map((item) => {
             const Icon = item.icon;
             const isActive = location === item.href;
+            
+            // Filter navigation based on permissions
+            if (item.href === "/user-management" && !hasPermission("admin")) return null;
+            if (item.href === "/admin-settings" && !hasPermission("admin")) return null;
+            if (item.href === "/create-bid" && !hasPermission("create_bids")) return null;
+            if (item.href === "/finance" && !hasPermission("view_finance")) return null;
+            if (item.href === "/ai-insights" && !hasPermission("use_ai_insights")) return null;
             
             return (
               <Link
@@ -73,18 +109,17 @@ export default function Sidebar() {
             );
           })}
         </nav>
-
-        {/* User Profile Section */}
-        <div className="p-4 border-t border-gray-200">
-          <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center">
-              <User className="h-4 w-4 text-gray-600" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-gray-900 truncate">John Manager</p>
-              <p className="text-xs text-gray-500 truncate">Bid Manager</p>
-            </div>
-          </div>
+        
+        {/* Logout Button */}
+        <div className="px-4 py-4 border-t border-gray-200">
+          <Button
+            onClick={logout}
+            variant="outline"
+            className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50"
+          >
+            <LogOut className="mr-3 h-4 w-4" />
+            Logout
+          </Button>
         </div>
       </div>
     </div>

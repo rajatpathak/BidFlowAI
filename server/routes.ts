@@ -36,6 +36,73 @@ const upload = multer({
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Dashboard stats
+  // Authentication endpoints
+  app.post("/api/auth/login", async (req, res) => {
+    try {
+      const { username, password } = req.body;
+      
+      if (!username || !password) {
+        return res.status(400).json({ error: "Username and password required" });
+      }
+
+      // Get user by username
+      const user = await storage.getUserByUsername(username);
+      if (!user) {
+        return res.status(401).json({ error: "Invalid credentials" });
+      }
+
+      // In production, this would verify hashed password
+      // For demo, we'll check against simple passwords
+      const validPasswords: Record<string, string> = {
+        admin: "admin123",
+        finance_manager: "finance123", 
+        senior_bidder: "bidder123"
+      };
+
+      if (password !== validPasswords[username]) {
+        return res.status(401).json({ error: "Invalid credentials" });
+      }
+
+      // Generate simple token (in production, use JWT)
+      const token = `token_${user.id}_${Date.now()}`;
+      
+      res.json({
+        token,
+        user: {
+          id: user.id,
+          username: user.username,
+          email: user.email,
+          name: user.name,
+          role: user.role,
+        }
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: "Login failed", details: error.message });
+    }
+  });
+
+  app.get("/api/auth/verify", async (req, res) => {
+    try {
+      const token = req.headers.authorization?.replace('Bearer ', '');
+      if (!token) {
+        return res.status(401).json({ error: "No token provided" });
+      }
+
+      // Simple token validation (in production, verify JWT)
+      if (!token.startsWith('token_')) {
+        return res.status(401).json({ error: "Invalid token" });
+      }
+
+      res.json({ valid: true });
+    } catch (error) {
+      res.status(401).json({ error: "Token verification failed" });
+    }
+  });
+
+  app.post("/api/auth/logout", async (req, res) => {
+    res.json({ message: "Logged out successfully" });
+  });
+
   // Seed database endpoint for initialization
   app.post("/api/seed-database", async (req, res) => {
     try {
