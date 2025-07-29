@@ -122,75 +122,84 @@ export default function ActiveTendersTable() {
           </div>
         ) : (
           <>
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-gray-50">
-                  <TableHead className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-32">
-                    Reference No
-                  </TableHead>
-                  <TableHead className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-96">
-                    Tender Brief
-                  </TableHead>
-                  <TableHead className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-28">
-                    Deadline
-                  </TableHead>
-                  <TableHead className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-48">
-                    Location
-                  </TableHead>
-                  <TableHead className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider w-36">
-                    Estimated Cost
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody className="bg-white divide-y divide-gray-200">
-                {displayedTenders.map((tender) => {
-                  const daysLeft = getDaysLeft(tender.deadline);
-                  const requirements = typeof tender.requirements === 'object' && tender.requirements ? tender.requirements : {};
-                  const refId = (requirements as any).refId || '-';
-                  const location = (requirements as any).location || '-';
-                  
-                  return (
-                    <TableRow key={tender.id} className="hover:bg-gray-50">
-                      <TableCell className="px-4 py-4 text-sm font-medium text-gray-900 w-32">
-                        {refId}
-                      </TableCell>
-                      <TableCell className="px-4 py-4 w-96">
-                        <div className="overflow-hidden w-full">
-                          <div className="text-sm text-gray-900 animate-marquee whitespace-nowrap hover:animate-none">
-                            {tender.title}
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-gray-50">
+                    <TableHead className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[120px]">
+                      Reference No
+                    </TableHead>
+                    <TableHead className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[300px]">
+                      Tender Brief
+                    </TableHead>
+                    <TableHead className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[100px]">
+                      Deadline
+                    </TableHead>
+                    <TableHead className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[150px]">
+                      Location
+                    </TableHead>
+                    <TableHead className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[140px]">
+                      Estimated Cost
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody className="bg-white divide-y divide-gray-200">
+                  {displayedTenders.map((tender) => {
+                    const daysLeft = getDaysLeft(tender.deadline);
+                    const requirements = typeof tender.requirements === 'object' && tender.requirements ? tender.requirements : {};
+                    const refId = (requirements as any).refId || '-';
+                    const location = (requirements as any).location || '-';
+                    
+                    return (
+                      <TableRow key={tender.id} className="hover:bg-gray-50">
+                        <TableCell className="px-4 py-4 text-sm font-medium text-gray-900 w-32">
+                          {refId}
+                        </TableCell>
+                        <TableCell className="px-4 py-4 w-96">
+                          <div className="flex items-center gap-1 overflow-hidden w-full">
+                            <span className="text-sm text-gray-900 flex-shrink-0">
+                              {tender.title.split(' ').slice(0, 2).join(' ')}
+                            </span>
+                            {tender.title.split(' ').length > 2 && (
+                              <div className="overflow-hidden flex-1">
+                                <div className="text-sm text-gray-900 animate-marquee whitespace-nowrap hover:animate-none">
+                                  {tender.title.split(' ').slice(2).join(' ')}
+                                </div>
+                              </div>
+                            )}
                           </div>
-                        </div>
-                      </TableCell>
-                      <TableCell className="px-4 py-4 w-28">
-                        <div className="text-sm text-gray-900">
-                          {format(new Date(tender.deadline), "dd-MM-yyyy")}
-                        </div>
-                        <div className={`text-xs ${daysLeft <= 3 ? 'text-red-600 font-semibold' : 'text-gray-500'}`}>
-                          {daysLeft > 0 ? `${daysLeft} days` : 
-                           daysLeft === 0 ? 'Today' : 
-                           'Overdue'}
-                        </div>
-                      </TableCell>
-                      <TableCell className="px-4 py-4 text-sm text-gray-700 w-48">
-                        {location}
-                      </TableCell>
-                      <TableCell className="px-4 py-4 text-right w-36">
-                        <div className="text-sm font-semibold text-gray-900">
-                          ₹{(tender.value / 100).toLocaleString('en-IN')}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
+                        </TableCell>
+                        <TableCell className="px-4 py-4 w-28">
+                          <div className="text-sm text-gray-900">
+                            {format(new Date(tender.deadline), "dd-MM-yyyy")}
+                          </div>
+                          <div className={`text-xs ${daysLeft <= 3 ? 'text-red-600 font-semibold' : 'text-gray-500'}`}>
+                            {daysLeft > 0 ? `${daysLeft} days` : 
+                             daysLeft === 0 ? 'Today' : 
+                             'Overdue'}
+                          </div>
+                        </TableCell>
+                        <TableCell className="px-4 py-4 text-sm text-gray-700 w-48">
+                          {location}
+                        </TableCell>
+                        <TableCell className="px-4 py-4 text-right w-36">
+                          <div className="text-sm font-semibold text-gray-900">
+                            ₹{(tender.value / 100).toLocaleString('en-IN')}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
 
-            <div className="bg-white px-6 py-3 border-t border-gray-200">
-              <div className="flex items-center justify-between">
-                <div className="text-sm text-gray-500">
+            <div className="bg-white px-4 py-3 border-t border-gray-200">
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div className="text-sm text-gray-500 text-center sm:text-left">
                   Showing {startIndex + 1} to {Math.min(startIndex + itemsPerPage, filteredTenders.length)} of {filteredTenders.length} results
                 </div>
-                <div className="flex items-center space-x-2">
+                <div className="flex items-center gap-2 flex-wrap justify-center">
                   <Button
                     variant="outline"
                     size="sm"
@@ -199,16 +208,63 @@ export default function ActiveTendersTable() {
                   >
                     Previous
                   </Button>
-                  {[...Array(totalPages)].map((_, i) => (
-                    <Button
-                      key={i + 1}
-                      variant={currentPage === i + 1 ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => setCurrentPage(i + 1)}
-                    >
-                      {i + 1}
-                    </Button>
-                  ))}
+                  <div className="flex items-center gap-1">
+                    {totalPages > 7 ? (
+                      <>
+                        {currentPage > 3 && (
+                          <>
+                            <Button
+                              variant={currentPage === 1 ? "default" : "outline"}
+                              size="sm"
+                              onClick={() => setCurrentPage(1)}
+                            >
+                              1
+                            </Button>
+                            {currentPage > 4 && <span className="px-2 text-gray-500">...</span>}
+                          </>
+                        )}
+                        {[...Array(5)].map((_, i) => {
+                          const pageNum = currentPage - 2 + i;
+                          if (pageNum < 1 || pageNum > totalPages) return null;
+                          if (pageNum === 1 && currentPage <= 3) return null;
+                          if (pageNum === totalPages && currentPage >= totalPages - 2) return null;
+                          return (
+                            <Button
+                              key={pageNum}
+                              variant={currentPage === pageNum ? "default" : "outline"}
+                              size="sm"
+                              onClick={() => setCurrentPage(pageNum)}
+                            >
+                              {pageNum}
+                            </Button>
+                          );
+                        })}
+                        {currentPage < totalPages - 2 && (
+                          <>
+                            {currentPage < totalPages - 3 && <span className="px-2 text-gray-500">...</span>}
+                            <Button
+                              variant={currentPage === totalPages ? "default" : "outline"}
+                              size="sm"
+                              onClick={() => setCurrentPage(totalPages)}
+                            >
+                              {totalPages}
+                            </Button>
+                          </>
+                        )}
+                      </>
+                    ) : (
+                      [...Array(totalPages)].map((_, i) => (
+                        <Button
+                          key={i + 1}
+                          variant={currentPage === i + 1 ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => setCurrentPage(i + 1)}
+                        >
+                          {i + 1}
+                        </Button>
+                      ))
+                    )}
+                  </div>
                   <Button
                     variant="outline"
                     size="sm"
