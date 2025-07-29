@@ -598,6 +598,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // User Roles Management
+  app.get("/api/user-roles", async (req, res) => {
+    try {
+      const userRoles = await storage.getUserRoles();
+      res.json(userRoles);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch user roles" });
+    }
+  });
+
+  app.get("/api/users/:userId/roles", async (req, res) => {
+    try {
+      const userRoles = await storage.getUserRolesByUser(req.params.userId);
+      res.json(userRoles);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch user roles" });
+    }
+  });
+
+  app.get("/api/roles/:roleId/users", async (req, res) => {
+    try {
+      const userRoles = await storage.getUserRolesByRole(req.params.roleId);
+      res.json(userRoles);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch role users" });
+    }
+  });
+
+  app.post("/api/user-roles", async (req, res) => {
+    try {
+      const data = insertUserRoleSchema.parse(req.body);
+      const userRole = await storage.createUserRole(data);
+      res.status(201).json(userRole);
+    } catch (error) {
+      res.status(400).json({ error: "Invalid user role data" });
+    }
+  });
+
+  app.delete("/api/user-roles/:id", async (req, res) => {
+    try {
+      const deleted = await storage.deleteUserRole(req.params.id);
+      if (!deleted) {
+        return res.status(404).json({ error: "User role not found" });
+      }
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete user role" });
+    }
+  });
+
   // Enhanced endpoints for detailed views
   app.get("/api/tenders/:id/details", async (req, res) => {
     try {

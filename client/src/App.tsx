@@ -10,6 +10,7 @@ import CreateBid from "@/pages/create-bid";
 import AIInsights from "@/pages/ai-insights";
 import Finance from "@/pages/finance";
 import Meetings from "@/pages/meetings";
+import UserManagement from "@/pages/user-management";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -24,6 +25,7 @@ function Router() {
           <Route path="/ai-insights" component={AIInsights} />
           <Route path="/finance" component={Finance} />
           <Route path="/meetings" component={Meetings} />
+          <Route path="/user-management" component={UserManagement} />
           <Route component={NotFound} />
         </Switch>
       </div>

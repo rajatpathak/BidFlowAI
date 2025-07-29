@@ -10,7 +10,8 @@ import {
   Settings, 
   User,
   DollarSign,
-  Calendar
+  Calendar,
+  UserCog
 } from "lucide-react";
 
 const navigation = [
@@ -20,6 +21,7 @@ const navigation = [
   { name: "Meetings", href: "/meetings", icon: Calendar },
   { name: "Finance", href: "/finance", icon: DollarSign },
   { name: "AI Insights", href: "/ai-insights", icon: Brain },
+  { name: "User Management", href: "/user-management", icon: UserCog },
   { name: "Analytics", href: "/analytics", icon: PieChart },
   { name: "Settings", href: "/settings", icon: Settings },
 ];

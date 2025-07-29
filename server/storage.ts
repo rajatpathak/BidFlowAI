@@ -125,7 +125,9 @@ export interface IStorage {
   // User Roles
   getUserRoles(): Promise<UserRole[]>;
   getUserRolesByUser(userId: string): Promise<UserRole[]>;
+  getUserRolesByRole(roleId: string): Promise<UserRole[]>;
   createUserRole(userRole: InsertUserRole): Promise<UserRole>;
+  deleteUserRole(id: string): Promise<boolean>;
   
   // Enhanced Methods
   getTenderWithDetails(id: string): Promise<TenderWithDetails | undefined>;
@@ -382,6 +384,14 @@ export class MemStorage implements IStorage {
       ...insertMeeting,
       id,
       createdAt: new Date(),
+      description: insertMeeting.description || null,
+      status: insertMeeting.status || "scheduled",
+      tenderId: insertMeeting.tenderId || null,
+      meetingLink: insertMeeting.meetingLink || null,
+      hostUserId: insertMeeting.hostUserId || null,
+      momWriterId: insertMeeting.momWriterId || null,
+      minutes: insertMeeting.minutes || null,
+      attendees: insertMeeting.attendees || null,
     };
     this.meetings.set(id, meeting);
     return meeting;
@@ -414,6 +424,14 @@ export class MemStorage implements IStorage {
       ...insertRequest,
       id,
       requestDate: new Date(),
+      description: insertRequest.description || null,
+      status: insertRequest.status || "pending",
+      tenderId: insertRequest.tenderId || null,
+      requesterId: insertRequest.requesterId || null,
+      approvedBy: insertRequest.approvedBy || null,
+      approvalDate: insertRequest.approvalDate || null,
+      expiryDate: insertRequest.expiryDate || null,
+      metadata: insertRequest.metadata || null,
     };
     this.financeRequests.set(id, request);
     return request;
@@ -466,6 +484,10 @@ export class MemStorage implements IStorage {
       ...insertApproval,
       id,
       createdAt: new Date(),
+      status: insertApproval.status || "pending",
+      approvalDate: insertApproval.approvalDate || null,
+      approverId: insertApproval.approverId || null,
+      comments: insertApproval.comments || null,
     };
     this.approvals.set(id, approval);
     return approval;
@@ -498,6 +520,12 @@ export class MemStorage implements IStorage {
       ...insertAssignment,
       id,
       assignedAt: new Date(),
+      status: insertAssignment.status || "assigned",
+      tenderId: insertAssignment.tenderId || null,
+      assignedTo: insertAssignment.assignedTo || null,
+      assignedBy: insertAssignment.assignedBy || null,
+      dueDate: insertAssignment.dueDate || null,
+      notes: insertAssignment.notes || null,
     };
     this.tenderAssignments.set(id, assignment);
     return assignment;
@@ -539,6 +567,11 @@ export class MemStorage implements IStorage {
       ...insertReminder,
       id,
       createdAt: new Date(),
+      type: insertReminder.type || "general",
+      description: insertReminder.description || null,
+      tenderId: insertReminder.tenderId || null,
+      userId: insertReminder.userId || null,
+      isCompleted: insertReminder.isCompleted || false,
     };
     this.reminders.set(id, reminder);
     return reminder;
@@ -648,9 +681,21 @@ export class MemStorage implements IStorage {
       ...insertUserRole,
       id,
       assignedAt: new Date(),
+      userId: insertUserRole.userId || null,
+      roleId: insertUserRole.roleId || null,
+      departmentId: insertUserRole.departmentId || null,
+      assignedBy: insertUserRole.assignedBy || null,
     };
     this.userRoles.set(id, userRole);
     return userRole;
+  }
+
+  async getUserRolesByRole(roleId: string): Promise<UserRole[]> {
+    return Array.from(this.userRoles.values()).filter(ur => ur.roleId === roleId);
+  }
+
+  async deleteUserRole(id: string): Promise<boolean> {
+    return this.userRoles.delete(id);
   }
 
   // Enhanced Methods
