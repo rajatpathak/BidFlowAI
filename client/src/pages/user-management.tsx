@@ -26,9 +26,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { insertRoleSchema, insertUserRoleSchema, insertDepartmentSchema } from "@shared/schema";
+import { insertRoleSchema, insertUserRoleSchema, insertDepartmentSchema, insertUserSchema } from "@shared/schema";
 import { z } from "zod";
-import { Users, Shield, Building2, Plus, Trash2, UserPlus } from "lucide-react";
+import { Users, Shield, Building2, Plus, Trash2, UserPlus, Eye, EyeOff, RefreshCw } from "lucide-react";
 import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
@@ -68,6 +68,12 @@ const roleFormSchema = insertRoleSchema.extend({
   permissions: z.array(z.string()).optional(),
 });
 
+const userFormSchema = insertUserSchema.extend({
+  password: z.string().min(8, "Password must be at least 8 characters"),
+  roleId: z.string().min(1, "Please select a role"),
+  departmentId: z.string().optional(),
+});
+
 const userRoleFormSchema = insertUserRoleSchema;
 const departmentFormSchema = insertDepartmentSchema;
 
@@ -75,6 +81,8 @@ export default function UserManagementPage() {
   const [isRoleDialogOpen, setIsRoleDialogOpen] = useState(false);
   const [isDepartmentDialogOpen, setIsDepartmentDialogOpen] = useState(false);
   const [isUserRoleDialogOpen, setIsUserRoleDialogOpen] = useState(false);
+  const [isUserDialogOpen, setIsUserDialogOpen] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const { toast } = useToast();
 
   const { data: roles = [], isLoading: rolesLoading } = useQuery<Role[]>({
@@ -115,6 +123,17 @@ export default function UserManagementPage() {
     defaultValues: {
       userId: "",
       roleId: "",
+    },
+  });
+
+  const userForm = useForm<z.infer<typeof userFormSchema>>({
+    resolver: zodResolver(userFormSchema),
+    defaultValues: {
+      name: "",
+      email: "",
+      password: "",
+      roleId: "",
+      departmentId: "",
     },
   });
 
@@ -205,6 +224,62 @@ export default function UserManagementPage() {
     createDepartmentMutation.mutate(data);
   };
 
+  const createUserMutation = useMutation({
+    mutationFn: async (data: z.infer<typeof userFormSchema>) => {
+      // Create user first
+      const userResponse = await fetch("/api/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: data.name,
+          email: data.email,
+          password: data.password,
+        }),
+      });
+      if (!userResponse.ok) throw new Error("Failed to create user");
+      const user = await userResponse.json();
+
+      // Then assign role if specified
+      if (data.roleId) {
+        const roleResponse = await fetch("/api/user-roles", {
+          method: "POST", 
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            userId: user.id,
+            roleId: data.roleId,
+            departmentId: data.departmentId || null,
+          }),
+        });
+        if (!roleResponse.ok) throw new Error("Failed to assign role");
+      }
+
+      return user;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/user-roles"] });
+      setIsUserDialogOpen(false);
+      userForm.reset();
+      toast({
+        title: "User created",
+        description: "The user has been created successfully with assigned role.",
+      });
+    },
+  });
+
+  const generateRandomPassword = () => {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%';
+    let password = '';
+    for (let i = 0; i < 12; i++) {
+      password += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    userForm.setValue('password', password);
+  };
+
+  const onUserSubmit = (data: z.infer<typeof userFormSchema>) => {
+    createUserMutation.mutate(data);
+  };
+
   const onUserRoleSubmit = (data: z.infer<typeof userRoleFormSchema>) => {
     createUserRoleMutation.mutate(data);
   };
@@ -277,12 +352,207 @@ export default function UserManagementPage() {
         </Card>
       </div>
 
-      <Tabs defaultValue="user-roles" className="space-y-4">
+      <Tabs defaultValue="users" className="space-y-4">
         <TabsList>
+          <TabsTrigger value="users">Users</TabsTrigger>
           <TabsTrigger value="user-roles">User Roles</TabsTrigger>
           <TabsTrigger value="roles">Roles</TabsTrigger>
           <TabsTrigger value="departments">Departments</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="users" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Users</CardTitle>
+                  <CardDescription>Create and manage user accounts</CardDescription>
+                </div>
+                <Dialog open={isUserDialogOpen} onOpenChange={setIsUserDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add User
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-[500px]">
+                    <DialogHeader>
+                      <DialogTitle>Create New User</DialogTitle>
+                      <DialogDescription>
+                        Add a new user with email, password, role, and department assignment
+                      </DialogDescription>
+                    </DialogHeader>
+                    <Form {...userForm}>
+                      <form onSubmit={userForm.handleSubmit(onUserSubmit)} className="space-y-4">
+                        <FormField
+                          control={userForm.control}
+                          name="name"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Full Name</FormLabel>
+                              <FormControl>
+                                <Input placeholder="Enter full name" {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={userForm.control}
+                          name="email"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Email</FormLabel>
+                              <FormControl>
+                                <Input type="email" placeholder="Enter email address" {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={userForm.control}
+                          name="password"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Password</FormLabel>
+                              <div className="flex space-x-2">
+                                <FormControl>
+                                  <div className="relative flex-1">
+                                    <Input
+                                      type={showPassword ? "text" : "password"}
+                                      placeholder="Enter password"
+                                      {...field}
+                                    />
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="sm"
+                                      className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                                      onClick={() => setShowPassword(!showPassword)}
+                                    >
+                                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                    </Button>
+                                  </div>
+                                </FormControl>
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={generateRandomPassword}
+                                  className="shrink-0"
+                                >
+                                  <RefreshCw className="h-4 w-4 mr-1" />
+                                  Generate
+                                </Button>
+                              </div>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={userForm.control}
+                          name="roleId"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Role</FormLabel>
+                              <Select onValueChange={field.onChange} value={field.value}>
+                                <FormControl>
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Select a role" />
+                                  </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                  {roles.map((role) => (
+                                    <SelectItem key={role.id} value={role.id}>
+                                      {role.name}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={userForm.control}
+                          name="departmentId"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Department (Optional)</FormLabel>
+                              <Select onValueChange={field.onChange} value={field.value || ""}>
+                                <FormControl>
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Select a department" />
+                                  </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                  {departments.map((dept) => (
+                                    <SelectItem key={dept.id} value={dept.id}>
+                                      {dept.name}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <div className="flex justify-end space-x-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => setIsUserDialogOpen(false)}
+                          >
+                            Cancel
+                          </Button>
+                          <Button type="submit" disabled={createUserMutation.isPending}>
+                            {createUserMutation.isPending ? "Creating..." : "Create User"}
+                          </Button>
+                        </div>
+                      </form>
+                    </Form>
+                  </DialogContent>
+                </Dialog>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Role</TableHead>
+                    <TableHead>Created</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {users.map((user) => {
+                    const userRole = userRoles.find(ur => ur.userId === user.id);
+                    const roleName = userRole ? getRoleName(userRole.roleId) : "No Role";
+                    return (
+                      <TableRow key={user.id}>
+                        <TableCell className="font-medium">{user.name}</TableCell>
+                        <TableCell>{user.email}</TableCell>
+                        <TableCell>
+                          <Badge variant="secondary">{roleName}</Badge>
+                        </TableCell>
+                        <TableCell>
+                          {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : "-"}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
         <TabsContent value="user-roles" className="space-y-4">
           <Card>

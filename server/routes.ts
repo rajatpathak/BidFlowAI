@@ -24,6 +24,7 @@ import {
   insertExcelUploadSchema,
   insertTenderResultsImportSchema,
   insertEnhancedTenderResultSchema,
+  insertUserSchema,
 } from "@shared/schema";
 import * as XLSX from "xlsx";
 import multer from "multer";
@@ -1010,6 +1011,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(204).send();
     } catch (error) {
       res.status(500).json({ error: "Failed to delete user role" });
+    }
+  });
+
+  // Users API
+  app.get("/api/users", async (req, res) => {
+    try {
+      const users = await storage.getUsers();
+      res.json(users);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch users" });
+    }
+  });
+
+  app.post("/api/users", async (req, res) => {
+    try {
+      const data = insertUserSchema.parse(req.body);
+      const user = await storage.createUser(data);
+      res.status(201).json(user);
+    } catch (error: any) {
+      console.error("User creation error:", error);
+      res.status(400).json({ error: "Invalid user data", details: error.message });
     }
   });
 
