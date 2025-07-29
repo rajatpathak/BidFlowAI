@@ -12,6 +12,11 @@ export async function seedDatabase() {
   console.log("Seeding database with initial data...");
 
   try {
+    // Clear existing data first
+    await db.delete(userRoles);
+    await db.delete(users);
+    await db.delete(roles);
+    await db.delete(departments);
     // Create departments
     const [engineeringDept] = await db.insert(departments).values({
       name: "Engineering",
@@ -47,10 +52,10 @@ export async function seedDatabase() {
       permissions: ["create_bids", "view_tenders", "assign_tenders"],
     }).returning();
 
-    // Create users
+    // Create users with demo passwords
     const [adminUser] = await db.insert(users).values({
       username: "admin",
-      password: "hashed_password_placeholder", // In production, this would be properly hashed
+      password: "admin123", // Demo password - in production, this would be properly hashed
       email: "admin@techconstruct.com",
       name: "System Administrator",
       role: "admin",
@@ -58,7 +63,7 @@ export async function seedDatabase() {
 
     const [financeUser] = await db.insert(users).values({
       username: "finance_manager",
-      password: "hashed_password_placeholder",
+      password: "finance123", // Demo password
       email: "finance@techconstruct.com",
       name: "Priya Sharma",
       role: "finance_manager",
@@ -66,10 +71,10 @@ export async function seedDatabase() {
 
     const [bidderUser] = await db.insert(users).values({
       username: "senior_bidder",
-      password: "hashed_password_placeholder",
+      password: "bidder123", // Demo password
       email: "bidder@techconstruct.com",
       name: "Rahul Kumar",
-      role: "bidder",
+      role: "senior_bidder",
     }).returning();
 
     // Assign roles to users
