@@ -1208,38 +1208,77 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const worksheet = workbook.Sheets[sheetName];
           const data = XLSX.utils.sheet_to_json(worksheet);
           
+          // Skip if no data
+          if (!data || data.length === 0) continue;
+          
+          // Handle special format where headers are in first row
+          let actualData = data;
+          let columnMapping: any = {};
+          
+          // Check if first row contains header names
+          const firstRow = data[0] as any;
+          const firstRowValues = Object.values(firstRow);
+          if (firstRowValues.some((val: any) => 
+            typeof val === 'string' && 
+            (val.includes('ID') || val.includes('REFERENCE') || val.includes('Winner') || val.includes('Contract'))
+          )) {
+            // First row contains headers, create mapping
+            const headers = Object.keys(firstRow);
+            headers.forEach((key) => {
+              columnMapping[key] = firstRow[key];
+            });
+            // Skip first row for actual data
+            actualData = data.slice(1);
+          }
+          
           // Process each row as a tender result
-          for (const row of data) {
+          for (const row of actualData) {
             try {
               const r = row as any; // Type assertion for Excel data
               
               // Be more flexible with column names
               const getField = (fieldNames: string[]) => {
+                // First try direct field names
                 for (const name of fieldNames) {
                   if (r[name] !== undefined && r[name] !== null && r[name] !== '') {
                     return r[name];
                   }
                 }
+                
+                // Then try mapped columns (__EMPTY, __EMPTY_1, etc)
+                if (Object.keys(columnMapping).length > 0) {
+                  for (const [key, mappedName] of Object.entries(columnMapping)) {
+                    if (typeof mappedName === 'string') {
+                      for (const name of fieldNames) {
+                        if (mappedName.toLowerCase().includes(name.toLowerCase()) && 
+                            r[key] !== undefined && r[key] !== null && r[key] !== '') {
+                          return r[key];
+                        }
+                      }
+                    }
+                  }
+                }
+                
                 return "";
               };
               
-              const tenderTitle = getField(['Title', 'Tender Title', 'Work Description', 'Work Name', 'Brief Description']);
-              const organization = getField(['Organization', 'Dept', 'Department', 'Ministry', 'Company']);
-              const referenceNo = getField(['Reference No', 'Ref No', 'ID', 'T247 ID', 'Tender ID', 'Reference', 'TENDER REFERENCE NO']);
+              const tenderTitle = getField(['Title', 'Tender Title', 'Work Description', 'Work Name', 'Brief Description', 'TENDER RESULT BRIEF', 'Result Brief']);
+              const organization = getField(['Organization', 'Dept', 'Department', 'Ministry', 'Company', 'Ownership']);
+              const referenceNo = getField(['Reference No', 'Ref No', 'ID', 'TR247 ID', 'T247 ID', 'Tender ID', 'Reference', 'TENDER REFERENCE NO']);
               const location = getField(['Location', 'City', 'State', 'Region', 'LOCATION']);
-              const department = getField(['Department', 'Dept', 'Division', 'Unit']);
+              const department = getField(['Department', 'Dept', 'Division', 'Unit', 'Department']);
               const awardedTo = getField(['Awarded To', 'Winner', 'Selected Company', 'L1 Bidder', 'Contract Awarded To', 'Winner bidder']);
               const contractValueStr = getField(['Contract Value', 'Awarded Value', 'Winning Amount', 'Final Value', 'L1 Amount']);
-              const contractValue = parseFloat(contractValueStr.toString().replace(/[^0-9.-]/g, '') || "0") * 100;
+              const contractValue = parseFloat(contractValueStr.toString().replace(/[^0-9.-]/g, '') || "0");
               const awardedValue = contractValue; // same as contract value
               const estimatedValueStr = getField(['Estimated Value', 'Tender Value', 'EMD', 'Budget']);
-              const estimatedValue = parseFloat(estimatedValueStr.toString().replace(/[^0-9.-]/g, '') || "0") * 100;
+              const estimatedValue = parseFloat(estimatedValueStr.toString().replace(/[^0-9.-]/g, '') || "0");
               const marginalDifference = contractValue && estimatedValue ? contractValue - estimatedValue : null;
               const tenderStage = getField(['Tender Stage', 'Stage', 'Status', 'Phase']);
-              const participatorBiddersStr = getField(['Participator Bidders', 'Bidders', 'Participants', 'Companies']);
+              const participatorBiddersStr = getField(['Participator Bidders', 'Bidders', 'Participants', 'Companies', 'Participator Bidders']);
               const participatorBidders = participatorBiddersStr ? 
                 participatorBiddersStr.split(/[,;]/).map((b: string) => b.trim()).filter((b: string) => b) : [];
-              const resultDateStr = getField(['Result Date', 'Award Date', 'Date of Award', 'Contract Date']);
+              const resultDateStr = getField(['Result Date', 'Award Date', 'Date of Award', 'Contract Date', 'Last Updated on', 'End Submission date']);
               const resultDate = resultDateStr ? new Date(resultDateStr) : new Date();
               
               // Find if this tender was assigned to any of our bidders
