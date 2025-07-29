@@ -1,6 +1,8 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
-import { storage } from "./storage";
+// Use DatabaseStorage for persistence instead of MemStorage
+import { DatabaseStorage } from "./database-storage";
+const storage = new DatabaseStorage();
 import { seedDatabase } from "./seed-database";
 import { openaiService } from "./services/openai";
 import {
