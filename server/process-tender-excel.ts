@@ -20,6 +20,12 @@ export async function processTenderExcelFile(filePath: string) {
       
       console.log(`Processing sheet: ${sheetName} with ${data.length} rows`);
       
+      // Determine source based on sheet name
+      const isGemSheet = sheetName.toLowerCase().includes('gem') && 
+                        !sheetName.toLowerCase().includes('non');
+      const defaultSource = isGemSheet ? 'gem' : 'non_gem';
+      console.log(`Sheet type: ${defaultSource.toUpperCase()}`);
+      
       // Process each row
       for (const row of data) {
         try {
@@ -78,10 +84,10 @@ export async function processTenderExcelFile(filePath: string) {
           }
           
           // Extract turnover requirement
-          const turnoverStr = getField(['Turnover', 'Eligibility', 'Annual Turnover', 'TURNOVER']);
+          const turnoverStr = getField(['Turnover', 'Eligibility', 'Annual Turnover', 'TURNOVER', 'Minimum Average Annual\nTurnover of the bidder']);
           
-          // Determine source
-          const source = referenceNo.toLowerCase().includes('gem') ? 'gem' : 'non_gem';
+          // Determine source - use sheet type, not reference number
+          const source = defaultSource as 'gem' | 'non_gem';
           
           // Extract link
           const link = getField(['Link', 'URL', 'Tender Link', 'Website', 'LINK']);
