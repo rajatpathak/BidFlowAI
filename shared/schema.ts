@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, integer, boolean, timestamp, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, boolean, timestamp, jsonb, bigint } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -18,7 +18,7 @@ export const tenders = pgTable("tenders", {
   title: text("title").notNull(),
   organization: text("organization").notNull(),
   description: text("description"),
-  value: integer("value").notNull(), // in cents
+  value: bigint("value", { mode: "number" }).notNull(), // in cents
   deadline: timestamp("deadline").notNull(),
   status: text("status").notNull().default("draft"), // draft, in_progress, submitted, won, lost
   aiScore: integer("ai_score").default(0), // 0-100

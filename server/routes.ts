@@ -24,15 +24,144 @@ import {
 import * as XLSX from "xlsx";
 import multer from "multer";
 import path from "path";
+import fs from "fs";
 import { randomUUID } from "crypto";
 
 // Configure multer for file uploads
-const upload = multer({
-  dest: 'uploads/',
-  limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB limit
+const uploadStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, 'uploads/');
   },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
+  }
 });
+
+const upload = multer({ 
+  storage: uploadStorage,
+  limits: {
+    fileSize: 50 * 1024 * 1024 // 50MB limit
+  }
+});
+
+// Helper function to process Excel data with flexible column mapping
+function processExcelData(worksheet: any) {
+  const data = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+  if (data.length === 0) return [];
+
+  const headers = data[0] as string[];
+  const rows = data.slice(1);
+
+  // Flexible column mapping - matches various header names
+  const columnMap = new Map<string, number>();
+  headers.forEach((header, index) => {
+    const normalizedHeader = header.toString().toLowerCase().trim();
+    
+    // Title/Name columns - includes 'tender brief'
+    if (normalizedHeader.includes('title') || normalizedHeader.includes('name') || 
+        normalizedHeader.includes('work') || normalizedHeader.includes('description') ||
+        normalizedHeader.includes('brief')) {
+      columnMap.set('title', index);
+    }
+    // Organization columns
+    if (normalizedHeader.includes('organization') || normalizedHeader.includes('dept') || 
+       normalizedHeader.includes('department') || normalizedHeader.includes('ministry')) {
+      columnMap.set('organization', index);
+    }
+    // Value columns - includes 'estimated cost'
+    if (normalizedHeader.includes('value') || normalizedHeader.includes('amount') || 
+       normalizedHeader.includes('cost') || normalizedHeader.includes('estimated')) {
+      columnMap.set('value', index);
+    }
+    // Deadline columns
+    if (normalizedHeader.includes('deadline') || normalizedHeader.includes('date') || 
+       normalizedHeader.includes('last') || normalizedHeader.includes('submission')) {
+      columnMap.set('deadline', index);
+    }
+    // Turnover columns - includes specific T247 turnover patterns
+    if (normalizedHeader.includes('turnover') || normalizedHeader.includes('eligibility') || 
+       normalizedHeader.includes('qualification') || normalizedHeader.includes('criteria') ||
+       normalizedHeader.includes('minimum average annual')) {
+      columnMap.set('turnover', index);
+    }
+    // Location columns
+    if (normalizedHeader.includes('location') || normalizedHeader.includes('place') || 
+       normalizedHeader.includes('site') || normalizedHeader.includes('address')) {
+      columnMap.set('location', index);
+    }
+    // Reference columns - includes T247 specific patterns
+    if (normalizedHeader.includes('reference') || normalizedHeader.includes('ref') || 
+       normalizedHeader.includes('t247 id')) {
+      columnMap.set('referenceNo', index);
+    }
+  });
+
+  // Process rows
+  return rows.map((row: any[], rowIndex: number) => {
+    try {
+      if (!row || row.length === 0) return null;
+
+      const title = columnMap.has('title') ? String(row[columnMap.get('title')!] || '').trim() : '';
+      if (!title) return null; // Skip rows without title
+
+      const organization = columnMap.has('organization') ? String(row[columnMap.get('organization')!] || '').trim() : '';
+      const location = columnMap.has('location') ? String(row[columnMap.get('location')!] || '').trim() : '';
+      const referenceNo = columnMap.has('referenceNo') ? String(row[columnMap.get('referenceNo')!] || '').trim() : '';
+
+      // Parse value
+      let value = 0;
+      if (columnMap.has('value')) {
+        const valueStr = String(row[columnMap.get('value')!] || '0');
+        const numStr = valueStr.replace(/[^0-9.-]/g, '');
+        value = parseFloat(numStr) || 0;
+      }
+
+      // Parse turnover
+      let eligibilityTurnover = 0;
+      if (columnMap.has('turnover')) {
+        const turnoverStr = String(row[columnMap.get('turnover')!] || '0');
+        const numStr = turnoverStr.replace(/[^0-9.-]/g, '');
+        eligibilityTurnover = parseFloat(numStr) || 0;
+      }
+
+      // Parse deadline
+      let deadline = null;
+      if (columnMap.has('deadline')) {
+        const deadlineValue = row[columnMap.get('deadline')!];
+        if (deadlineValue) {
+          if (typeof deadlineValue === 'number') {
+            // Excel date serial number
+            const excelDate = new Date((deadlineValue - 25569) * 86400 * 1000);
+            deadline = excelDate.toISOString().split('T')[0];
+          } else {
+            // Try to parse as string
+            const dateStr = String(deadlineValue).trim();
+            const parsedDate = new Date(dateStr);
+            if (!isNaN(parsedDate.getTime())) {
+              deadline = parsedDate.toISOString().split('T')[0];
+            }
+          }
+        }
+      }
+
+      return {
+        title,
+        organization,
+        value,
+        deadline,
+        eligibilityTurnover,
+        location,
+        referenceNo,
+        status: 'active',
+        source: 'excel_import'
+      };
+    } catch (error) {
+      console.error(`Error processing row ${rowIndex + 2}:`, error);
+      return null;
+    }
+  }).filter(Boolean);
+}
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Dashboard stats
@@ -777,65 +906,95 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Process Excel file
       try {
-        const workbook = XLSX.readFile(req.file.path);
+        const workbook = XLSX.read(fs.readFileSync(req.file.path), { type: 'buffer' });
         const companySettings = await storage.getCompanySettings();
         
         let totalTendersImported = 0;
         let sheetsProcessed = 0;
+        const errors: string[] = [];
 
         // Process each worksheet
         for (const sheetName of workbook.SheetNames) {
-          const worksheet = workbook.Sheets[sheetName];
-          const data = XLSX.utils.sheet_to_json(worksheet);
-          
-          sheetsProcessed++;
-          
-          // Process each row as a tender
-          for (const row of data) {
-            try {
-              const r = row as any; // Type assertion for Excel data
-              const tender = await storage.createTender({
-                title: r['Title'] || r['Tender Title'] || `Tender from ${sheetName}`,
-                organization: r['Organization'] || r['Dept'] || r['Department'] || "Unknown",
-                description: r['Description'] || r['Work Description'] || "",
-                value: parseFloat(r['Value'] || r['EMD'] || r['Amount'] || "0") * 100, // Convert to cents
-                deadline: new Date(r['Deadline'] || r['Last Date'] || Date.now() + 30 * 24 * 60 * 60 * 1000),
-                status: "active",
-                requirements: {
-                  turnover: r['Turnover'] || r['Eligibility'] || "",
-                  location: r['Location'] || r['Place'] || "",
-                  refId: r['Reference No'] || r['Ref No'] || r['ID'] || ""
-                },
-                documents: [],
-                bidContent: null,
-                submittedAt: null,
-              });
-
-              // Calculate AI match score
-              if (companySettings) {
-                const aiScore = await storage.calculateAIMatch(tender, companySettings);
-                await storage.updateTender(tender.id, { aiScore });
-              }
-
-              totalTendersImported++;
-            } catch (error: any) {
-              console.log(`Error processing row in ${sheetName}:`, error.message);
+          try {
+            const worksheet = workbook.Sheets[sheetName];
+            sheetsProcessed++;
+            
+            // Use the robust data processing function
+            const processedData = processExcelData(worksheet);
+            
+            if (processedData.length === 0) {
+              errors.push(`Sheet '${sheetName}' contains no valid data`);
+              continue;
             }
+
+            // Process each tender record
+            for (const tenderData of processedData) {
+              try {
+                console.log(`Creating tender: ${tenderData.title.substring(0, 50)}...`);
+                
+                const tender = await storage.createTender({
+                  title: tenderData.title,
+                  organization: tenderData.organization || 'Unknown Organization',
+                  description: `Imported from Excel sheet: ${sheetName}`,
+                  value: Math.round((tenderData.value || 0) * 100), // Convert to cents for storage
+                  deadline: tenderData.deadline ? new Date(tenderData.deadline) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+                  status: tenderData.status || 'active',
+                  requirements: {
+                    turnover: (tenderData.eligibilityTurnover || 0).toString(),
+                    location: tenderData.location || '',
+                    refId: tenderData.referenceNo || ''
+                  },
+                  documents: [],
+                  bidContent: null,
+                  submittedAt: null,
+                  source: tenderData.source || 'excel_import'
+                });
+
+                console.log(`Created tender with ID: ${tender.id}`);
+
+                // Calculate AI match score with company settings (skip for now to avoid delays)
+                // if (companySettings) {
+                //   try {
+                //     const aiScore = await storage.calculateAIMatch(tender, companySettings);
+                //     await storage.updateTender(tender.id, { aiScore });
+                //   } catch (aiError) {
+                //     console.log(`AI scoring failed for tender ${tender.id}:`, aiError);
+                //   }
+                // }
+
+                totalTendersImported++;
+              } catch (tenderError: any) {
+                errors.push(`Row error in ${sheetName}: ${tenderError.message}`);
+                console.error(`Error creating tender in ${sheetName}:`, tenderError.message);
+              }
+            }
+          } catch (sheetError: any) {
+            errors.push(`Sheet '${sheetName}' processing failed: ${sheetError.message}`);
+            console.error(`Error processing sheet ${sheetName}:`, sheetError);
           }
         }
 
-        // Update upload record
+        // Update upload record with results
+        const finalStatus = errors.length > 0 && totalTendersImported === 0 ? "failed" : "completed";
+        const errorLog = errors.length > 0 ? errors.join('; ') : null;
+        
         await storage.updateExcelUpload(uploadRecord.id, {
-          status: "completed",
+          status: finalStatus,
           sheetsProcessed,
           tendersImported: totalTendersImported,
+          errorLog
         });
 
         res.json({
-          ...uploadRecord,
+          id: uploadRecord.id,
+          fileName: uploadRecord.fileName,
           sheetsProcessed,
           tendersImported: totalTendersImported,
-          status: "completed"
+          status: finalStatus,
+          errors: errors.length > 0 ? errors : undefined,
+          message: totalTendersImported > 0 
+            ? `Successfully imported ${totalTendersImported} tenders from ${sheetsProcessed} sheets`
+            : "No valid tenders found in uploaded file"
         });
 
       } catch (error: any) {
@@ -942,7 +1101,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Process Excel file for results
       try {
-        const workbook = XLSX.readFile(req.file.path);
+        const workbook = XLSX.read(fs.readFileSync(req.file.path), { type: 'buffer' });
         const companySettings = await storage.getCompanySettings();
         const assignments = await storage.getTenderAssignments();
         
