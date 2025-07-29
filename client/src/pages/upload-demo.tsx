@@ -168,10 +168,12 @@ export default function UploadDemoPage() {
       const result = await response.json();
       toast({
         title: "Success!",
-        description: `Processed ${result.resultsProcessed} tender results successfully.`,
+        description: `Processed ${result.resultsProcessed || 0} tender results successfully.`,
       });
       
       setResultsFile(null);
+      // Refresh the page to show new results
+      setTimeout(() => window.location.href = '/tender-results', 1500);
     } catch (error) {
       clearInterval(progressInterval);
       console.error('Results upload error:', error);
