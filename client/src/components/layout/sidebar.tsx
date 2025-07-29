@@ -11,17 +11,21 @@ import {
   User,
   DollarSign,
   Calendar,
-  UserCog
+  UserCog,
+  FileSpreadsheet,
+  Cog
 } from "lucide-react";
 
 const navigation = [
   { name: "Dashboard", href: "/", icon: BarChart3 },
   { name: "Active Tenders", href: "/tenders", icon: FileText },
+  { name: "Enhanced Tenders", href: "/enhanced-tenders", icon: FileSpreadsheet },
   { name: "Create Bid", href: "/create-bid", icon: Plus },
   { name: "Meetings", href: "/meetings", icon: Calendar },
   { name: "Finance", href: "/finance", icon: DollarSign },
   { name: "AI Insights", href: "/ai-insights", icon: Brain },
   { name: "User Management", href: "/user-management", icon: UserCog },
+  { name: "Admin Settings", href: "/admin-settings", icon: Cog },
   { name: "Analytics", href: "/analytics", icon: PieChart },
   { name: "Settings", href: "/settings", icon: Settings },
 ];

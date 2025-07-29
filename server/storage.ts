@@ -129,9 +129,21 @@ export interface IStorage {
   createUserRole(userRole: InsertUserRole): Promise<UserRole>;
   deleteUserRole(id: string): Promise<boolean>;
   
+  // Company Settings
+  getCompanySettings(): Promise<CompanySettings | undefined>;
+  updateCompanySettings(settings: InsertCompanySettings): Promise<CompanySettings>;
+  
+  // Excel Uploads
+  getExcelUploads(): Promise<ExcelUpload[]>;
+  createExcelUpload(upload: InsertExcelUpload): Promise<ExcelUpload>;
+  updateExcelUpload(id: string, upload: Partial<ExcelUpload>): Promise<ExcelUpload | undefined>;
+  
   // Enhanced Methods
   getTenderWithDetails(id: string): Promise<TenderWithDetails | undefined>;
   getUserWithDetails(id: string): Promise<UserWithDetails | undefined>;
+  
+  // AI Matching
+  calculateAIMatch(tender: Tender, companySettings: CompanySettings): Promise<number>;
 }
 
 export class MemStorage implements IStorage {
@@ -150,6 +162,8 @@ export class MemStorage implements IStorage {
   private departments: Map<string, Department>;
   private roles: Map<string, Role>;
   private userRoles: Map<string, UserRole>;
+  private companySettings: CompanySettings | null;
+  private excelUploads: Map<string, ExcelUpload>;
 
   constructor() {
     this.users = new Map();
@@ -167,22 +181,219 @@ export class MemStorage implements IStorage {
     this.departments = new Map();
     this.roles = new Map();
     this.userRoles = new Map();
+    this.companySettings = null;
+    this.excelUploads = new Map();
 
     // Initialize with sample data
     this.initializeSampleData();
   }
 
   private initializeSampleData() {
-    const sampleUser: User = {
+    // Create sample users with different roles
+    const adminUser: User = {
       id: randomUUID(),
-      username: "john.manager",
-      password: "password123",
-      email: "john@company.com",
-      name: "John Manager",
-      role: "manager",
+      username: "admin",
+      password: "admin123",
+      email: "admin@company.com",
+      name: "Admin User",
+      role: "admin",
       createdAt: new Date(),
     };
-    this.users.set(sampleUser.id, sampleUser);
+    
+    const financeManager: User = {
+      id: randomUUID(),
+      username: "finance.manager",
+      password: "finance123",
+      email: "finance@company.com",
+      name: "Finance Manager",
+      role: "finance",
+      createdAt: new Date(),
+    };
+    
+    const bidder: User = {
+      id: randomUUID(),
+      username: "senior.bidder",
+      password: "bidder123",
+      email: "bidder@company.com",
+      name: "Senior Bidder",
+      role: "bidder",
+      createdAt: new Date(),
+    };
+
+    this.users.set(adminUser.id, adminUser);
+    this.users.set(financeManager.id, financeManager);
+    this.users.set(bidder.id, bidder);
+
+    // Create roles
+    const adminRole: Role = {
+      id: randomUUID(),
+      name: "Administrator",
+      description: "Full system access including user management and settings",
+      permissions: ["all"],
+      createdAt: new Date(),
+    };
+
+    const financeRole: Role = {
+      id: randomUUID(),
+      name: "Finance Manager",
+      description: "Finance and budget management",
+      permissions: ["finance", "approvals"],
+      createdAt: new Date(),
+    };
+
+    const bidderRole: Role = {
+      id: randomUUID(),
+      name: "Bidder",
+      description: "Bid creation and tender management",
+      permissions: ["tenders", "bids"],
+      createdAt: new Date(),
+    };
+
+    this.roles.set(adminRole.id, adminRole);
+    this.roles.set(financeRole.id, financeRole);
+    this.roles.set(bidderRole.id, bidderRole);
+
+    // Create departments
+    const adminDept: Department = {
+      id: randomUUID(),
+      name: "Administration",
+      description: "System administration and management",
+      headId: adminUser.id,
+      createdAt: new Date(),
+    };
+
+    const financeDept: Department = {
+      id: randomUUID(),
+      name: "Finance",
+      description: "Financial operations and budget management",
+      headId: financeManager.id,
+      createdAt: new Date(),
+    };
+
+    const bidsDept: Department = {
+      id: randomUUID(),
+      name: "Bids & Tenders",
+      description: "Tender management and bid preparation",
+      headId: bidder.id,
+      createdAt: new Date(),
+    };
+
+    this.departments.set(adminDept.id, adminDept);
+    this.departments.set(financeDept.id, financeDept);
+    this.departments.set(bidsDept.id, bidsDept);
+
+    // Assign roles to users
+    const adminUserRole: UserRole = {
+      id: randomUUID(),
+      userId: adminUser.id,
+      roleId: adminRole.id,
+      departmentId: adminDept.id,
+      assignedBy: null,
+      assignedAt: new Date(),
+    };
+
+    const financeUserRole: UserRole = {
+      id: randomUUID(),
+      userId: financeManager.id,
+      roleId: financeRole.id,
+      departmentId: financeDept.id,
+      assignedBy: adminUser.id,
+      assignedAt: new Date(),
+    };
+
+    const bidderUserRole: UserRole = {
+      id: randomUUID(),
+      userId: bidder.id,
+      roleId: bidderRole.id,
+      departmentId: bidsDept.id,
+      assignedBy: adminUser.id,
+      assignedAt: new Date(),
+    };
+
+    this.userRoles.set(adminUserRole.id, adminUserRole);
+    this.userRoles.set(financeUserRole.id, financeUserRole);
+    this.userRoles.set(bidderUserRole.id, bidderUserRole);
+
+    // Add some sample tenders with AI scoring
+    const tender1: Tender = {
+      id: randomUUID(),
+      title: "Smart City Infrastructure Development",
+      organization: "Municipal Corporation",
+      description: "Development of smart infrastructure including IoT sensors and traffic management",
+      value: 15000000,
+      deadline: new Date(Date.now() + 45 * 24 * 60 * 60 * 1000),
+      status: "active",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      aiScore: 95,
+      requirements: { 
+        turnover: "10 cr", 
+        experience: "5+ years in smart city projects",
+        location: "Delhi NCR" 
+      },
+      documents: [],
+      bidContent: null,
+      submittedAt: null,
+    };
+
+    const tender2: Tender = {
+      id: randomUUID(),
+      title: "Road Construction Project",
+      organization: "Public Works Department",
+      description: "Construction of 50km highway with modern safety features",
+      value: 25000000,
+      deadline: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000),
+      status: "active",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      aiScore: 88,
+      requirements: { 
+        turnover: "3 cr", 
+        experience: "3+ years in road construction",
+        location: "Mumbai" 
+      },
+      documents: [],
+      bidContent: null,
+      submittedAt: null,
+    };
+
+    const tender3: Tender = {
+      id: randomUUID(),
+      title: "Hospital Equipment Supply",
+      organization: "State Health Department",
+      description: "Supply of medical equipment for 5 government hospitals",
+      value: 8000000,
+      deadline: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+      status: "active",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      aiScore: 72,
+      requirements: { 
+        turnover: "turnover exempted", 
+        experience: "2+ years in medical equipment",
+        location: "Any" 
+      },
+      documents: [],
+      bidContent: null,
+      submittedAt: null,
+    };
+
+    this.tenders.set(tender1.id, tender1);
+    this.tenders.set(tender2.id, tender2);
+    this.tenders.set(tender3.id, tender3);
+
+    // Initialize company settings
+    this.companySettings = {
+      id: randomUUID(),
+      companyName: "TechConstruct Pvt Ltd",
+      turnoverCriteria: "5 cr",
+      headquarters: "Mumbai, India",
+      establishedYear: 2015,
+      certifications: ["ISO 9001", "ISO 14001", "OHSAS 18001"],
+      businessSectors: ["Infrastructure", "IT Solutions", "Construction"],
+      updatedAt: new Date(),
+      updatedBy: adminUser.id,
+    };
   }
 
   // Users
@@ -696,6 +907,86 @@ export class MemStorage implements IStorage {
 
   async deleteUserRole(id: string): Promise<boolean> {
     return this.userRoles.delete(id);
+  }
+
+  // Company Settings
+  async getCompanySettings(): Promise<CompanySettings | undefined> {
+    return this.companySettings || undefined;
+  }
+
+  async updateCompanySettings(settings: InsertCompanySettings): Promise<CompanySettings> {
+    const updatedSettings: CompanySettings = {
+      id: this.companySettings?.id || randomUUID(),
+      ...settings,
+      updatedAt: new Date(),
+    };
+    this.companySettings = updatedSettings;
+    return updatedSettings;
+  }
+
+  // Excel Uploads
+  async getExcelUploads(): Promise<ExcelUpload[]> {
+    return Array.from(this.excelUploads.values()).sort((a, b) => 
+      new Date(b.uploadedAt!).getTime() - new Date(a.uploadedAt!).getTime()
+    );
+  }
+
+  async createExcelUpload(insertUpload: InsertExcelUpload): Promise<ExcelUpload> {
+    const id = randomUUID();
+    const upload: ExcelUpload = {
+      ...insertUpload,
+      id,
+      uploadedAt: new Date(),
+      sheetsProcessed: insertUpload.sheetsProcessed || 0,
+      tendersImported: insertUpload.tendersImported || 0,
+      status: insertUpload.status || "processing",
+      errorLog: insertUpload.errorLog || null,
+    };
+    this.excelUploads.set(id, upload);
+    return upload;
+  }
+
+  async updateExcelUpload(id: string, upload: Partial<ExcelUpload>): Promise<ExcelUpload | undefined> {
+    const existing = this.excelUploads.get(id);
+    if (!existing) return undefined;
+    const updated = { ...existing, ...upload };
+    this.excelUploads.set(id, updated);
+    return updated;
+  }
+
+  // AI Matching Logic
+  async calculateAIMatch(tender: Tender, companySettings: CompanySettings): Promise<number> {
+    const requirements = tender.requirements as any;
+    if (!requirements) return 50; // Default score if no requirements
+    
+    const turnoverReq = requirements.turnover?.toLowerCase() || "";
+    const companyCriteria = companySettings.turnoverCriteria.toLowerCase();
+    
+    // Parse turnover values
+    const parseAmount = (str: string): number => {
+      const match = str.match(/(\d+(?:\.\d+)?)\s*cr/i);
+      return match ? parseFloat(match[1]) : 0;
+    };
+    
+    const requiredTurnover = parseAmount(turnoverReq);
+    const companyTurnover = parseAmount(companyCriteria);
+    
+    // Calculate match score
+    if (turnoverReq.includes("exempted") || turnoverReq.includes("not applicable")) {
+      return 100; // Perfect match if turnover exempted
+    }
+    
+    if (requiredTurnover === 0) {
+      return 85; // Manual review needed if turnover not specified
+    }
+    
+    if (companyTurnover >= requiredTurnover) {
+      return 100; // Perfect match if company meets requirement
+    }
+    
+    // Partial match based on how close we are
+    const ratio = companyTurnover / requiredTurnover;
+    return Math.max(30, Math.min(85, Math.floor(ratio * 100)));
   }
 
   // Enhanced Methods

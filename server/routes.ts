@@ -15,7 +15,10 @@ import {
   insertDepartmentSchema,
   insertRoleSchema,
   insertUserRoleSchema,
+  insertCompanySettingsSchema,
+  insertExcelUploadSchema,
 } from "@shared/schema";
+import * as XLSX from "xlsx";
 import multer from "multer";
 import path from "path";
 import { randomUUID } from "crypto";
@@ -645,6 +648,190 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(204).send();
     } catch (error) {
       res.status(500).json({ error: "Failed to delete user role" });
+    }
+  });
+
+  // Company Settings
+  app.get("/api/company-settings", async (req, res) => {
+    try {
+      const settings = await storage.getCompanySettings();
+      res.json(settings);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch company settings" });
+    }
+  });
+
+  app.put("/api/company-settings", async (req, res) => {
+    try {
+      const data = insertCompanySettingsSchema.parse(req.body);
+      const settings = await storage.updateCompanySettings(data);
+      res.json(settings);
+    } catch (error) {
+      res.status(400).json({ error: "Invalid company settings data" });
+    }
+  });
+
+  // Excel Upload Routes
+  app.get("/api/excel-uploads", async (req, res) => {
+    try {
+      const uploads = await storage.getExcelUploads();
+      res.json(uploads);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch excel uploads" });
+    }
+  });
+
+  app.post("/api/excel-uploads", upload.single('excelFile'), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+
+      // Create upload record
+      const uploadRecord = await storage.createExcelUpload({
+        fileName: req.file.originalname,
+        filePath: req.file.path,
+        uploadedBy: req.body.uploadedBy || "admin",
+        status: "processing",
+      });
+
+      // Process Excel file
+      try {
+        const workbook = XLSX.readFile(req.file.path);
+        const companySettings = await storage.getCompanySettings();
+        
+        let totalTendersImported = 0;
+        let sheetsProcessed = 0;
+
+        // Process each worksheet
+        for (const sheetName of workbook.SheetNames) {
+          const worksheet = workbook.Sheets[sheetName];
+          const data = XLSX.utils.sheet_to_json(worksheet);
+          
+          sheetsProcessed++;
+          
+          // Process each row as a tender
+          for (const row of data) {
+            try {
+              const tender = await storage.createTender({
+                title: row['Title'] || row['Tender Title'] || `Tender from ${sheetName}`,
+                organization: row['Organization'] || row['Dept'] || row['Department'] || "Unknown",
+                description: row['Description'] || row['Work Description'] || "",
+                value: parseFloat(row['Value'] || row['EMD'] || row['Amount'] || "0") * 100, // Convert to cents
+                deadline: new Date(row['Deadline'] || row['Last Date'] || Date.now() + 30 * 24 * 60 * 60 * 1000),
+                status: "active",
+                requirements: {
+                  turnover: row['Turnover'] || row['Eligibility'] || "",
+                  location: row['Location'] || row['Place'] || "",
+                  refId: row['Reference No'] || row['Ref No'] || row['ID'] || ""
+                },
+                documents: [],
+                bidContent: null,
+                submittedAt: null,
+              });
+
+              // Calculate AI match score
+              if (companySettings) {
+                const aiScore = await storage.calculateAIMatch(tender, companySettings);
+                await storage.updateTender(tender.id, { aiScore });
+              }
+
+              totalTendersImported++;
+            } catch (error) {
+              console.log(`Error processing row in ${sheetName}:`, error);
+            }
+          }
+        }
+
+        // Update upload record
+        await storage.updateExcelUpload(uploadRecord.id, {
+          status: "completed",
+          sheetsProcessed,
+          tendersImported: totalTendersImported,
+        });
+
+        res.json({
+          ...uploadRecord,
+          sheetsProcessed,
+          tendersImported: totalTendersImported,
+          status: "completed"
+        });
+
+      } catch (error) {
+        await storage.updateExcelUpload(uploadRecord.id, {
+          status: "failed",
+          errorLog: error.message,
+        });
+        
+        res.status(500).json({ error: "Failed to process Excel file", details: error.message });
+      }
+
+    } catch (error) {
+      res.status(500).json({ error: "Failed to upload file" });
+    }
+  });
+
+  // Enhanced Tenders API with filtering
+  app.get("/api/tenders/filtered", async (req, res) => {
+    try {
+      const { status, search, minMatch, location, organization } = req.query;
+      let tenders = await storage.getTenders();
+
+      // Apply filters
+      if (status && status !== 'all') {
+        tenders = tenders.filter(t => t.status === status);
+      }
+
+      if (search) {
+        const searchLower = (search as string).toLowerCase();
+        tenders = tenders.filter(t => 
+          t.title.toLowerCase().includes(searchLower) ||
+          t.organization.toLowerCase().includes(searchLower) ||
+          (t.description && t.description.toLowerCase().includes(searchLower))
+        );
+      }
+
+      if (minMatch) {
+        const minScore = parseInt(minMatch as string);
+        tenders = tenders.filter(t => (t.aiScore || 0) >= minScore);
+      }
+
+      if (location) {
+        tenders = tenders.filter(t => {
+          const requirements = t.requirements as any;
+          return requirements?.location?.toLowerCase().includes((location as string).toLowerCase());
+        });
+      }
+
+      if (organization) {
+        tenders = tenders.filter(t => 
+          t.organization.toLowerCase().includes((organization as string).toLowerCase())
+        );
+      }
+
+      res.json(tenders);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch filtered tenders" });
+    }
+  });
+
+  // Assign tender to bidder
+  app.post("/api/tenders/:id/assign", async (req, res) => {
+    try {
+      const { assignedTo, assignedBy, notes } = req.body;
+      
+      const assignment = await storage.createTenderAssignment({
+        tenderId: req.params.id,
+        assignedTo,
+        assignedBy,
+        notes,
+        status: "assigned",
+        dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
+      });
+      
+      res.status(201).json(assignment);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to assign tender" });
     }
   });
 

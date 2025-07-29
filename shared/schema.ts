@@ -345,3 +345,43 @@ export type UserWithDetails = User & {
   roles?: Role[];
   assignments?: TenderAssignment[];
 };
+
+// Company Settings table for admin configuration
+export const companySettings = pgTable("company_settings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  companyName: varchar("company_name").notNull(),
+  turnoverCriteria: varchar("turnover_criteria").notNull(), // e.g., "5 cr"
+  headquarters: varchar("headquarters"),
+  establishedYear: integer("established_year"),
+  certifications: text("certifications").array(),
+  businessSectors: text("business_sectors").array(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  updatedBy: varchar("updated_by"),
+});
+
+export type CompanySettings = typeof companySettings.$inferSelect;
+export type InsertCompanySettings = typeof companySettings.$inferInsert;
+export const insertCompanySettingsSchema = createInsertSchema(companySettings).omit({
+  id: true,
+  updatedAt: true,
+});
+
+// Excel Upload History table
+export const excelUploads = pgTable("excel_uploads", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  fileName: varchar("file_name").notNull(),
+  filePath: varchar("file_path").notNull(),
+  uploadedAt: timestamp("uploaded_at").defaultNow(),
+  uploadedBy: varchar("uploaded_by"),
+  sheetsProcessed: integer("sheets_processed").default(0),
+  tendersImported: integer("tenders_imported").default(0),
+  status: varchar("status").notNull().default("processing"), // processing, completed, failed
+  errorLog: text("error_log"),
+});
+
+export type ExcelUpload = typeof excelUploads.$inferSelect;
+export type InsertExcelUpload = typeof excelUploads.$inferInsert;
+export const insertExcelUploadSchema = createInsertSchema(excelUploads).omit({
+  id: true,
+  uploadedAt: true,
+});

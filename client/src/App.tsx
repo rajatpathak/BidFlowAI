@@ -11,6 +11,8 @@ import AIInsights from "@/pages/ai-insights";
 import Finance from "@/pages/finance";
 import Meetings from "@/pages/meetings";
 import UserManagement from "@/pages/user-management";
+import AdminSettings from "@/pages/admin-settings";
+import EnhancedTenders from "@/pages/enhanced-tenders";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -26,6 +28,8 @@ function Router() {
           <Route path="/finance" component={Finance} />
           <Route path="/meetings" component={Meetings} />
           <Route path="/user-management" component={UserManagement} />
+          <Route path="/admin-settings" component={AdminSettings} />
+          <Route path="/enhanced-tenders" component={EnhancedTenders} />
           <Route component={NotFound} />
         </Switch>
       </div>
