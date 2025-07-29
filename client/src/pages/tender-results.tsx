@@ -32,7 +32,8 @@ import {
   Clock,
   Building2,
   Calendar,
-  DollarSign
+  DollarSign,
+  ExternalLink
 } from "lucide-react";
 import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -61,6 +62,7 @@ type EnhancedTenderResult = {
   aiMatchScore: number | null;
   notes: string | null;
   createdAt: Date | null;
+  link: string | null;
 };
 
 type TenderResultsImport = {
@@ -164,9 +166,31 @@ export default function TenderResultsPage() {
     }).format(amount / 100);
   };
 
-  const filteredResults = statusFilter === "all" 
+  const filteredResults = (statusFilter === "all" 
     ? results 
-    : results.filter(r => r.status === statusFilter);
+    : results.filter(r => r.status === statusFilter))
+    .sort((a, b) => {
+      // Check if Appentus won
+      const aIsAppentusWon = a.awardedTo?.toLowerCase().includes("appentus");
+      const bIsAppentusWon = b.awardedTo?.toLowerCase().includes("appentus");
+      
+      // Check if Appentus participated
+      const aIsAppentusParticipated = a.participatorBidders?.some(
+        bidder => bidder.toLowerCase().includes("appentus")
+      );
+      const bIsAppentusParticipated = b.participatorBidders?.some(
+        bidder => bidder.toLowerCase().includes("appentus")
+      );
+      
+      // Sort order: Won > Participated > Others
+      if (aIsAppentusWon && !bIsAppentusWon) return -1;
+      if (!aIsAppentusWon && bIsAppentusWon) return 1;
+      if (aIsAppentusParticipated && !bIsAppentusParticipated) return -1;
+      if (!aIsAppentusParticipated && bIsAppentusParticipated) return 1;
+      
+      // Sort by date for same category
+      return new Date(b.resultDate || 0).getTime() - new Date(a.resultDate || 0).getTime();
+    });
 
   // Calculate statistics
   const stats = {
@@ -303,6 +327,7 @@ export default function TenderResultsPage() {
                       <TableHead>Tender Stage</TableHead>
                       <TableHead>Winner Bidder</TableHead>
                       <TableHead>Participator Bidders</TableHead>
+                      <TableHead>Link</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -442,6 +467,23 @@ export default function TenderResultsPage() {
                               <span className="text-gray-400 text-xs">No bidders info</span>
                             )}
                           </div>
+                        </TableCell>
+                        
+                        {/* Link */}
+                        <TableCell>
+                          {result.link ? (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="gap-2"
+                              onClick={() => window.open(result.link || '', '_blank')}
+                            >
+                              <ExternalLink className="h-4 w-4" />
+                              View
+                            </Button>
+                          ) : (
+                            <span className="text-gray-400 text-xs">-</span>
+                          )}
                         </TableCell>
                       </TableRow>
                     ))}

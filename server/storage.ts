@@ -427,6 +427,7 @@ export class MemStorage implements IStorage {
       companyEligible: true,
       aiMatchScore: 95,
       notes: "Successfully executed with quality standards",
+      link: "https://tender247.com/smart-city-infrastructure-development-2025",
       createdAt: new Date(),
     };
 
@@ -453,6 +454,7 @@ export class MemStorage implements IStorage {
       companyEligible: true,
       aiMatchScore: 85,
       notes: "Lost on pricing despite technical superiority",
+      link: "https://tender247.com/tax-collection-software-mumbai-2025",
       createdAt: new Date(),
     };
 
@@ -479,6 +481,7 @@ export class MemStorage implements IStorage {
       companyEligible: false,
       aiMatchScore: 45,
       notes: "Low AI match due to lack of medical equipment experience",
+      link: null,
       createdAt: new Date(),
     };
 

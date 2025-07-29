@@ -460,6 +460,7 @@ export const enhancedTenderResults = pgTable("enhanced_tender_results", {
   companyEligible: boolean("company_eligible").default(true), // based on company criteria
   aiMatchScore: integer("ai_match_score"), // AI matching score at time of tender
   notes: text("notes"),
+  link: varchar("link"), // Link extracted from tender result brief
   createdAt: timestamp("created_at").defaultNow(),
 });
 

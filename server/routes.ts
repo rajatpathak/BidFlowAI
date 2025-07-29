@@ -1263,6 +1263,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
               };
               
               const tenderTitle = getField(['Title', 'Tender Title', 'Work Description', 'Work Name', 'Brief Description', 'TENDER RESULT BRIEF', 'Result Brief']);
+              
+              // Extract link from tender title if it contains a URL
+              let extractedLink = null;
+              const urlRegex = /(https?:\/\/[^\s]+)/g;
+              const urlMatch = tenderTitle.match(urlRegex);
+              if (urlMatch && urlMatch.length > 0) {
+                extractedLink = urlMatch[0];
+              }
               const organization = getField(['Organization', 'Dept', 'Department', 'Ministry', 'Company', 'Ownership']);
               const referenceNo = getField(['Reference No', 'Ref No', 'ID', 'TR247 ID', 'T247 ID', 'Tender ID', 'Reference', 'TENDER REFERENCE NO']);
               const location = getField(['Location', 'City', 'State', 'Region', 'LOCATION']);
@@ -1351,6 +1359,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 companyEligible,
                 aiMatchScore: companySettings ? await storage.calculateAIMatch({ requirements: { turnover: getField(['Turnover Requirement', 'Eligibility', 'Turnover']) || "" } } as any, companySettings) : null,
                 notes: getField(['Notes', 'Remarks', 'Comments']) || null,
+                link: extractedLink,
               });
 
               totalResultsProcessed++;
