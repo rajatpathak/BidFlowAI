@@ -1,31 +1,77 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Progress } from "@/components/ui/progress";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { 
   Upload, 
   FileSpreadsheet, 
   CheckCircle, 
   AlertCircle,
-  Trophy
+  Trophy,
+  Clock,
+  Calendar,
+  History
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { formatDistanceToNow } from "date-fns";
+
+interface UploadHistory {
+  id: string;
+  fileName: string;
+  timestamp: Date;
+  tendersImported: number;
+  duplicatesSkipped: number;
+  status: 'success' | 'failed';
+}
 
 export default function UploadDemoPage() {
   const [tenderFile, setTenderFile] = useState<File | null>(null);
   const [resultsFile, setResultsFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadHistory, setUploadHistory] = useState<UploadHistory[]>([]);
   const { toast } = useToast();
+
+  // Load upload history from localStorage
+  useEffect(() => {
+    const savedHistory = localStorage.getItem('excelUploadHistory');
+    if (savedHistory) {
+      const history = JSON.parse(savedHistory);
+      // Convert timestamps back to Date objects
+      const parsedHistory = history.map((item: any) => ({
+        ...item,
+        timestamp: new Date(item.timestamp)
+      }));
+      setUploadHistory(parsedHistory);
+    }
+  }, []);
+
+  // Save history to localStorage
+  const saveHistory = (history: UploadHistory[]) => {
+    localStorage.setItem('excelUploadHistory', JSON.stringify(history));
+    setUploadHistory(history);
+  };
 
   const handleTenderUpload = async () => {
     if (!tenderFile) return;
     
     setIsUploading(true);
+    setUploadProgress(0);
     const formData = new FormData();
     formData.append("excelFile", tenderFile);
     formData.append("uploadedBy", "admin");
+
+    // Simulate progress updates
+    const progressInterval = setInterval(() => {
+      setUploadProgress(prev => {
+        if (prev >= 90) return prev;
+        return prev + Math.random() * 15;
+      });
+    }, 500);
 
     try {
       const response = await fetch("/api/excel-uploads", {
@@ -33,11 +79,28 @@ export default function UploadDemoPage() {
         body: formData,
       });
 
+      clearInterval(progressInterval);
+      setUploadProgress(100);
+
       if (!response.ok) {
         throw new Error("Upload failed");
       }
 
       const result = await response.json();
+      
+      // Add to history
+      const newHistoryItem: UploadHistory = {
+        id: Date.now().toString(),
+        fileName: tenderFile.name,
+        timestamp: new Date(),
+        tendersImported: result.tendersImported || 0,
+        duplicatesSkipped: result.duplicatesSkipped || 0,
+        status: 'success'
+      };
+      
+      const newHistory = [newHistoryItem, ...uploadHistory].slice(0, 10); // Keep last 10
+      saveHistory(newHistory);
+
       toast({
         title: "Success!",
         description: result.message || `Imported ${result.tendersImported} tenders, skipped ${result.duplicatesSkipped} duplicates.`,
@@ -45,6 +108,21 @@ export default function UploadDemoPage() {
       
       setTenderFile(null);
     } catch (error) {
+      clearInterval(progressInterval);
+      
+      // Add failed entry to history
+      const newHistoryItem: UploadHistory = {
+        id: Date.now().toString(),
+        fileName: tenderFile.name,
+        timestamp: new Date(),
+        tendersImported: 0,
+        duplicatesSkipped: 0,
+        status: 'failed'
+      };
+      
+      const newHistory = [newHistoryItem, ...uploadHistory].slice(0, 10);
+      saveHistory(newHistory);
+
       toast({
         title: "Upload failed",
         description: "Failed to process tender file. Please check the format and try again.",
@@ -52,6 +130,7 @@ export default function UploadDemoPage() {
       });
     } finally {
       setIsUploading(false);
+      setTimeout(() => setUploadProgress(0), 1000);
     }
   };
 
@@ -152,19 +231,105 @@ export default function UploadDemoPage() {
                 </div>
               </div>
 
-              <div className="flex justify-center">
-                <Button
-                  onClick={handleTenderUpload}
-                  disabled={!tenderFile || isUploading}
-                  className="px-8 py-2"
-                  size="lg"
-                >
-                  <Upload className="h-4 w-4 mr-2" />
-                  {isUploading ? "Processing..." : "Upload Active Tenders"}
-                </Button>
+              <div className="space-y-4">
+                <div className="flex justify-center">
+                  <Button
+                    onClick={handleTenderUpload}
+                    disabled={!tenderFile || isUploading}
+                    className="px-8 py-2"
+                    size="lg"
+                  >
+                    <Upload className="h-4 w-4 mr-2" />
+                    {isUploading ? "Processing..." : "Upload Active Tenders"}
+                  </Button>
+                </div>
+                
+                {/* Progress Bar */}
+                {isUploading && (
+                  <div className="space-y-2 max-w-md mx-auto">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-gray-600">Uploading and processing...</span>
+                      <span className="font-medium">{Math.round(uploadProgress)}%</span>
+                    </div>
+                    <Progress value={uploadProgress} className="h-2" />
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
+
+          {/* Upload History */}
+          {uploadHistory.length > 0 && (
+            <Card>
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <History className="h-5 w-5" />
+                  <div>
+                    <CardTitle>Recent Uploads</CardTitle>
+                    <CardDescription>
+                      Your Excel upload history
+                    </CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>File Name</TableHead>
+                      <TableHead>Upload Time</TableHead>
+                      <TableHead>Tenders Imported</TableHead>
+                      <TableHead>Duplicates Skipped</TableHead>
+                      <TableHead>Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {uploadHistory.map((item) => (
+                      <TableRow key={item.id}>
+                        <TableCell className="font-medium">
+                          <div className="flex items-center gap-2">
+                            <FileSpreadsheet className="h-4 w-4 text-gray-400" />
+                            {item.fileName}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Clock className="h-3 w-3 text-gray-400" />
+                            <span className="text-sm text-gray-600">
+                              {formatDistanceToNow(item.timestamp, { addSuffix: true })}
+                            </span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <span className="font-medium text-green-600">
+                            {item.tendersImported}
+                          </span>
+                        </TableCell>
+                        <TableCell>
+                          <span className="text-yellow-600">
+                            {item.duplicatesSkipped}
+                          </span>
+                        </TableCell>
+                        <TableCell>
+                          {item.status === 'success' ? (
+                            <Badge variant="success" className="gap-1">
+                              <CheckCircle className="h-3 w-3" />
+                              Success
+                            </Badge>
+                          ) : (
+                            <Badge variant="destructive" className="gap-1">
+                              <AlertCircle className="h-3 w-3" />
+                              Failed
+                            </Badge>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
 
         <TabsContent value="results" className="space-y-4">
