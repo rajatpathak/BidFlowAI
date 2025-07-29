@@ -17,6 +17,8 @@ import {
   insertUserRoleSchema,
   insertCompanySettingsSchema,
   insertExcelUploadSchema,
+  insertTenderResultsImportSchema,
+  insertEnhancedTenderResultSchema,
 } from "@shared/schema";
 import * as XLSX from "xlsx";
 import multer from "multer";
@@ -832,6 +834,163 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(201).json(assignment);
     } catch (error) {
       res.status(500).json({ error: "Failed to assign tender" });
+    }
+  });
+
+  // Tender Results Import Routes
+  app.get("/api/tender-results-imports", async (req, res) => {
+    try {
+      const imports = await storage.getTenderResultsImports();
+      res.json(imports);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch tender results imports" });
+    }
+  });
+
+  app.post("/api/tender-results-imports", upload.single('resultsFile'), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+
+      // Create import record
+      const importRecord = await storage.createTenderResultsImport({
+        fileName: req.file.originalname,
+        filePath: req.file.path,
+        uploadedBy: req.body.uploadedBy || "admin",
+        status: "processing",
+      });
+
+      // Process Excel file for results
+      try {
+        const workbook = XLSX.readFile(req.file.path);
+        const companySettings = await storage.getCompanySettings();
+        const assignments = await storage.getTenderAssignments();
+        
+        let totalResultsProcessed = 0;
+
+        // Process each worksheet
+        for (const sheetName of workbook.SheetNames) {
+          const worksheet = workbook.Sheets[sheetName];
+          const data = XLSX.utils.sheet_to_json(worksheet);
+          
+          // Process each row as a tender result
+          for (const row of data) {
+            try {
+              const tenderTitle = row['Title'] || row['Tender Title'] || row['Work Description'] || "";
+              const organization = row['Organization'] || row['Dept'] || row['Department'] || "";
+              const referenceNo = row['Reference No'] || row['Ref No'] || row['ID'] || "";
+              const awardedTo = row['Awarded To'] || row['Winner'] || row['Selected Company'] || "";
+              const awardedValue = parseFloat(row['Awarded Value'] || row['Winning Amount'] || row['Final Value'] || "0") * 100;
+              const resultDate = row['Result Date'] || row['Award Date'] || new Date();
+              
+              // Find if this tender was assigned to any of our bidders
+              const assignment = assignments.find(a => 
+                a.notes?.toLowerCase().includes(tenderTitle.toLowerCase()) ||
+                a.notes?.toLowerCase().includes(referenceNo.toLowerCase())
+              );
+
+              let status = "missed_opportunity";
+              let assignedTo = null;
+              let missedReason = "Not assigned to any bidder";
+              let companyEligible = true;
+
+              // Check company eligibility if we have settings
+              if (companySettings) {
+                const mockTender = {
+                  requirements: {
+                    turnover: row['Turnover Requirement'] || row['Eligibility'] || "",
+                  }
+                };
+                const aiScore = await storage.calculateAIMatch(mockTender as any, companySettings);
+                companyEligible = aiScore >= 60; // Eligible if 60%+ match
+                
+                if (!companyEligible) {
+                  missedReason = "Did not meet company eligibility criteria";
+                }
+              }
+
+              if (assignment) {
+                assignedTo = assignment.assignedTo;
+                const ourCompanyName = companySettings?.companyName || "TechConstruct";
+                
+                if (awardedTo.toLowerCase().includes(ourCompanyName.toLowerCase()) || 
+                    awardedTo.toLowerCase().includes("techconstruct")) {
+                  status = "won";
+                } else if (row['Status']?.toLowerCase().includes('reject')) {
+                  status = "rejected";
+                } else {
+                  status = "lost";
+                }
+              }
+
+              await storage.createEnhancedTenderResult({
+                tenderTitle,
+                organization,
+                referenceNo,
+                tenderValue: parseFloat(row['Tender Value'] || row['EMD'] || "0") * 100,
+                ourBidValue: parseFloat(row['Our Bid'] || row['Our Amount'] || "0") * 100,
+                status,
+                awardedTo,
+                awardedValue,
+                resultDate: new Date(resultDate),
+                assignedTo,
+                reasonForLoss: row['Reason'] || row['Comments'] || null,
+                missedReason: status === "missed_opportunity" ? missedReason : null,
+                companyEligible,
+                aiMatchScore: companySettings ? await storage.calculateAIMatch({ requirements: { turnover: row['Turnover Requirement'] || "" } } as any, companySettings) : null,
+                notes: row['Notes'] || row['Remarks'] || null,
+              });
+
+              totalResultsProcessed++;
+            } catch (error) {
+              console.log(`Error processing result row in ${sheetName}:`, error);
+            }
+          }
+        }
+
+        // Update import record
+        await storage.updateTenderResultsImport(importRecord.id, {
+          status: "completed",
+          resultsProcessed: totalResultsProcessed,
+        });
+
+        res.json({
+          ...importRecord,
+          resultsProcessed: totalResultsProcessed,
+          status: "completed"
+        });
+
+      } catch (error) {
+        await storage.updateTenderResultsImport(importRecord.id, {
+          status: "failed",
+          errorLog: error.message,
+        });
+        
+        res.status(500).json({ error: "Failed to process results file", details: error.message });
+      }
+
+    } catch (error) {
+      res.status(500).json({ error: "Failed to upload results file" });
+    }
+  });
+
+  // Enhanced Tender Results Routes
+  app.get("/api/enhanced-tender-results", async (req, res) => {
+    try {
+      const results = await storage.getEnhancedTenderResults();
+      res.json(results);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch tender results" });
+    }
+  });
+
+  app.get("/api/enhanced-tender-results/by-status/:status", async (req, res) => {
+    try {
+      const results = await storage.getResultsByStatus(req.params.status);
+      res.json(results);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch results by status" });
     }
   });
 

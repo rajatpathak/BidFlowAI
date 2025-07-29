@@ -13,6 +13,7 @@ import Meetings from "@/pages/meetings";
 import UserManagement from "@/pages/user-management";
 import AdminSettings from "@/pages/admin-settings";
 import EnhancedTenders from "@/pages/enhanced-tenders";
+import TenderResults from "@/pages/tender-results";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -30,6 +31,7 @@ function Router() {
           <Route path="/user-management" component={UserManagement} />
           <Route path="/admin-settings" component={AdminSettings} />
           <Route path="/enhanced-tenders" component={EnhancedTenders} />
+          <Route path="/tender-results" component={TenderResults} />
           <Route component={NotFound} />
         </Switch>
       </div>

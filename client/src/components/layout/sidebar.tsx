@@ -13,7 +13,8 @@ import {
   Calendar,
   UserCog,
   FileSpreadsheet,
-  Cog
+  Cog,
+  Trophy
 } from "lucide-react";
 
 const navigation = [
@@ -21,6 +22,7 @@ const navigation = [
   { name: "Active Tenders", href: "/tenders", icon: FileText },
   { name: "Enhanced Tenders", href: "/enhanced-tenders", icon: FileSpreadsheet },
   { name: "Create Bid", href: "/create-bid", icon: Plus },
+  { name: "Tender Results", href: "/tender-results", icon: Trophy },
   { name: "Meetings", href: "/meetings", icon: Calendar },
   { name: "Finance", href: "/finance", icon: DollarSign },
   { name: "AI Insights", href: "/ai-insights", icon: Brain },

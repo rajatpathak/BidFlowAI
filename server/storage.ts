@@ -144,6 +144,17 @@ export interface IStorage {
   
   // AI Matching
   calculateAIMatch(tender: Tender, companySettings: CompanySettings): Promise<number>;
+  
+  // Tender Results Import
+  getTenderResultsImports(): Promise<TenderResultsImport[]>;
+  createTenderResultsImport(import_: InsertTenderResultsImport): Promise<TenderResultsImport>;
+  updateTenderResultsImport(id: string, import_: Partial<TenderResultsImport>): Promise<TenderResultsImport | undefined>;
+  
+  // Enhanced Tender Results
+  getEnhancedTenderResults(): Promise<EnhancedTenderResult[]>;
+  createEnhancedTenderResult(result: InsertEnhancedTenderResult): Promise<EnhancedTenderResult>;
+  updateEnhancedTenderResult(id: string, result: Partial<EnhancedTenderResult>): Promise<EnhancedTenderResult | undefined>;
+  getResultsByStatus(status: string): Promise<EnhancedTenderResult[]>;
 }
 
 export class MemStorage implements IStorage {
@@ -164,6 +175,8 @@ export class MemStorage implements IStorage {
   private userRoles: Map<string, UserRole>;
   private companySettings: CompanySettings | null;
   private excelUploads: Map<string, ExcelUpload>;
+  private tenderResultsImports: Map<string, TenderResultsImport>;
+  private enhancedTenderResults: Map<string, EnhancedTenderResult>;
 
   constructor() {
     this.users = new Map();
@@ -183,6 +196,8 @@ export class MemStorage implements IStorage {
     this.userRoles = new Map();
     this.companySettings = null;
     this.excelUploads = new Map();
+    this.tenderResultsImports = new Map();
+    this.enhancedTenderResults = new Map();
 
     // Initialize with sample data
     this.initializeSampleData();
@@ -987,6 +1002,65 @@ export class MemStorage implements IStorage {
     // Partial match based on how close we are
     const ratio = companyTurnover / requiredTurnover;
     return Math.max(30, Math.min(85, Math.floor(ratio * 100)));
+  }
+
+  // Tender Results Import Methods
+  async getTenderResultsImports(): Promise<TenderResultsImport[]> {
+    return Array.from(this.tenderResultsImports.values()).sort((a, b) => 
+      new Date(b.uploadedAt!).getTime() - new Date(a.uploadedAt!).getTime()
+    );
+  }
+
+  async createTenderResultsImport(insertImport: InsertTenderResultsImport): Promise<TenderResultsImport> {
+    const id = randomUUID();
+    const import_: TenderResultsImport = {
+      ...insertImport,
+      id,
+      uploadedAt: new Date(),
+      resultsProcessed: insertImport.resultsProcessed || 0,
+      status: insertImport.status || "processing",
+      errorLog: insertImport.errorLog || null,
+    };
+    this.tenderResultsImports.set(id, import_);
+    return import_;
+  }
+
+  async updateTenderResultsImport(id: string, import_: Partial<TenderResultsImport>): Promise<TenderResultsImport | undefined> {
+    const existing = this.tenderResultsImports.get(id);
+    if (!existing) return undefined;
+    const updated = { ...existing, ...import_ };
+    this.tenderResultsImports.set(id, updated);
+    return updated;
+  }
+
+  // Enhanced Tender Results Methods
+  async getEnhancedTenderResults(): Promise<EnhancedTenderResult[]> {
+    return Array.from(this.enhancedTenderResults.values()).sort((a, b) => 
+      new Date(b.resultDate || b.createdAt!).getTime() - new Date(a.resultDate || a.createdAt!).getTime()
+    );
+  }
+
+  async createEnhancedTenderResult(insertResult: InsertEnhancedTenderResult): Promise<EnhancedTenderResult> {
+    const id = randomUUID();
+    const result: EnhancedTenderResult = {
+      ...insertResult,
+      id,
+      createdAt: new Date(),
+    };
+    this.enhancedTenderResults.set(id, result);
+    return result;
+  }
+
+  async updateEnhancedTenderResult(id: string, result: Partial<EnhancedTenderResult>): Promise<EnhancedTenderResult | undefined> {
+    const existing = this.enhancedTenderResults.get(id);
+    if (!existing) return undefined;
+    const updated = { ...existing, ...result };
+    this.enhancedTenderResults.set(id, updated);
+    return updated;
+  }
+
+  async getResultsByStatus(status: string): Promise<EnhancedTenderResult[]> {
+    return Array.from(this.enhancedTenderResults.values()).filter(r => r.status === status);
   }
 
   // Enhanced Methods

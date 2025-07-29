@@ -385,3 +385,50 @@ export const insertExcelUploadSchema = createInsertSchema(excelUploads).omit({
   id: true,
   uploadedAt: true,
 });
+
+// Tender Results Import table for tracking uploaded results
+export const tenderResultsImport = pgTable("tender_results_import", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  fileName: varchar("file_name").notNull(),
+  filePath: varchar("file_path").notNull(),
+  uploadedAt: timestamp("uploaded_at").defaultNow(),
+  uploadedBy: varchar("uploaded_by"),
+  resultsProcessed: integer("results_processed").default(0),
+  status: varchar("status").notNull().default("processing"), // processing, completed, failed
+  errorLog: text("error_log"),
+});
+
+export type TenderResultsImport = typeof tenderResultsImport.$inferSelect;
+export type InsertTenderResultsImport = typeof tenderResultsImport.$inferInsert;
+export const insertTenderResultsImportSchema = createInsertSchema(tenderResultsImport).omit({
+  id: true,
+  uploadedAt: true,
+});
+
+// Enhanced Tender Results with award tracking
+export const enhancedTenderResults = pgTable("enhanced_tender_results", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenderTitle: varchar("tender_title").notNull(),
+  organization: varchar("organization").notNull(),
+  referenceNo: varchar("reference_no"),
+  tenderValue: integer("tender_value"), // in cents
+  ourBidValue: integer("our_bid_value"), // in cents
+  status: varchar("status").notNull(), // won, lost, rejected, missed_opportunity
+  awardedTo: varchar("awarded_to"), // company name who won
+  awardedValue: integer("awarded_value"), // winning bid amount in cents
+  resultDate: timestamp("result_date"),
+  assignedTo: varchar("assigned_to"), // our bidder who worked on it
+  reasonForLoss: varchar("reason_for_loss"),
+  missedReason: varchar("missed_reason"), // why we missed (not assigned, didn't meet criteria, etc.)
+  companyEligible: boolean("company_eligible").default(true), // based on company criteria
+  aiMatchScore: integer("ai_match_score"), // AI matching score at time of tender
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export type EnhancedTenderResult = typeof enhancedTenderResults.$inferSelect;
+export type InsertEnhancedTenderResult = typeof enhancedTenderResults.$inferInsert;
+export const insertEnhancedTenderResultSchema = createInsertSchema(enhancedTenderResults).omit({
+  id: true,
+  createdAt: true,
+});
