@@ -25,6 +25,7 @@ export default function ActiveTendersTable() {
   const [detailModalOpen, setDetailModalOpen] = useState(false);
   const [sourceFilter, setSourceFilter] = useState<"all" | "gem" | "non-gem">("all");
   const [deadlineFilter, setDeadlineFilter] = useState<"all" | "7days" | "15days" | "30days" | "overdue">("all");
+  const [eligibilityFilter, setEligibilityFilter] = useState<"all" | "eligible" | "not-eligible">("all");
   const [showEligibility, setShowEligibility] = useState(false);
   const itemsPerPage = viewMode === "list" ? 10 : 12;
 
@@ -65,8 +66,7 @@ export default function ActiveTendersTable() {
       tender.organization.toLowerCase().includes(searchTerm.toLowerCase());
     
     // Source filter (GEM/Non-GEM)
-    const requirements = (tender.requirements || {}) as any;
-    const isGem = requirements.source === 'gem';
+    const isGem = tender.source === 'gem';
     const matchesSource = sourceFilter === "all" || 
       (sourceFilter === "gem" && isGem) || 
       (sourceFilter === "non-gem" && !isGem);
@@ -84,7 +84,13 @@ export default function ActiveTendersTable() {
       matchesDeadline = daysLeft < 0;
     }
     
-    return matchesSearch && matchesSource && matchesDeadline;
+    // Eligibility filter (based on AI score)
+    const aiScore = tender.aiScore || 0;
+    const matchesEligibility = eligibilityFilter === "all" ||
+      (eligibilityFilter === "eligible" && aiScore >= 70) ||
+      (eligibilityFilter === "not-eligible" && aiScore < 70);
+    
+    return matchesSearch && matchesSource && matchesDeadline && matchesEligibility;
   }) || [];
 
   const totalPages = Math.ceil(filteredTenders.length / itemsPerPage);
@@ -157,6 +163,16 @@ export default function ActiveTendersTable() {
                 className="pl-10 pr-4 py-2 w-64"
               />
             </div>
+            <Select value={eligibilityFilter} onValueChange={(value: any) => setEligibilityFilter(value)}>
+              <SelectTrigger className="w-40">
+                <SelectValue placeholder="All Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="eligible">Eligible (≥70%)</SelectItem>
+                <SelectItem value="not-eligible">Not Eligible (&lt;70%)</SelectItem>
+              </SelectContent>
+            </Select>
             <Select value={sourceFilter} onValueChange={(value: any) => setSourceFilter(value)}>
               <SelectTrigger className="w-40">
                 <SelectValue placeholder="All Tenders" />
