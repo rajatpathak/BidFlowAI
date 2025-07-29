@@ -1109,4 +1109,7 @@ export class MemStorage implements IStorage {
   }
 }
 
-export const storage = new MemStorage();
+import { DatabaseStorage } from "./database-storage";
+
+// Use database storage for scalable backend
+export const storage = new DatabaseStorage() as IStorage;

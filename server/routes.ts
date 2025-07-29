@@ -1,6 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
+import { seedDatabase } from "./seed-database";
 import { openaiService } from "./services/openai";
 import {
   insertTenderSchema,
@@ -35,6 +36,16 @@ const upload = multer({
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Dashboard stats
+  // Seed database endpoint for initialization
+  app.post("/api/seed-database", async (req, res) => {
+    try {
+      await seedDatabase();
+      res.json({ message: "Database seeded successfully" });
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to seed database", details: error.message });
+    }
+  });
+
   app.get("/api/dashboard/stats", async (req, res) => {
     try {
       const stats = await storage.getDashboardStats();
