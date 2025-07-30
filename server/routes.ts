@@ -228,20 +228,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
   });
 
-  // Simple root endpoint for API status
-  app.get("/", (req, res) => {
-    res.json({
-      message: "BMS Backend API - Separated Architecture",
-      status: "Backend running independently on port 5000",
-      endpoints: {
-        health: "/api/health",
-        login: "POST /api/auth/login",
-        dashboard: "/api/dashboard/stats", 
-        tenders: "/api/tenders"
-      },
-      note: "Frontend runs on separate development server"
-    });
-  });
+  // Remove root endpoint to let Vite handle frontend routes
 
   // Dashboard stats
   // Authentication endpoints
