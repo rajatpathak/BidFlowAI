@@ -672,9 +672,11 @@ export default function ActiveTendersPage() {
                       />
                     </TableHead>
                     <TableHead>Tender Details</TableHead>
+                    <TableHead>Reference No</TableHead>
                     <TableHead>Organization</TableHead>
                     <TableHead>Value</TableHead>
                     <TableHead>Deadline</TableHead>
+                    <TableHead>Link</TableHead>
                     <TableHead>AI Score</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Actions</TableHead>
@@ -692,21 +694,6 @@ export default function ActiveTendersPage() {
                       <TableCell>
                         <div className="space-y-1">
                           <div className="font-medium">{tender.title}</div>
-                          {/* Show Reference No from requirements */}
-                          {tender.requirements && Array.isArray(tender.requirements) && tender.requirements[0]?.reference && (
-                            <div className="text-sm text-blue-600 font-mono">
-                              Ref: {tender.requirements[0].reference}
-                            </div>
-                          )}
-                          {/* Show Link if available */}
-                          {tender.link && (
-                            <div className="text-sm">
-                              <a href={tender.link} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:text-blue-700 flex items-center">
-                                <ExternalLink className="h-3 w-3 mr-1" />
-                                View Tender
-                              </a>
-                            </div>
-                          )}
                           {tender.location && (
                             <div className="flex items-center text-sm text-gray-500">
                               <Building2 className="h-3 w-3 mr-1" />
@@ -714,6 +701,15 @@ export default function ActiveTendersPage() {
                             </div>
                           )}
                         </div>
+                      </TableCell>
+                      <TableCell>
+                        {tender.requirements && Array.isArray(tender.requirements) && tender.requirements[0]?.reference ? (
+                          <div className="text-sm text-blue-600 font-mono">
+                            {tender.requirements[0].reference}
+                          </div>
+                        ) : (
+                          <span className="text-gray-400">No reference</span>
+                        )}
                       </TableCell>
                       <TableCell>
                         <div className="font-medium">{tender.organization}</div>
@@ -735,6 +731,16 @@ export default function ActiveTendersPage() {
                           </div>
                         ) : (
                           <span className="text-gray-400">No deadline</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {tender.link ? (
+                          <a href={tender.link} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:text-blue-700 flex items-center text-sm">
+                            <ExternalLink className="h-3 w-3 mr-1" />
+                            View
+                          </a>
+                        ) : (
+                          <span className="text-gray-400">No link</span>
                         )}
                       </TableCell>
                       <TableCell>

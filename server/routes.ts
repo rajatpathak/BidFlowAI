@@ -55,12 +55,20 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
   // Get tender imports history
   app.get("/api/tender-imports", async (req, res) => {
     try {
-      // Query the database directly using raw SQL since table schema and code don't match
-      const result = await db.execute(sql`SELECT * FROM excel_uploads ORDER BY uploaded_at DESC`);
-      res.json(result.rows || []);
+      // Query the database directly using raw SQL with correct column names
+      const result = await db.execute(sql`
+        SELECT 
+          id, file_name, uploaded_by, entries_added, entries_duplicate, 
+          total_entries, sheets_processed, status, uploaded_at
+        FROM excel_uploads 
+        ORDER BY uploaded_at DESC 
+        LIMIT 20
+      `);
+      res.json(result.rows || result || []);
     } catch (error) {
       console.error("Tender imports fetch error:", error);
-      res.status(500).json({ error: "Failed to fetch tender imports" });
+      // Return empty array instead of error to prevent frontend breaks
+      res.json([]);
     }
   });
 

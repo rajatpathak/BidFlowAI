@@ -244,8 +244,8 @@ export async function processActiveTendersWithSubsheets(filePath: string, fileNa
     
     // Record the import
     await db.execute(sql`
-      INSERT INTO excel_uploads (file_name, file_path, uploaded_by, entries_added, entries_duplicate, total_entries, sheets_processed, status)
-      VALUES (${fileName}, ${filePath}, ${uploadedBy}, ${totalProcessed}, ${totalDuplicates}, ${totalProcessed + totalDuplicates}, ${sheetsProcessed}, 'completed')
+      INSERT INTO excel_uploads (file_name, file_path, uploaded_by, entries_added, entries_duplicate, total_entries, sheets_processed, status, uploaded_at)
+      VALUES (${fileName}, ${filePath}, ${uploadedBy}, ${totalProcessed}, ${totalDuplicates}, ${totalProcessed + totalDuplicates}, ${sheetsProcessed}, 'completed', NOW())
     `);
     
     console.log(`\nProcessing complete:`);
