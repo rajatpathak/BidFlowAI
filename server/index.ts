@@ -38,8 +38,7 @@ app.use((req, res, next) => {
 
 (async () => {
   // Setup storage and routes
-  const { MemStorage } = await import("./storage.js");
-  const storage = new MemStorage();
+  const { storage } = await import("./storage.js");
   await registerRoutes(app, storage);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {

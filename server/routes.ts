@@ -7,8 +7,7 @@ import { db } from './db.js';
 import { 
   tenders, 
   enhancedTenderResults, 
-  tenderImports, 
-  tenderResultsImport, 
+  tenderResultsImports, 
   tenderAssignments 
 } from '../shared/schema.js';
 import { eq } from 'drizzle-orm';
