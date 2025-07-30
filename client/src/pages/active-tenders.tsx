@@ -84,6 +84,10 @@ export default function ActiveTendersPage() {
     queryKey: ["/api/tenders"],
   });
 
+  const { data: imports = [], isLoading: importsLoading } = useQuery<TenderImport[]>({
+    queryKey: ["/api/tender-imports"],
+  });
+
   // Filter tenders
   const filteredTenders = tenders.filter(tender => {
     // Search filter
@@ -125,6 +129,47 @@ export default function ActiveTendersPage() {
     highValue: tenders.filter(t => (t.value || 0) > 10000000).length // > 1 Crore
   };
 
+  // Handle file upload for tenders
+  const handleFileUpload = async () => {
+    if (!uploadFile) return;
+    
+    setIsUploading(true);
+    const formData = new FormData();
+    formData.append("tendersFile", uploadFile);
+    formData.append("uploadedBy", user?.username || "admin");
+
+    try {
+      const response = await fetch("/api/tender-imports", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error("Upload failed");
+      }
+
+      const result = await response.json();
+      queryClient.invalidateQueries({ queryKey: ["/api/tender-imports"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tenders"] });
+      
+      toast({
+        title: "Upload successful",
+        description: `Processed ${result.tendersProcessed} tenders successfully.`,
+      });
+      
+      setUploadFile(null);
+    } catch (error) {
+      console.error("Upload error:", error);
+      toast({
+        title: "Upload failed",
+        description: "Please try again or contact support.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="p-6 space-y-6">
@@ -161,6 +206,15 @@ export default function ActiveTendersPage() {
           <p className="text-gray-600">View and manage active tender opportunities with AI-powered insights</p>
         </div>
       </div>
+
+      <Tabs defaultValue="active-tenders" className="w-full">
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="active-tenders">Active Tenders</TabsTrigger>
+          <TabsTrigger value="upload-tenders">Upload Tenders</TabsTrigger>
+          <TabsTrigger value="upload-history">Upload History</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="active-tenders" className="space-y-6">{/* Active Tenders Content */}
 
       {/* Statistics Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
