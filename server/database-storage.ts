@@ -854,8 +854,31 @@ export class DatabaseStorage implements IStorage {
   async getTenderResultsImports(): Promise<any[]> { return []; }
   async createTenderResultsImport(import_: any): Promise<any> { return { id: "stub", ...import_ }; }
   async updateTenderResultsImport(id: string, import_: any): Promise<any> { return { id, ...import_ }; }
-  async getEnhancedTenderResults(): Promise<any[]> { return []; }
-  async createEnhancedTenderResult(result: any): Promise<any> { return { id: "stub", ...result }; }
+  async getEnhancedTenderResults(): Promise<any[]> { 
+    try {
+      const results = await this.db.select().from(enhancedTenderResults).orderBy(desc(enhancedTenderResults.resultDate));
+      return results;
+    } catch (error) {
+      console.error('Error fetching enhanced tender results:', error);
+      return [];
+    }
+  }
+  
+  async createEnhancedTenderResult(result: any): Promise<any> { 
+    try {
+      const insertData = {
+        ...result,
+        // Ensure createdAt is set if not provided
+        createdAt: result.createdAt || new Date()
+      };
+      
+      const [inserted] = await this.db.insert(enhancedTenderResults).values(insertData).returning();
+      return inserted;
+    } catch (error) {
+      console.error('Error creating enhanced tender result:', error);
+      throw error;
+    }
+  }
   async updateEnhancedTenderResult(id: string, result: any): Promise<any> { return { id, ...result }; }
   async getResultsByStatus(status: string): Promise<any[]> { return []; }
   async getTenderWithDetails(id: string): Promise<any> { return null; }
