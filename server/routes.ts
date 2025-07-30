@@ -230,6 +230,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Remove root endpoint to let Vite handle frontend routes
 
+  // Upload endpoints for background processing
+  app.post("/api/upload-tenders", upload.single('file'), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+
+      // Import tenders from Excel file
+      const result = await storage.importTendersFromExcel(req.file.path);
+      
+      res.json({
+        message: "Tenders imported successfully",
+        tendersImported: result.imported,
+        duplicatesSkipped: result.duplicates
+      });
+    } catch (error) {
+      console.error("Upload tenders error:", error);
+      res.status(500).json({ 
+        error: error instanceof Error ? error.message : "Failed to process tender file" 
+      });
+    }
+  });
+
+  app.post("/api/upload-results", upload.single('file'), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+
+      // Import results from Excel file
+      const result = await storage.importTenderResultsFromExcel(req.file.path);
+      
+      res.json({
+        message: "Results imported successfully",
+        resultsImported: result.imported,
+        duplicatesSkipped: result.duplicates
+      });
+    } catch (error) {
+      console.error("Upload results error:", error);
+      res.status(500).json({ 
+        error: error instanceof Error ? error.message : "Failed to process results file" 
+      });
+    }
+  });
+
   // Dashboard stats
   // Authentication endpoints
   app.post("/api/auth/login", async (req, res) => {

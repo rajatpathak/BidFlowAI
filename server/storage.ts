@@ -153,6 +153,10 @@ export interface IStorage {
   // AI Matching
   calculateAIMatch(tender: Tender, companySettings: CompanySettings): Promise<number>;
   calculateAIMatchWithBreakdown(tender: Tender, companySettings: CompanySettings | undefined): Promise<any>;
+
+  // Excel Import
+  importTendersFromExcel(filePath: string): Promise<{ imported: number; duplicates: number }>;
+  importTenderResultsFromExcel(filePath: string): Promise<{ imported: number; duplicates: number }>;
   
   // Tender Results Import
   getTenderResultsImports(): Promise<TenderResultsImport[]>;
@@ -1084,6 +1088,126 @@ export class MemStorage implements IStorage {
       overallScore,
       breakdown
     };
+  }
+
+  // Excel Import Methods
+  async importTendersFromExcel(filePath: string): Promise<{ imported: number; duplicates: number }> {
+    // Simulate Excel processing - in a real implementation this would use a library like xlsx
+    try {
+      // For demo purposes, create a few sample tenders
+      const sampleTenders = [
+        {
+          title: "Development of Web Application for Digital Governance",
+          organization: "Government of India",
+          description: "Web application development project",
+          value: 50000000, // 5 crores in paise
+          deadline: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
+          status: "active",
+          source: "gem",
+          location: "New Delhi",
+          referenceNo: "GEM/2025/B/1234567",
+          requirements: { turnover: "2 crores", sector: "IT" }
+        },
+        {
+          title: "Supply of Computer Hardware",
+          organization: "Department of Education",
+          description: "Hardware procurement",
+          value: 20000000, // 2 crores in paise
+          deadline: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000), // 15 days from now
+          status: "active",
+          source: "non_gem",
+          location: "Mumbai",
+          referenceNo: "EDU/2025/H/7654321",
+          requirements: { turnover: "1 crore", sector: "Hardware" }
+        }
+      ];
+
+      let imported = 0;
+      let duplicates = 0;
+
+      for (const tenderData of sampleTenders) {
+        // Check for duplicates by reference number
+        const existing = Array.from(this.tenders.values()).find(t => 
+          t.referenceNo === tenderData.referenceNo
+        );
+
+        if (existing) {
+          duplicates++;
+        } else {
+          await this.createTender({
+            ...tenderData,
+            aiScore: null,
+            createdAt: new Date()
+          });
+          imported++;
+        }
+      }
+
+      return { imported, duplicates };
+    } catch (error) {
+      throw new Error(`Failed to import tenders from Excel: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  async importTenderResultsFromExcel(filePath: string): Promise<{ imported: number; duplicates: number }> {
+    // Simulate Excel processing for results
+    try {
+      // For demo purposes, create sample results
+      const sampleResults = [
+        {
+          tenderId: null, // Will be matched by reference number
+          referenceNo: "GEM/2025/B/1234567",
+          title: "Development of Web Application for Digital Governance",
+          organization: "Government of India",
+          winnerBidder: "Appentus Technologies Pvt Ltd",
+          winningAmount: 45000000, // 4.5 crores in paise
+          ourBidAmount: 48000000, // 4.8 crores in paise
+          resultDate: new Date(),
+          status: "lost",
+          participatorBidders: ["Appentus Technologies Pvt Ltd", "TechCorp Solutions", "Digital India Ltd"],
+          notes: "Lost by 3 lakhs, very competitive bid"
+        },
+        {
+          tenderId: null,
+          referenceNo: "EDU/2025/H/7654321", 
+          title: "Supply of Computer Hardware",
+          organization: "Department of Education",
+          winnerBidder: "Hardware Solutions Ltd",
+          winningAmount: 18000000, // 1.8 crores in paise
+          ourBidAmount: 19500000, // 1.95 crores in paise
+          resultDate: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), // 7 days ago
+          status: "lost",
+          participatorBidders: ["Hardware Solutions Ltd", "Appentus Technologies Pvt Ltd", "Tech Supply Co"],
+          notes: "Price was competitive but winner had better delivery terms"
+        }
+      ];
+
+      let imported = 0;
+      let duplicates = 0;
+
+      for (const resultData of sampleResults) {
+        // Check for duplicates
+        const existing = Array.from(this.enhancedTenderResults.values()).find(r => 
+          r.referenceNo === resultData.referenceNo
+        );
+
+        if (existing) {
+          duplicates++;
+        } else {
+          await this.createEnhancedTenderResult({
+            ...resultData,
+            id: randomUUID(),
+            createdAt: new Date(),
+            updatedAt: new Date()
+          });
+          imported++;
+        }
+      }
+
+      return { imported, duplicates };
+    } catch (error) {
+      throw new Error(`Failed to import results from Excel: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   }
 
   // Tender Results Import Methods
