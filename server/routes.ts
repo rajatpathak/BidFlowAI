@@ -1695,7 +1695,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 status,
                 awardedTo,
                 awardedValue,
-                participatorBidders: participatorBidders.length > 0 ? JSON.stringify(participatorBidders) : null,
+                participatorBidders: participatorBidders.length > 0 ? participatorBidders : null,
                 resultDate: resultDate instanceof Date && !isNaN(resultDate.getTime()) ? resultDate : new Date(),
                 assignedTo: isAppentusWinner || isAppentusParticipant ? "Appentus" : assignedTo,
                 reasonForLoss: isAppentusParticipant && !isAppentusWinner ? "Lost to competitor" : getField(['Reason', 'Comments', 'Remarks', 'Loss Reason']) || null,
