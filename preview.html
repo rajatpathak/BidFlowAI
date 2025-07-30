@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BMS System Preview - Separated Architecture</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            border-radius: 8px;
+            padding: 24px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 24px;
+            border-radius: 8px;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .status {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        .status-card {
+            flex: 1;
+            padding: 16px;
+            border-radius: 6px;
+            text-align: center;
+        }
+        .status-success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .status-info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        .endpoint-test {
+            margin: 16px 0;
+            padding: 16px;
+            background: #f8f9fa;
+            border-radius: 6px;
+            border-left: 4px solid #007bff;
+        }
+        .btn {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 8px;
+        }
+        .btn:hover { background: #0056b3; }
+        .response {
+            margin-top: 12px;
+            padding: 12px;
+            background: #e9ecef;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .login-form {
+            display: grid;
+            gap: 12px;
+            max-width: 300px;
+        }
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+        .form-group label {
+            margin-bottom: 4px;
+            font-weight: 500;
+        }
+        .form-group input, .form-group select {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .demo-accounts {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 4px;
+            padding: 12px;
+            margin-top: 12px;
+        }
+        .demo-accounts h4 {
+            margin-top: 0;
+            color: #856404;
+        }
+        .demo-account {
+            margin: 8px 0;
+            font-family: monospace;
+            color: #495057;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>BMS System Preview</h1>
+        <p>Separated Architecture - Backend API Testing Interface</p>
+    </div>
+
+    <div class="status">
+        <div class="status-card status-success">
+            <h3>Backend Status</h3>
+            <p>Running on Port 5000</p>
+        </div>
+        <div class="status-card status-info">
+            <h3>Architecture</h3>
+            <p>Separated Frontend/Backend</p>
+        </div>
+    </div>
+
+    <div class="container">
+        <h2>API Health Check</h2>
+        <div class="endpoint-test">
+            <strong>GET /api/health</strong>
+            <button class="btn" onclick="testHealth()">Test Health Endpoint</button>
+            <div id="health-response" class="response" style="display: none;"></div>
+        </div>
+    </div>
+
+    <div class="container">
+        <h2>Authentication Test</h2>
+        <div class="login-form">
+            <div class="form-group">
+                <label>Username:</label>
+                <select id="username">
+                    <option value="admin">admin</option>
+                    <option value="finance_manager">finance_manager</option>
+                    <option value="senior_bidder">senior_bidder</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Password:</label>
+                <input type="password" id="password" value="admin123">
+            </div>
+            <button class="btn" onclick="testLogin()">Test Login</button>
+        </div>
+        
+        <div class="demo-accounts">
+            <h4>Demo Accounts:</h4>
+            <div class="demo-account">admin / admin123</div>
+            <div class="demo-account">finance_manager / finance123</div>
+            <div class="demo-account">senior_bidder / bidder123</div>
+        </div>
+        
+        <div id="login-response" class="response" style="display: none;"></div>
+    </div>
+
+    <div class="container">
+        <h2>Dashboard Data</h2>
+        <div class="endpoint-test">
+            <strong>GET /api/dashboard/stats</strong>
+            <button class="btn" onclick="testDashboard()">Test Dashboard</button>
+            <div id="dashboard-response" class="response" style="display: none;"></div>
+        </div>
+    </div>
+
+    <div class="container">
+        <h2>Tenders Data</h2>
+        <div class="endpoint-test">
+            <strong>GET /api/tenders</strong>
+            <button class="btn" onclick="testTenders()">Test Tenders</button>
+            <div id="tenders-response" class="response" style="display: none;"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:5000';
+        let authToken = null;
+
+        async function makeRequest(endpoint, options = {}) {
+            try {
+                const headers = {
+                    'Content-Type': 'application/json',
+                    ...options.headers
+                };
+                
+                if (authToken) {
+                    headers.Authorization = `Bearer ${authToken}`;
+                }
+
+                const response = await fetch(`${API_BASE}${endpoint}`, {
+                    ...options,
+                    headers
+                });
+                
+                const data = await response.json();
+                return { success: response.ok, data, status: response.status };
+            } catch (error) {
+                return { success: false, error: error.message };
+            }
+        }
+
+        async function testHealth() {
+            const result = await makeRequest('/api/health');
+            const element = document.getElementById('health-response');
+            element.style.display = 'block';
+            element.textContent = JSON.stringify(result, null, 2);
+        }
+
+        async function testLogin() {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            
+            // Update password based on username
+            const passwords = {
+                admin: 'admin123',
+                finance_manager: 'finance123',
+                senior_bidder: 'bidder123'
+            };
+            document.getElementById('password').value = passwords[username];
+
+            const result = await makeRequest('/api/auth/login', {
+                method: 'POST',
+                body: JSON.stringify({ username, password: passwords[username] })
+            });
+            
+            if (result.success && result.data.token) {
+                authToken = result.data.token;
+            }
+            
+            const element = document.getElementById('login-response');
+            element.style.display = 'block';
+            element.textContent = JSON.stringify(result, null, 2);
+        }
+
+        async function testDashboard() {
+            const result = await makeRequest('/api/dashboard/stats');
+            const element = document.getElementById('dashboard-response');
+            element.style.display = 'block';
+            element.textContent = JSON.stringify(result, null, 2);
+        }
+
+        async function testTenders() {
+            const result = await makeRequest('/api/tenders');
+            const element = document.getElementById('tenders-response');
+            element.style.display = 'block';
+            element.textContent = JSON.stringify(result, null, 2);
+        }
+
+        // Auto-update password when username changes
+        document.getElementById('username').addEventListener('change', function() {
+            const passwords = {
+                admin: 'admin123',
+                finance_manager: 'finance123',
+                senior_bidder: 'bidder123'
+            };
+            document.getElementById('password').value = passwords[this.value];
+        });
+    </script>
+</body>
+</html>

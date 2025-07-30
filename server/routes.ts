@@ -228,18 +228,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
   });
 
-  // Simple root endpoint to demonstrate separated backend
+  // Serve preview page for testing separated architecture
   app.get("/", (req, res) => {
-    res.json({
-      message: "BMS Backend API - Separated Architecture",
-      status: "Backend running independently on port 5000",
-      endpoints: {
-        health: "/api/health",
-        login: "POST /api/auth/login",
-        dashboard: "/api/dashboard/stats",
-        tenders: "/api/tenders"
-      },
-      note: "Frontend should run on separate port (3000) and connect to this API"
+    import('fs').then(fs => {
+      import('path').then(path => {
+        try {
+          const previewPath = path.join(process.cwd(), 'preview.html');
+          if (fs.existsSync(previewPath)) {
+            res.sendFile(previewPath);
+          } else {
+            res.json({
+              message: "BMS Backend API - Separated Architecture",
+              status: "Backend running independently on port 5000",
+              endpoints: {
+                health: "/api/health",
+                login: "POST /api/auth/login",
+                dashboard: "/api/dashboard/stats",
+                tenders: "/api/tenders"
+              },
+              note: "Frontend should run on separate port (3000) and connect to this API"
+            });
+          }
+        } catch (error) {
+          res.json({
+            message: "BMS Backend API - Separated Architecture", 
+            status: "Backend running independently on port 5000"
+          });
+        }
+      });
     });
   });
 
