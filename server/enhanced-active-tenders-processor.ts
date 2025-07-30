@@ -100,9 +100,8 @@ export async function processActiveTendersWithSubsheets(filePath: string, fileNa
             continue; // Skip rows without meaningful titles
           }
           
-          // Extract T247 ID for duplicate checking
-          const t247Id = columnMap.referenceNo >= 0 && row[1] ? 
-            row[1].toString().trim() : null;
+          // Extract T247 ID for duplicate checking (T247 ID is in column 1, not referenceNo column)
+          const t247Id = row[1] ? row[1].toString().trim() : null;
           
           // Check for duplicates based on T247 ID or title
           let isDuplicate = false;
@@ -216,14 +215,14 @@ export async function processActiveTendersWithSubsheets(filePath: string, fileNa
             VALUES (
               ${title}, ${organization}, ${value}, ${deadline.toISOString()}, 'active', ${source}, ${aiScore},
               ${'Imported from ' + sheetName + ' - ' + fileName}, null,
-              ${JSON.stringify({
+              ${JSON.stringify([{
                 location: location,
                 reference: referenceNo,
                 department: department,
                 category: category,
                 sheet: sheetName,
                 t247_id: t247Id
-              })}, ${tenderLink}
+              }])}, ${tenderLink}
             )
           `);
           

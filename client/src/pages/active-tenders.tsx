@@ -154,7 +154,7 @@ export default function ActiveTendersPage() {
     formData.append("uploadedBy", user?.username || "admin");
 
     try {
-      const response = await fetch("/api/tender-imports", {
+      const response = await fetch("/api/upload-tenders", {
         method: "POST",
         body: formData,
       });
@@ -169,7 +169,7 @@ export default function ActiveTendersPage() {
       
       toast({
         title: "Upload successful",
-        description: `Processed ${result.tendersProcessed} tenders successfully.`,
+        description: `Added ${result.tendersProcessed} tenders, skipped ${result.duplicatesSkipped} duplicates from ${result.sheetsProcessed} sheets.`,
       });
       
       setUploadFile(null);
@@ -226,7 +226,7 @@ export default function ActiveTendersPage() {
       
       toast({
         title: "Upload successful",
-        description: `${result.imported || 0} tenders imported, ${result.duplicates || 0} duplicates skipped`,
+        description: `${result.tendersProcessed || 0} tenders added, ${result.duplicatesSkipped || 0} duplicates skipped from ${result.sheetsProcessed || 0} sheets`,
       });
 
       // Refresh tender data
@@ -693,19 +693,10 @@ export default function ActiveTendersPage() {
                         <div className="space-y-1">
                           <div className="font-medium">{tender.title}</div>
                           {/* Show Reference No from requirements */}
-                          {tender.requirements && typeof tender.requirements === 'string' && (
-                            (() => {
-                              try {
-                                const req = JSON.parse(tender.requirements);
-                                return req.reference && (
-                                  <div className="text-sm text-blue-600 font-mono">
-                                    Ref: {req.reference}
-                                  </div>
-                                );
-                              } catch {
-                                return null;
-                              }
-                            })()
+                          {tender.requirements && Array.isArray(tender.requirements) && tender.requirements[0]?.reference && (
+                            <div className="text-sm text-blue-600 font-mono">
+                              Ref: {tender.requirements[0].reference}
+                            </div>
                           )}
                           {tender.location && (
                             <div className="flex items-center text-sm text-gray-500">
