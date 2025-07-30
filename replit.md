@@ -7,6 +7,7 @@ This is a comprehensive Bid Management System built as a full-stack web applicat
 ## User Preferences
 
 Preferred communication style: Simple, everyday language.
+Project Architecture: Separated frontend (React.js) and backend (Node.js) with MySQL database for easier route management.
 
 ## System Architecture
 
@@ -218,5 +219,25 @@ Preferred communication style: Simple, everyday language.
   - Status badges (success/failed) with color-coded indicators
   - Relative time display (e.g., "2 minutes ago")
 - **User Experience**: Upload page now shows progress during processing and maintains history for quick reference
+
+### Project Migration to Separated Architecture (January 2025)
+- **Architecture Restructure**: Successfully migrated from monolithic to separated architecture
+  - Frontend: React.js application (Port 3000) with Vite and TypeScript
+  - Backend: Node.js/Express API server (Port 5000) with RESTful endpoints
+  - Database: Converted from PostgreSQL to MySQL with Drizzle ORM
+- **Database Migration**: Complete schema conversion from PostgreSQL to MySQL format
+  - All pgTable references converted to mysqlTable
+  - UUID functions updated for MySQL compatibility
+  - JSON column types properly configured for MySQL
+- **API Integration**: Built comprehensive RESTful API with proper error handling
+  - Authentication endpoints for user login/logout
+  - Tender CRUD operations with advanced filtering
+  - Health check and dashboard statistics endpoints
+- **No Local Storage Dependencies**: All data persistence moved to MySQL database
+  - Removed localStorage usage for upload history
+  - All application state managed through database queries
+  - Real-time data synchronization between frontend and backend
+- **Type Safety**: Shared TypeScript schemas ensure consistency across stack
+- **Development Workflow**: Separate package.json files and independent development servers
 
 The architecture prioritizes type safety, developer experience, and scalability while maintaining a clean separation between frontend, backend, and data layers. The AI integration is designed to enhance user decision-making without being intrusive to the core workflow. The system now supports complete tender lifecycle management from discovery through award with integrated financial tracking and team coordination.

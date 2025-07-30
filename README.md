@@ -1,322 +1,245 @@
-# Bid Management System (BMS) with AI Enhancements
+# Bid Management System (BMS)
 
-A comprehensive web-based Bid Management System that revolutionizes tender discovery, analysis, and collaboration through intelligent AI-powered insights and Excel-based data processing.
+A comprehensive, full-stack Bid Management System designed for efficient tender lifecycle management, built with modern technologies and separated frontend/backend architecture.
 
-## 🚀 Features
+## 🏗️ Project Architecture
 
-### Core Functionality
-- **Tender Management**: Complete lifecycle management from discovery to award
-- **AI-Powered Analysis**: Intelligent scoring and recommendations using OpenAI
-- **Excel Integration**: Bulk upload and processing of tender data
-- **Role-Based Access**: Admin, Finance Manager, and Senior Bidder roles
-- **Real-time Dashboard**: Analytics and pipeline tracking
-- **Document Management**: File uploads and tender document tracking
+### **Separated Architecture**
+- **Frontend**: React.js with TypeScript (Port 3000)
+- **Backend**: Node.js with Express.js (Port 5000)  
+- **Database**: MySQL with Drizzle ORM
+- **API Communication**: RESTful APIs with Axios
 
-### Advanced Features
-- **Eligibility Scoring**: AI-based company-tender matching (0-100%)
-- **Appentus Analytics**: Specialized tracking for Appentus participation
-- **Win/Loss Analysis**: Detailed insights on tender outcomes
-- **Financial Tracking**: EMD/PBG management and approval workflows
-- **Meeting Coordination**: Schedule and track tender-related meetings
+### **Key Features**
+- ✅ **Complete Tender Lifecycle Management** - From discovery to award
+- ✅ **AI-Powered Matching** - Intelligent eligibility scoring based on company criteria
+- ✅ **Advanced Excel Integration** - Multi-sheet processing with automatic tender import
+- ✅ **Real-time Dashboard** - Comprehensive analytics and pipeline tracking
+- ✅ **Role-Based Access Control** - Admin, Finance Manager, Senior Bidder roles
+- ✅ **Financial Management** - EMD/PBG tracking, approval workflows
+- ✅ **Meeting Coordination** - Scheduling, minutes tracking, team collaboration
+- ✅ **Document Management** - File uploads, version control, secure storage
+- ✅ **Advanced Filtering** - Multi-parameter search with eligibility indicators
 
-## 🛠️ Tech Stack
+## 🚀 Quick Start
 
-### Frontend
-- **React 18** with TypeScript
-- **Tailwind CSS** for styling
-- **Shadcn/UI** components
-- **TanStack Query** for state management
-- **Wouter** for routing
-- **Vite** for build tooling
-
-### Backend
-- **Node.js** with Express.js
-- **TypeScript** with ES modules
-- **PostgreSQL** database
-- **Drizzle ORM** for database operations
-- **OpenAI API** for AI features
-- **Multer** for file uploads
-
-## 📋 Prerequisites
-
-- Node.js 20+ 
-- PostgreSQL database
-- OpenAI API key (for AI features)
+### Prerequisites
+- Node.js 18+ 
+- MySQL 8.0+
 - Git
 
-## 🔧 Installation
+### Installation
 
-### 1. Clone the repository
-```bash
-git clone https://github.com/Appentus-Personal/BMS_RP.git
-cd BMS_RP
-```
+1. **Clone the repository**
+   ```bash
+   git clone <repository-url>
+   cd bms-project
+   ```
 
-### 2. Install dependencies
-```bash
-npm install
-```
+2. **Setup Backend**
+   ```bash
+   cd backend
+   npm install
+   
+   # Configure environment variables
+   cp .env.example .env
+   # Edit .env with your MySQL connection details
+   ```
 
-### 3. Environment Setup
-Create a `.env` file in the root directory:
-```env
-# Database
-DATABASE_URL=postgresql://user:password@localhost:5432/bms_db
+3. **Setup Frontend**
+   ```bash
+   cd frontend
+   npm install
+   ```
 
-# OpenAI
-OPENAI_API_KEY=your_openai_api_key
+4. **Database Setup**
+   ```bash
+   # From backend directory
+   npm run db:push
+   ```
 
-# Server
-PORT=5000
-NODE_ENV=development
-```
-
-### 4. Database Setup
-```bash
-# Push schema to database
-npm run db:push
-```
-
-### 5. Start Development Server
-```bash
-npm run dev
-```
-
-The application will be available at `http://localhost:5000`
-
-## 🌐 VPS Deployment Guide
-
-### Prerequisites for VPS
-- Ubuntu 20.04+ or similar Linux distribution
-- Minimum 2GB RAM, 2 CPU cores
-- Domain name (optional)
-- SSL certificate (optional)
-
-### Step 1: Server Setup
-```bash
-# Update system
-sudo apt update && sudo apt upgrade -y
-
-# Install Node.js 20
-curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
-sudo apt install -y nodejs
-
-# Install PostgreSQL
-sudo apt install -y postgresql postgresql-contrib
-
-# Install PM2 for process management
-sudo npm install -g pm2
-
-# Install Nginx for reverse proxy
-sudo apt install -y nginx
-```
-
-### Step 2: PostgreSQL Setup
-```bash
-# Switch to postgres user
-sudo -u postgres psql
-
-# Create database and user
-CREATE DATABASE bms_db;
-CREATE USER bms_user WITH ENCRYPTED PASSWORD 'your_password';
-GRANT ALL PRIVILEGES ON DATABASE bms_db TO bms_user;
-\q
-```
-
-### Step 3: Application Setup
-```bash
-# Clone repository
-cd /var/www
-sudo git clone https://github.com/Appentus-Personal/BMS_RP.git
-cd BMS_RP
-
-# Set permissions
-sudo chown -R $USER:$USER /var/www/BMS_RP
-
-# Install dependencies
-npm install
-
-# Build the application
-npm run build
-
-# Create production .env file
-nano .env
-```
-
-Add production environment variables:
-```env
-DATABASE_URL=postgresql://bms_user:your_password@localhost:5432/bms_db
-OPENAI_API_KEY=your_openai_api_key
-NODE_ENV=production
-PORT=5000
-```
-
-### Step 4: Database Migration
-```bash
-npm run db:push
-```
-
-### Step 5: PM2 Configuration
-Create `ecosystem.config.js`:
-```javascript
-module.exports = {
-  apps: [{
-    name: 'bms-app',
-    script: './dist/index.js',
-    instances: 'max',
-    exec_mode: 'cluster',
-    env: {
-      NODE_ENV: 'production',
-      PORT: 5000
-    }
-  }]
-}
-```
-
-Start the application:
-```bash
-pm2 start ecosystem.config.js
-pm2 save
-pm2 startup
-```
-
-### Step 6: Nginx Configuration
-Create Nginx configuration:
-```bash
-sudo nano /etc/nginx/sites-available/bms
-```
-
-Add the following configuration:
-```nginx
-server {
-    listen 80;
-    server_name your-domain.com;
-
-    location / {
-        proxy_pass http://localhost:5000;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_cache_bypass $http_upgrade;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-
-    client_max_body_size 100M;
-}
-```
-
-Enable the site:
-```bash
-sudo ln -s /etc/nginx/sites-available/bms /etc/nginx/sites-enabled/
-sudo nginx -t
-sudo systemctl restart nginx
-```
-
-### Step 7: SSL Setup (Optional)
-```bash
-# Install Certbot
-sudo apt install -y certbot python3-certbot-nginx
-
-# Obtain SSL certificate
-sudo certbot --nginx -d your-domain.com
-```
-
-### Step 8: Firewall Configuration
-```bash
-# Allow SSH, HTTP, and HTTPS
-sudo ufw allow OpenSSH
-sudo ufw allow 'Nginx Full'
-sudo ufw enable
-```
+5. **Start Development Servers**
+   
+   **Backend** (Terminal 1):
+   ```bash
+   cd backend
+   npm run dev
+   # Server starts on http://localhost:5000
+   ```
+   
+   **Frontend** (Terminal 2):
+   ```bash
+   cd frontend
+   npm run dev
+   # App starts on http://localhost:3000
+   ```
 
 ## 📊 Database Schema
 
-Key tables:
-- `users` - User authentication and profiles
-- `tenders` - Active tender information
-- `enhanced_tender_results` - Tender results with win/loss tracking
-- `ai_recommendations` - AI-generated insights
-- `company_settings` - Company criteria for matching
+### Core Tables
+- **users** - User management with role-based permissions
+- **tenders** - Complete tender information with AI scoring
+- **ai_recommendations** - ML-generated insights and suggestions
+- **documents** - File attachments and document tracking
+- **meetings** - Meeting scheduling and coordination
+- **finance_requests** - EMD/PBG management and approvals
+- **tender_results** - Award tracking and post-tender analysis
+- **company_settings** - Configurable company criteria for AI matching
 
-## 🔑 Default Login Credentials
+### Enhanced Features
+- **Excel Upload Tracking** - Complete audit trail of imports
+- **Advanced Analytics** - Dashboard metrics and pipeline data
+- **Checklist Management** - Task tracking and compliance
+- **Approval Workflows** - Multi-level approval system
+- **Reminder System** - Automated deadline notifications
 
-### Admin
-- Username: `admin`
-- Password: `admin123`
-
-### Finance Manager
-- Username: `finance`
-- Password: `finance123`
-
-### Senior Bidder
-- Username: `bidder`
-- Password: `bidder123`
-
-**⚠️ Change these credentials in production!**
-
-## 📝 API Endpoints
+## 🔌 API Endpoints
 
 ### Authentication
-- `POST /api/auth/login` - User login
-- `POST /api/auth/logout` - User logout
+- `POST /api/auth/login` - User authentication
+- `POST /api/auth/logout` - Session termination
 
 ### Tenders
-- `GET /api/tenders` - List all tenders
-- `POST /api/upload-tenders` - Upload tenders from Excel
-- `POST /api/tenders/:id/assign` - Assign tender to user
-
-### Results
-- `GET /api/enhanced-tender-results` - Get tender results
-- `POST /api/upload-tender-results` - Upload results from Excel
+- `GET /api/tenders` - List tenders with advanced filtering
+- `GET /api/tenders/:id` - Get single tender details
+- `POST /api/tenders` - Create new tender
+- `PUT /api/tenders/:id` - Update tender information
+- `DELETE /api/tenders/:id` - Delete tender
 
 ### Dashboard
 - `GET /api/dashboard/stats` - Dashboard statistics
-- `GET /api/dashboard/pipeline` - Pipeline data
+- `GET /api/health` - Server health check
 
-## 🚀 Deployment Checklist
+## 🎯 Key Technologies
 
-- [ ] Change default passwords
-- [ ] Set up proper database backups
-- [ ] Configure monitoring (PM2 monitoring or similar)
-- [ ] Set up log rotation
-- [ ] Configure firewall rules
-- [ ] Enable SSL certificate
-- [ ] Set up domain name
-- [ ] Test all features in production
-- [ ] Document any custom configurations
+### Frontend Stack
+- **React 18** - Modern component architecture
+- **TypeScript** - Type-safe development
+- **Vite** - Fast build tool and dev server
+- **TanStack Query** - Server state management
+- **Wouter** - Lightweight routing
+- **Tailwind CSS** - Utility-first styling
+- **Shadcn/ui** - Accessible component library
+- **Axios** - HTTP client for API communication
+
+### Backend Stack
+- **Express.js** - Web application framework
+- **TypeScript** - Type-safe server development
+- **Drizzle ORM** - Type-safe database operations
+- **MySQL2** - MySQL database connector
+- **Multer** - File upload handling
+- **CORS** - Cross-origin resource sharing
+
+### Development Tools
+- **tsx** - TypeScript execution for development
+- **ESBuild** - Fast bundling for production
+- **Drizzle Kit** - Database migrations and schema management
+
+## 📁 Project Structure
+
+```
+bms-project/
+├── frontend/                 # React.js Frontend
+│   ├── src/
+│   │   ├── components/       # Reusable UI components
+│   │   ├── pages/           # Route components
+│   │   ├── lib/             # Utilities and API client
+│   │   ├── hooks/           # Custom React hooks
+│   │   └── App.tsx          # Main application component
+│   ├── package.json
+│   └── vite.config.ts
+│
+├── backend/                 # Node.js Backend
+│   ├── server/
+│   │   ├── routes/          # API route handlers
+│   │   ├── db.ts            # Database connection
+│   │   └── index.ts         # Server entry point
+│   ├── package.json
+│   └── drizzle.config.ts
+│
+├── shared/                  # Shared types and schemas
+│   └── schema.ts            # Database schema definitions
+│
+└── README.md               # This file
+```
+
+## 🛠️ Environment Configuration
+
+### Backend (.env)
+```env
+DATABASE_URL=mysql://username:password@localhost:3306/bms_db
+PORT=5000
+NODE_ENV=development
+FRONTEND_URL=http://localhost:3000
+```
+
+### Frontend (.env)
+```env
+VITE_API_URL=http://localhost:5000/api
+```
+
+## 🔄 Data Migration
+
+This project ensures **no local storage dependencies** - all data is persisted in MySQL:
+
+- ✅ **Database-First Approach** - All application data stored in MySQL
+- ✅ **Type-Safe Operations** - Drizzle ORM ensures schema consistency
+- ✅ **Real-time Sync** - Frontend automatically reflects database changes
+- ✅ **Audit Trail** - Complete tracking of all operations
+- ✅ **Scalable Architecture** - Ready for production deployment
+
+## 📈 Recent Updates
+
+### Separated Architecture Implementation (January 2025)
+- **Complete Frontend/Backend Separation** - Independent React and Node.js applications
+- **MySQL Integration** - Converted from PostgreSQL to MySQL with optimized schema
+- **RESTful API Design** - Clean, consistent API endpoints with proper error handling
+- **Type-Safe Development** - Shared TypeScript schemas between frontend and backend
+- **Production-Ready Setup** - Separate package.json files and build configurations
+
+### Enhanced Features
+- **Real-time Dashboard** - Live statistics from database
+- **Advanced Filtering** - Multi-parameter tender search with pagination
+- **Authentication System** - Secure login with role-based access
+- **Error Handling** - Comprehensive error management across the stack
+- **Development Workflow** - Hot reload for both frontend and backend
+
+## 🚀 Deployment
+
+### Production Build
+
+**Frontend**:
+```bash
+cd frontend
+npm run build
+# Builds to frontend/dist/
+```
+
+**Backend**:
+```bash
+cd backend
+npm run build
+# Builds to backend/dist/
+```
+
+### Environment Setup
+- Configure production MySQL database
+- Set proper CORS origins
+- Update API URLs for production domains
+- Enable SSL/TLS for secure communication
 
 ## 🤝 Contributing
 
 1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
 
-## 📄 License
+## 📝 License
 
-This project is proprietary software. All rights reserved.
-
-## 🆘 Support
-
-For issues and questions:
-- Create an issue on GitHub
-- Contact the development team
-
-## 🔄 Updates
-
-To update the application on VPS:
-```bash
-cd /var/www/BMS_RP
-git pull origin main
-npm install
-npm run build
-pm2 restart bms-app
-```
+This project is licensed under the MIT License - see the LICENSE file for details.
 
 ---
 
-Built with ❤️ by Appentus Team
+**Built with ❤️ for efficient tender management**

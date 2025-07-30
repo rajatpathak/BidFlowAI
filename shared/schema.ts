@@ -1,10 +1,10 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, integer, boolean, timestamp, jsonb, bigint } from "drizzle-orm/pg-core";
+import { mysqlTable, text, varchar, int, boolean, timestamp, json, bigint } from "drizzle-orm/mysql-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
-export const users = pgTable("users", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+export const users = mysqlTable("users", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`(UUID())`),
   username: text("username").notNull().unique(),
   password: text("password").notNull(),
   email: text("email").notNull().unique(),
@@ -13,8 +13,8 @@ export const users = pgTable("users", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-export const tenders = pgTable("tenders", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+export const tenders = mysqlTable("tenders", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`(UUID())`),
   title: text("title").notNull(),
   organization: text("organization").notNull(),
   description: text("description"),
@@ -22,39 +22,39 @@ export const tenders = pgTable("tenders", {
   deadline: timestamp("deadline").notNull(),
   status: text("status").notNull().default("draft"), // draft, in_progress, submitted, won, lost
   source: text("source").notNull().default("non_gem"), // gem, non_gem
-  aiScore: integer("ai_score").default(0), // 0-100
-  requirements: jsonb("requirements").default([]),
-  documents: jsonb("documents").default([]),
+  aiScore: int("ai_score").default(0), // 0-100
+  requirements: json("requirements").default([]),
+  documents: json("documents").default([]),
   bidContent: text("bid_content"),
   submittedAt: timestamp("submitted_at"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-export const aiRecommendations = pgTable("ai_recommendations", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  tenderId: varchar("tender_id").references(() => tenders.id),
+export const aiRecommendations = mysqlTable("ai_recommendations", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`(UUID())`),
+  tenderId: varchar("tender_id", { length: 36 }).references(() => tenders.id),
   type: text("type").notNull(), // match, optimization, risk, deadline
   title: text("title").notNull(),
   description: text("description").notNull(),
   priority: text("priority").notNull().default("medium"), // low, medium, high
   actionable: boolean("actionable").default(true),
-  metadata: jsonb("metadata").default({}),
+  metadata: json("metadata").default({}),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-export const documents = pgTable("documents", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  tenderId: varchar("tender_id").references(() => tenders.id),
+export const documents = mysqlTable("documents", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`(UUID())`),
+  tenderId: varchar("tender_id", { length: 36 }).references(() => tenders.id),
   filename: text("filename").notNull(),
   originalName: text("original_name").notNull(),
   mimeType: text("mime_type").notNull(),
-  size: integer("size").notNull(),
+  size: int("size").notNull(),
   uploadedAt: timestamp("uploaded_at").defaultNow(),
 });
 
-export const analytics = pgTable("analytics", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+export const analytics = mysqlTable("analytics", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`(UUID())`),
   metric: text("metric").notNull(),
   value: text("value").notNull(),
   period: text("period").notNull(), // daily, weekly, monthly
@@ -62,62 +62,62 @@ export const analytics = pgTable("analytics", {
 });
 
 // Enhanced BMS Features from Proposal
-export const meetings = pgTable("meetings", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  tenderId: varchar("tender_id").references(() => tenders.id),
+export const meetings = mysqlTable("meetings", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`(UUID())`),
+  tenderId: varchar("tender_id", { length: 36 }).references(() => tenders.id),
   title: text("title").notNull(),
   description: text("description"),
   meetingDate: timestamp("meeting_date").notNull(),
   meetingLink: text("meeting_link"),
-  hostUserId: varchar("host_user_id").references(() => users.id),
-  momWriterId: varchar("mom_writer_id").references(() => users.id),
+  hostUserId: varchar("host_user_id", { length: 36 }).references(() => users.id),
+  momWriterId: varchar("mom_writer_id", { length: 36 }).references(() => users.id),
   status: text("status").notNull().default("scheduled"), // scheduled, completed, cancelled
   minutes: text("minutes"),
-  attendees: jsonb("attendees").default([]),
+  attendees: json("attendees").default([]),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-export const financeRequests = pgTable("finance_requests", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  tenderId: varchar("tender_id").references(() => tenders.id),
-  requesterId: varchar("requester_id").references(() => users.id),
+export const financeRequests = mysqlTable("finance_requests", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`(UUID())`),
+  tenderId: varchar("tender_id", { length: 36 }).references(() => tenders.id),
+  requesterId: varchar("requester_id", { length: 36 }).references(() => users.id),
   type: text("type").notNull(), // emd, pbg, document_fee, other
-  amount: integer("amount").notNull(), // in cents
+  amount: int("amount").notNull(), // in cents
   description: text("description"),
   status: text("status").notNull().default("pending"), // pending, approved, rejected, processed
-  approvedBy: varchar("approved_by").references(() => users.id),
+  approvedBy: varchar("approved_by", { length: 36 }).references(() => users.id),
   requestDate: timestamp("request_date").defaultNow(),
   approvalDate: timestamp("approval_date"),
   expiryDate: timestamp("expiry_date"),
-  metadata: jsonb("metadata").default({}),
+  metadata: json("metadata").default({}),
 });
 
-export const approvals = pgTable("approvals", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  requestId: varchar("request_id").notNull(), // Can reference different types of requests
+export const approvals = mysqlTable("approvals", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`(UUID())`),
+  requestId: varchar("request_id", { length: 36 }).notNull(), // Can reference different types of requests
   requestType: text("request_type").notNull(), // finance, tender, document, etc
-  approverId: varchar("approver_id").references(() => users.id),
+  approverId: varchar("approver_id", { length: 36 }).references(() => users.id),
   status: text("status").notNull().default("pending"), // pending, approved, rejected
   comments: text("comments"),
   approvalDate: timestamp("approval_date"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-export const tenderAssignments = pgTable("tender_assignments", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  tenderId: varchar("tender_id").references(() => tenders.id),
-  assignedTo: varchar("assigned_to").references(() => users.id),
-  assignedBy: varchar("assigned_by").references(() => users.id),
+export const tenderAssignments = mysqlTable("tender_assignments", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`(UUID())`),
+  tenderId: varchar("tender_id", { length: 36 }).references(() => tenders.id),
+  assignedTo: varchar("assigned_to", { length: 36 }).references(() => users.id),
+  assignedBy: varchar("assigned_by", { length: 36 }).references(() => users.id),
   status: text("status").notNull().default("assigned"), // assigned, accepted, completed
   assignedAt: timestamp("assigned_at").defaultNow(),
   dueDate: timestamp("due_date"),
   notes: text("notes"),
 });
 
-export const reminders = pgTable("reminders", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  tenderId: varchar("tender_id").references(() => tenders.id),
-  userId: varchar("user_id").references(() => users.id),
+export const reminders = mysqlTable("reminders", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`(UUID())`),
+  tenderId: varchar("tender_id", { length: 36 }).references(() => tenders.id),
+  userId: varchar("user_id", { length: 36 }).references(() => users.id),
   title: text("title").notNull(),
   description: text("description"),
   reminderDate: timestamp("reminder_date").notNull(),
@@ -126,51 +126,51 @@ export const reminders = pgTable("reminders", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-export const tenderResults = pgTable("tender_results", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  tenderId: varchar("tender_id").references(() => tenders.id),
+export const tenderResults = mysqlTable("tender_results", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`(UUID())`),
+  tenderId: varchar("tender_id", { length: 36 }).references(() => tenders.id),
   winner: text("winner"),
-  ourRank: integer("our_rank"),
-  ourBidAmount: integer("our_bid_amount"), // in cents
-  winningAmount: integer("winning_amount"), // in cents
-  totalBidders: integer("total_bidders"),
+  ourRank: int("our_rank"),
+  ourBidAmount: int("our_bid_amount"), // in cents
+  winningAmount: int("winning_amount"), // in cents
+  totalBidders: int("total_bidders"),
   resultDate: timestamp("result_date"),
   notes: text("notes"),
-  competitors: jsonb("competitors").default([]),
+  competitors: json("competitors").default([]),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-export const checklists = pgTable("checklists", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  tenderId: varchar("tender_id").references(() => tenders.id),
+export const checklists = mysqlTable("checklists", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`(UUID())`),
+  tenderId: varchar("tender_id", { length: 36 }).references(() => tenders.id),
   title: text("title").notNull(),
-  items: jsonb("items").default([]), // Array of checklist items with completion status
-  createdBy: varchar("created_by").references(() => users.id),
-  completionPercentage: integer("completion_percentage").default(0),
+  items: json("items").default([]), // Array of checklist items with completion status
+  createdBy: varchar("created_by", { length: 36 }).references(() => users.id),
+  completionPercentage: int("completion_percentage").default(0),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-export const departments = pgTable("departments", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+export const departments = mysqlTable("departments", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`(UUID())`),
   name: text("name").notNull(),
   description: text("description"),
-  headId: varchar("head_id").references(() => users.id),
+  headId: varchar("head_id", { length: 36 }).references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-export const roles = pgTable("roles", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+export const roles = mysqlTable("roles", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`(UUID())`),
   name: text("name").notNull().unique(),
   description: text("description"),
-  permissions: jsonb("permissions").default([]),
+  permissions: json("permissions").default([]),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-export const userRoles = pgTable("user_roles", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").references(() => users.id),
-  roleId: varchar("role_id").references(() => roles.id),
+export const userRoles = mysqlTable("user_roles", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`(UUID())`),
+  userId: varchar("user_id", { length: 36 }).references(() => users.id),
+  roleId: varchar("role_id", { length: 36 }).references(() => roles.id),
   assignedAt: timestamp("assigned_at").defaultNow(),
 });
 
@@ -300,30 +300,7 @@ export type InsertRole = z.infer<typeof insertRoleSchema>;
 export type UserRole = typeof userRoles.$inferSelect;
 export type InsertUserRole = z.infer<typeof insertUserRoleSchema>;
 
-export type CompanySettings = typeof companySettings.$inferSelect;
-export type InsertCompanySettings = z.infer<typeof insertCompanySettingsSchema>;
 
-export type ExcelUpload = typeof excelUploads.$inferSelect;
-export type InsertExcelUpload = z.infer<typeof insertExcelUploadSchema>;
-
-export type TenderResultsImport = typeof tenderResultsImports.$inferSelect;
-export type InsertTenderResultsImport = z.infer<typeof insertTenderResultsImportSchema>;
-
-export type EnhancedTenderResult = typeof enhancedTenderResults.$inferSelect;
-export type InsertEnhancedTenderResult = z.infer<typeof insertEnhancedTenderResultSchema>;
-export type InsertTenderResult = z.infer<typeof insertTenderResultSchema>;
-
-export type Checklist = typeof checklists.$inferSelect;
-export type InsertChecklist = z.infer<typeof insertChecklistSchema>;
-
-export type Department = typeof departments.$inferSelect;
-export type InsertDepartment = z.infer<typeof insertDepartmentSchema>;
-
-export type Role = typeof roles.$inferSelect;
-export type InsertRole = z.infer<typeof insertRoleSchema>;
-
-export type UserRole = typeof userRoles.$inferSelect;
-export type InsertUserRole = z.infer<typeof insertUserRoleSchema>;
 
 // API Response types
 export type DashboardStats = {
@@ -378,100 +355,105 @@ export type UserWithDetails = User & {
 };
 
 // Company Settings table for admin configuration
-export const companySettings = pgTable("company_settings", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  companyName: varchar("company_name").notNull(),
-  turnoverCriteria: varchar("turnover_criteria").notNull(), // e.g., "5 cr"
-  headquarters: varchar("headquarters"),
-  establishedYear: integer("established_year"),
-  certifications: text("certifications").array(),
-  businessSectors: text("business_sectors").array(),
-  projectTypes: text("project_types").array(), // e.g., ["mobile", "web", "software", "tax collection", "infrastructure"]
+export const companySettings = mysqlTable("company_settings", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`(UUID())`),
+  companyName: varchar("company_name", { length: 255 }).notNull(),
+  turnoverCriteria: varchar("turnover_criteria", { length: 50 }).notNull(), // e.g., "5 cr"
+  headquarters: varchar("headquarters", { length: 255 }),
+  establishedYear: int("established_year"),
+  certifications: json("certifications").default([]),
+  businessSectors: json("business_sectors").default([]),
+  projectTypes: json("project_types").default([]), // e.g., ["mobile", "web", "software", "tax collection", "infrastructure"]
   updatedAt: timestamp("updated_at").defaultNow(),
-  updatedBy: varchar("updated_by"),
+  updatedBy: varchar("updated_by", { length: 36 }),
 });
 
-export type CompanySettings = typeof companySettings.$inferSelect;
-export type InsertCompanySettings = typeof companySettings.$inferInsert;
 export const insertCompanySettingsSchema = createInsertSchema(companySettings).omit({
   id: true,
   updatedAt: true,
 });
 
 // Excel Upload History table
-export const excelUploads = pgTable("excel_uploads", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  fileName: varchar("file_name").notNull(),
-  filePath: varchar("file_path").notNull(),
+export const excelUploads = mysqlTable("excel_uploads", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`(UUID())`),
+  fileName: varchar("file_name", { length: 255 }).notNull(),
+  filePath: varchar("file_path", { length: 500 }).notNull(),
   uploadedAt: timestamp("uploaded_at").defaultNow(),
-  uploadedBy: varchar("uploaded_by"),
-  entriesAdded: integer("entries_added").default(0),
-  entriesRejected: integer("entries_rejected").default(0),
-  entriesDuplicate: integer("entries_duplicate").default(0),
-  totalEntries: integer("total_entries").default(0),
-  sheetsProcessed: integer("sheets_processed").default(0),
-  status: varchar("status").notNull().default("processing"), // processing, completed, failed
+  uploadedBy: varchar("uploaded_by", { length: 36 }),
+  entriesAdded: int("entries_added").default(0),
+  entriesRejected: int("entries_rejected").default(0),
+  entriesDuplicate: int("entries_duplicate").default(0),
+  totalEntries: int("total_entries").default(0),
+  sheetsProcessed: int("sheets_processed").default(0),
+  status: varchar("status", { length: 50 }).notNull().default("processing"), // processing, completed, failed
   errorLog: text("error_log"),
-  processingTime: integer("processing_time"), // in milliseconds
+  processingTime: int("processing_time"), // in milliseconds
 });
 
-export type ExcelUpload = typeof excelUploads.$inferSelect;
-export type InsertExcelUpload = typeof excelUploads.$inferInsert;
 export const insertExcelUploadSchema = createInsertSchema(excelUploads).omit({
   id: true,
   uploadedAt: true,
 });
 
 // Tender Results Import table for tracking uploaded results
-export const tenderResultsImport = pgTable("tender_results_import", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  fileName: varchar("file_name").notNull(),
-  filePath: varchar("file_path").notNull(),
+export const tenderResultsImport = mysqlTable("tender_results_import", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`(UUID())`),
+  fileName: varchar("file_name", { length: 255 }).notNull(),
+  filePath: varchar("file_path", { length: 500 }).notNull(),
   uploadedAt: timestamp("uploaded_at").defaultNow(),
-  uploadedBy: varchar("uploaded_by"),
-  resultsProcessed: integer("results_processed").default(0),
-  status: varchar("status").notNull().default("processing"), // processing, completed, failed
+  uploadedBy: varchar("uploaded_by", { length: 36 }),
+  resultsProcessed: int("results_processed").default(0),
+  status: varchar("status", { length: 50 }).notNull().default("processing"), // processing, completed, failed
   errorLog: text("error_log"),
 });
 
-export type TenderResultsImport = typeof tenderResultsImport.$inferSelect;
-export type InsertTenderResultsImport = typeof tenderResultsImport.$inferInsert;
 export const insertTenderResultsImportSchema = createInsertSchema(tenderResultsImport).omit({
   id: true,
   uploadedAt: true,
 });
 
 // Enhanced Tender Results with award tracking
-export const enhancedTenderResults = pgTable("enhanced_tender_results", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  tenderTitle: varchar("tender_title").notNull(),
-  organization: varchar("organization").notNull(),
-  referenceNo: varchar("reference_no"),
-  location: varchar("location"), // new field
-  department: varchar("department"), // new field
+export const enhancedTenderResults = mysqlTable("enhanced_tender_results", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`(UUID())`),
+  tenderTitle: varchar("tender_title", { length: 500 }).notNull(),
+  organization: varchar("organization", { length: 255 }).notNull(),
+  referenceNo: varchar("reference_no", { length: 100 }),
+  location: varchar("location", { length: 255 }), // new field
+  department: varchar("department", { length: 255 }), // new field
   tenderValue: bigint("tender_value", { mode: "number" }), // in cents (estimated value)
   contractValue: bigint("contract_value", { mode: "number" }), // in cents (actual awarded value)
   marginalDifference: bigint("marginal_difference", { mode: "number" }), // in cents (contractValue - tenderValue)
-  tenderStage: varchar("tender_stage"), // new field
+  tenderStage: varchar("tender_stage", { length: 100 }), // new field
   ourBidValue: bigint("our_bid_value", { mode: "number" }), // in cents
-  status: varchar("status").notNull(), // won, lost, rejected, missed_opportunity
-  awardedTo: varchar("awarded_to"), // company name who won (winner bidder)
+  status: varchar("status", { length: 50 }).notNull(), // won, lost, rejected, missed_opportunity
+  awardedTo: varchar("awarded_to", { length: 255 }), // company name who won (winner bidder)
   awardedValue: bigint("awarded_value", { mode: "number" }), // winning bid amount in cents
-  participatorBidders: text("participator_bidders").array(), // new field - list of all bidders
+  participatorBidders: json("participator_bidders").default([]), // new field - list of all bidders
   resultDate: timestamp("result_date"),
-  assignedTo: varchar("assigned_to"), // our bidder who worked on it
-  reasonForLoss: varchar("reason_for_loss"),
-  missedReason: varchar("missed_reason"), // why we missed (not assigned, didn't meet criteria, etc.)
+  assignedTo: varchar("assigned_to", { length: 36 }), // our bidder who worked on it
+  reasonForLoss: varchar("reason_for_loss", { length: 500 }),
+  missedReason: varchar("missed_reason", { length: 500 }), // why we missed (not assigned, didn't meet criteria, etc.)
   companyEligible: boolean("company_eligible").default(true), // based on company criteria
-  aiMatchScore: integer("ai_match_score"), // AI matching score at time of tender
+  aiMatchScore: int("ai_match_score"), // AI matching score at time of tender
   notes: text("notes"),
-  link: varchar("link"), // Link extracted from tender result brief
+  link: varchar("link", { length: 1000 }), // Link extracted from tender result brief
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-export type EnhancedTenderResult = typeof enhancedTenderResults.$inferSelect;
-export type InsertEnhancedTenderResult = typeof enhancedTenderResults.$inferInsert;
 export const insertEnhancedTenderResultSchema = createInsertSchema(enhancedTenderResults).omit({
   id: true,
   createdAt: true,
 });
+
+// Additional types for the new schema definitions
+export type CompanySettings = typeof companySettings.$inferSelect;
+export type InsertCompanySettings = z.infer<typeof insertCompanySettingsSchema>;
+
+export type ExcelUpload = typeof excelUploads.$inferSelect;
+export type InsertExcelUpload = z.infer<typeof insertExcelUploadSchema>;
+
+export type TenderResultsImport = typeof tenderResultsImport.$inferSelect;
+export type InsertTenderResultsImport = z.infer<typeof insertTenderResultsImportSchema>;
+
+export type EnhancedTenderResult = typeof enhancedTenderResults.$inferSelect;
+export type InsertEnhancedTenderResult = z.infer<typeof insertEnhancedTenderResultSchema>;
