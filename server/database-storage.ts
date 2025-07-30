@@ -726,37 +726,55 @@ export class DatabaseStorage implements IStorage {
 
   async importTenderResultsFromExcel(filePath: string): Promise<{ imported: number; duplicates: number }> {
     try {
-      // For demo, create sample tender results
+      // For demo, create sample tender results using correct schema field names
       const sampleResults = [
         {
-          tenderId: null,
-          referenceNo: "MEITY/2025/APP/9876543",
-          title: "Development of Mobile App for Digital Services",
+          tenderTitle: "Development of Mobile App for Digital Services",
           organization: "Ministry of Electronics & IT", 
-          winnerBidder: "TechnoSoft Solutions Pvt Ltd",
-          winningAmount: 68000000, // 6.8 crores in paise
-          ourBidAmount: 72000000, // 7.2 crores in paise
-          resultDate: new Date(),
+          referenceNo: "MEITY/2025/APP/9876543",
+          location: "Bangalore",
+          department: "IT Department",
+          tenderValue: 75000000, // 7.5 crores estimated
+          contractValue: 68000000, // 6.8 crores actual
+          marginalDifference: -7000000, // saved 70 lakhs
+          tenderStage: "AOC",
+          ourBidValue: 72000000, // 7.2 crores in paise
           status: "lost",
+          awardedTo: "TechnoSoft Solutions Pvt Ltd",
+          awardedValue: 68000000, // 6.8 crores in paise
           participatorBidders: ["TechnoSoft Solutions Pvt Ltd", "Appentus Technologies Pvt Ltd", "InnovateTech Corp"],
+          resultDate: new Date(),
+          assignedTo: "Senior Bidder",
+          reasonForLoss: "Lost by pricing - 4 lakh difference",
+          missedReason: null,
+          companyEligible: true,
+          aiMatchScore: 85,
           notes: "Competitive bid, lost by pricing. Good technical evaluation.",
-          createdAt: new Date(),
-          updatedAt: new Date()
+          link: null
         },
         {
-          tenderId: null,
-          referenceNo: "KSIT/2025/INFRA/1357924",
-          title: "Infrastructure Modernization Project",
+          tenderTitle: "Infrastructure Modernization Project",
           organization: "Karnataka State IT Department",
-          winnerBidder: "Appentus Technologies Pvt Ltd", 
-          winningAmount: 115000000, // 11.5 crores in paise
-          ourBidAmount: 115000000, // 11.5 crores in paise
-          resultDate: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000), // 2 days ago
+          referenceNo: "KSIT/2025/INFRA/1357924",
+          location: "Mysore", 
+          department: "Infrastructure Division",
+          tenderValue: 120000000, // 12 crores estimated
+          contractValue: 115000000, // 11.5 crores actual
+          marginalDifference: -5000000, // saved 50 lakhs
+          tenderStage: "AOC",
+          ourBidValue: 115000000, // 11.5 crores in paise
           status: "won",
+          awardedTo: "Appentus Technologies Pvt Ltd", 
+          awardedValue: 115000000, // 11.5 crores in paise
           participatorBidders: ["Appentus Technologies Pvt Ltd", "Infrastructure Giants", "ModernTech Solutions"],
+          resultDate: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000), // 2 days ago
+          assignedTo: "Senior Bidder",
+          reasonForLoss: null,
+          missedReason: null,
+          companyEligible: true,
+          aiMatchScore: 100,
           notes: "Won with competitive pricing and superior technical proposal",
-          createdAt: new Date(),
-          updatedAt: new Date()
+          link: null
         }
       ];
 
