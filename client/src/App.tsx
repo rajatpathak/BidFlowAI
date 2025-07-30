@@ -13,7 +13,7 @@ import Finance from "@/pages/finance";
 import Meetings from "@/pages/meetings";
 import UserManagement from "@/pages/user-management";
 import AdminSettings from "@/pages/admin-settings";
-import TenderResults from "@/pages/tender-results";
+import ActiveTenders from "@/pages/tender-results";
 import UploadDemo from "@/pages/upload-demo";
 import Login from "@/pages/login";
 import Unauthorized from "@/pages/unauthorized";
@@ -55,7 +55,7 @@ function Router() {
             <Switch>
               <Route path="/" component={() => <ProtectedRoute><Dashboard /></ProtectedRoute>} />
               <Route path="/dashboard" component={() => <ProtectedRoute><Dashboard /></ProtectedRoute>} />
-              <Route path="/active-tenders" component={() => <ProtectedRoute requiredPermission="view_tenders"><TenderResults /></ProtectedRoute>} />
+              <Route path="/active-tenders" component={() => <ProtectedRoute requiredPermission="view_tenders"><ActiveTenders /></ProtectedRoute>} />
               <Route path="/create-bid" component={() => <ProtectedRoute requiredPermission="create_bids"><CreateBid /></ProtectedRoute>} />
               <Route path="/ai-insights" component={() => <ProtectedRoute requiredPermission="use_ai_insights"><AIInsights /></ProtectedRoute>} />
               <Route path="/finance" component={() => <ProtectedRoute requiredPermission="view_finance"><Finance /></ProtectedRoute>} />
