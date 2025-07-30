@@ -70,14 +70,14 @@ export async function processActiveTendersWithSubsheets(filePath: string, fileNa
       };
       
       const columnMap = {
-        title: getColumnIndex(['title', 'tender title', 'work description', 'work name', 'brief', 'description']),
+        title: getColumnIndex(['tender brief', 'brief', 'title', 'tender title', 'work description', 'work name', 'description']),
         organization: getColumnIndex(['organization', 'dept', 'department', 'ministry', 'agency']),
-        value: getColumnIndex(['value', 'tender value', 'estimated value', 'amount', 'emd', 'cost']),
+        value: getColumnIndex(['estimated cost', 'value', 'tender value', 'estimated value', 'amount', 'emd', 'cost']),
         deadline: getColumnIndex(['deadline', 'due date', 'end date', 'closing date', 'last date']),
         location: getColumnIndex(['location', 'place', 'city', 'state', 'region']),
-        referenceNo: getColumnIndex(['reference', 'ref no', 'tender no', 'id', 'number']),
-        department: getColumnIndex(['department', 'dept', 'division', 'section']),
-        category: getColumnIndex(['category', 'type', 'classification', 'sector']),
+        referenceNo: getColumnIndex(['reference no', 'reference', 'ref no', 'tender no', 't247 id', 'id', 'number']),
+        department: getColumnIndex(['department name', 'department', 'dept', 'division', 'section']),
+        category: getColumnIndex(['similar category', 'category', 'type', 'classification', 'sector']),
         source: getColumnIndex(['source', 'portal', 'website', 'platform'])
       };
       
@@ -100,8 +100,12 @@ export async function processActiveTendersWithSubsheets(filePath: string, fileNa
             continue; // Skip rows without meaningful titles
           }
           
-          // Extract T247 ID for duplicate checking (T247 ID is in column 1, not referenceNo column)
-          const t247Id = row[1] ? row[1].toString().trim() : null;
+          // Extract T247 ID for duplicate checking (T247 ID is in column 1)
+          const t247IdColumn = headers.findIndex(h => 
+            h && h.toLowerCase().includes('t247 id')
+          );
+          const t247Id = t247IdColumn >= 0 ? 
+            (row[t247IdColumn] || '').toString().trim() : null;
           
           // Check for duplicates based on T247 ID or title
           let isDuplicate = false;
@@ -139,8 +143,12 @@ export async function processActiveTendersWithSubsheets(filePath: string, fileNa
           const location = columnMap.location >= 0 ? 
             (row[columnMap.location] || '').toString().trim() || null : null;
           
-          const referenceNo = columnMap.referenceNo >= 0 ? 
-            (row[columnMap.referenceNo] || '').toString().trim() || null : null;
+          // Use the correct column for reference number (REFERENCE NO column, not SR. NO.)
+          const referenceNoColumn = headers.findIndex(h => 
+            h && h.toLowerCase().includes('reference no')
+          );
+          const referenceNo = referenceNoColumn >= 0 ? 
+            (row[referenceNoColumn] || '').toString().trim() || null : null;
           
           // Determine source first
           let source = 'non_gem';
@@ -178,16 +186,26 @@ export async function processActiveTendersWithSubsheets(filePath: string, fileNa
             (row[columnMap.value] || '0').toString() : '0';
           const value = Math.round(parseFloat(valueStr.replace(/[^0-9.-]/g, '') || '0') * 100);
           
-          // Parse deadline
+          // Parse deadline with better date handling
           let deadline = new Date();
           deadline.setDate(deadline.getDate() + 30); // Default 30 days from now
           
           if (columnMap.deadline >= 0) {
             const deadlineStr = (row[columnMap.deadline] || '').toString().trim();
             if (deadlineStr) {
-              const parsedDate = new Date(deadlineStr);
-              if (!isNaN(parsedDate.getTime())) {
-                deadline = parsedDate;
+              // Handle Excel date serial numbers
+              if (!isNaN(Number(deadlineStr)) && Number(deadlineStr) > 40000) {
+                // Excel date serial number (days since 1900-01-01)
+                const excelDate = new Date((Number(deadlineStr) - 25569) * 86400 * 1000);
+                if (!isNaN(excelDate.getTime())) {
+                  deadline = excelDate;
+                }
+              } else {
+                // Try parsing as regular date string
+                const parsedDate = new Date(deadlineStr);
+                if (!isNaN(parsedDate.getTime())) {
+                  deadline = parsedDate;
+                }
               }
             }
           }

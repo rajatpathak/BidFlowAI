@@ -251,7 +251,16 @@ export default function ActiveTendersPage() {
   // Load upload history from imports data
   useEffect(() => {
     if (imports && imports.length > 0) {
-      setUploadHistory(imports);
+      // Transform the data for display
+      const transformedHistory = imports.map((item: any) => ({
+        id: item.id,
+        fileName: item.file_name,
+        uploadDate: new Date(item.uploaded_at).toLocaleString(),
+        tendersImported: item.entries_added || 0,
+        tendersSkipped: item.entries_duplicate || 0,
+        status: item.status || 'completed'
+      }));
+      setUploadHistory(transformedHistory);
     }
   }, [imports]);
 
