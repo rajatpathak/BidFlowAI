@@ -77,7 +77,7 @@ type TenderResultsImport = {
   errorLog: string | null;
 };
 
-export default function ActiveTendersPage() {
+export default function TenderResultsPage() {
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [statusFilter, setStatusFilter] = useState("all");
@@ -306,8 +306,8 @@ export default function ActiveTendersPage() {
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Active Tenders</h1>
-          <p className="text-gray-600">View and manage active tender opportunities with AI-powered insights</p>
+          <h1 className="text-3xl font-bold">Tender Results</h1>
+          <p className="text-gray-600">Track tender outcomes, wins, losses, and missed opportunities</p>
         </div>
       </div>
 
