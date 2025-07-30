@@ -489,7 +489,7 @@ export default function TenderResultsPage() {
                           <div className="text-sm">
                             {result.tenderStage ? (
                               <Badge variant={
-                                result.tenderStage === "completed" ? "success" :
+                                result.tenderStage === "completed" ? "default" :
                                 result.tenderStage === "in_progress" ? "secondary" :
                                 "outline"
                               }>

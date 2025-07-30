@@ -270,7 +270,7 @@ export default function UploadDemoPage() {
                         </TableCell>
                         <TableCell>
                           {item.status === 'success' ? (
-                            <Badge variant="success" className="gap-1">
+                            <Badge variant="default" className="gap-1 bg-green-500 text-white">
                               <CheckCircle className="h-3 w-3" />
                               Success
                             </Badge>

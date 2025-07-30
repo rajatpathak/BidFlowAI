@@ -471,6 +471,8 @@ export default function ActiveTendersPage() {
           )}
         </CardContent>
       </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
