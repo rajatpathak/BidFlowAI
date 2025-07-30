@@ -1,0 +1,221 @@
+import * as XLSX from 'xlsx';
+import * as fs from 'fs';
+import { db } from './db.js';
+import { tenders, enhancedTenderResults, tenderImports, tenderResultsImport } from '../shared/schema.js';
+import { eq } from 'drizzle-orm';
+
+// Simple, robust tender upload processing
+export async function processActiveTenderExcel(filePath: string, fileName: string, uploadedBy: string) {
+  try {
+    const workbook = XLSX.read(fs.readFileSync(filePath), { type: 'buffer' });
+    let totalProcessed = 0;
+    let totalDuplicates = 0;
+
+    for (const sheetName of workbook.SheetNames) {
+      const worksheet = workbook.Sheets[sheetName];
+      const data = XLSX.utils.sheet_to_json(worksheet);
+      
+      if (!data || data.length === 0) continue;
+
+      for (const row of data) {
+        try {
+          const r = row as any;
+          
+          // Get title - if no title, skip row
+          const title = (r['Title'] || r['Tender Title'] || r['Work Description'] || r['Work Name'] || '').toString().trim();
+          if (!title) continue;
+          
+          const organization = (r['Organization'] || r['Dept'] || r['Department'] || r['Ministry'] || '').toString().trim();
+          const valueStr = (r['Value'] || r['Tender Value'] || r['EMD'] || r['Estimated Value'] || '0').toString();
+          const value = Math.round(parseFloat(valueStr.replace(/[^0-9.-]/g, '') || '0') * 100);
+          
+          const deadlineStr = (r['Deadline'] || r['Due Date'] || r['End Date'] || '').toString();
+          let deadline = new Date();
+          if (deadlineStr) {
+            const parsedDate = new Date(deadlineStr);
+            if (!isNaN(parsedDate.getTime())) {
+              deadline = parsedDate;
+            }
+          }
+          
+          const location = (r['Location'] || r['City'] || r['State'] || '').toString().trim();
+          const referenceNo = (r['Reference No'] || r['Ref No'] || r['ID'] || '').toString().trim();
+          const link = (r['Link'] || r['URL'] || '').toString().trim();
+          
+          // Generate ID
+          const id = `${title.substring(0, 20)}-${organization.substring(0, 10)}`.toLowerCase().replace(/[^a-z0-9]/g, '-').substring(0, 50);
+          
+          // Check for duplicates
+          const existing = await db.select().from(tenders).where(eq(tenders.id, id)).limit(1);
+          if (existing.length > 0) {
+            totalDuplicates++;
+            continue;
+          }
+          
+          // Insert tender
+          await db.insert(tenders).values({
+            id,
+            title,
+            organization: organization || 'Unknown',
+            value,
+            deadline,
+            status: 'active',
+            source: referenceNo.toLowerCase().includes('gem') ? 'gem' : 'non_gem',
+            aiScore: 75,
+            requirements: [],
+            documents: [],
+            location: location || null,
+            referenceNo: referenceNo || null,
+            link: link || null,
+          });
+          
+          totalProcessed++;
+        } catch (error) {
+          console.log('Error processing row:', error);
+        }
+      }
+    }
+
+    // Create import record
+    await db.insert(tenderImports).values({
+      fileName,
+      uploadedBy,
+      tendersProcessed: totalProcessed,
+      duplicatesSkipped: totalDuplicates,
+      status: 'completed',
+    });
+
+    return {
+      success: true,
+      tendersProcessed: totalProcessed,
+      duplicatesSkipped: totalDuplicates,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+      tendersProcessed: 0,
+      duplicatesSkipped: 0,
+    };
+  }
+}
+
+// Simple tender results processing
+export async function processTenderResultsExcel(filePath: string, fileName: string, uploadedBy: string) {
+  try {
+    const workbook = XLSX.read(fs.readFileSync(filePath), { type: 'buffer' });
+    let totalProcessed = 0;
+    let totalDuplicates = 0;
+
+    for (const sheetName of workbook.SheetNames) {
+      const worksheet = workbook.Sheets[sheetName];
+      const data = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+      
+      if (!data || data.length === 0) continue;
+
+      // Skip header rows and process data
+      for (let i = 0; i < data.length; i++) {
+        try {
+          const row = data[i] as any[];
+          
+          // Skip empty rows
+          if (!row || row.length === 0) continue;
+          
+          // Based on the structure: [id, number, referenceNo, title, date, location, organization, type, value1, value2, %, date2, stage, awardedTo, participants]
+          const title = row[3] ? row[3].toString().trim() : '';
+          
+          // Skip empty rows
+          if (!title) continue;
+          
+          console.log('Processing result:', title.substring(0, 50) + '...');
+          
+          const referenceNo = row[2] ? row[2].toString().trim() : '';
+          const organization = row[6] ? row[6].toString().trim() : '';
+          const awardedTo = row[13] ? row[13].toString().trim() : '';
+          const location = row[5] ? row[5].toString().trim() : '';
+          
+          // Contract value from column 9 (index 8) or 10 (index 9)
+          const contractValue = Math.round((parseFloat(row[8]) || parseFloat(row[9]) || 0) * 100);
+          
+          // Participator bidders from last column (index 14)
+          const participatorsStr = row[14] ? row[14].toString().trim() : '';
+          const participatorBidders = participatorsStr ? participatorsStr.split(',').map(s => s.trim()).filter(s => s) : [];
+          
+          // Result date from column 5 (index 4) 
+          let resultDate = new Date();
+          if (row[4]) {
+            const parsedDate = new Date(row[4]);
+            if (!isNaN(parsedDate.getTime())) {
+              resultDate = parsedDate;
+            }
+          }
+          
+          // Determine status
+          let status = 'missed_opportunity';
+          const isAppentusWinner = awardedTo.toLowerCase().includes('appentus');
+          const isAppentusParticipant = participatorBidders.some(bidder => bidder.toLowerCase().includes('appentus'));
+          
+          if (isAppentusWinner) {
+            status = 'won';
+          } else if (isAppentusParticipant) {
+            status = 'lost';
+          }
+          
+          // Generate ID
+          const id = `${title.substring(0, 20)}-${organization.substring(0, 10)}`.toLowerCase().replace(/[^a-z0-9]/g, '-').substring(0, 50);
+          
+          // Check for duplicates
+          const existing = await db.select().from(enhancedTenderResults).where(eq(enhancedTenderResults.id, id)).limit(1);
+          if (existing.length > 0) {
+            totalDuplicates++;
+            continue;
+          }
+          
+          // Insert result
+          await db.insert(enhancedTenderResults).values({
+            id,
+            tenderTitle: title,
+            organization: organization || 'Unknown',
+            referenceNo: referenceNo || null,
+            location: null,
+            department: null,
+            tenderValue: null,
+            contractValue: contractValue || null,
+            marginalDifference: null,
+            tenderStage: null,
+            ourBidValue: isAppentusParticipant ? contractValue : null,
+            status,
+            awardedTo: awardedTo || null,
+            awardedValue: contractValue || null,
+            participatorBidders,
+            resultDate,
+            assignedTo: isAppentusWinner || isAppentusParticipant ? 'Appentus' : null,
+            reasonForLoss: isAppentusParticipant && !isAppentusWinner ? 'Lost to competitor' : null,
+            missedReason: status === 'missed_opportunity' ? 'Not assigned' : null,
+            companyEligible: true,
+            aiMatchScore: isAppentusWinner ? 100 : (isAppentusParticipant ? 85 : 30),
+            notes: null,
+            link: null,
+          });
+          
+          totalProcessed++;
+        } catch (error) {
+          console.log('Error processing result row:', error);
+        }
+      }
+    }
+
+    return {
+      success: true,
+      resultsProcessed: totalProcessed,
+      duplicatesSkipped: totalDuplicates,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+      resultsProcessed: 0,
+      duplicatesSkipped: 0,
+    };
+  }
+}
