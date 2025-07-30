@@ -44,6 +44,7 @@ import {
   type InsertEnhancedTenderResult
 } from "@shared/schema";
 import { randomUUID } from "crypto";
+import XLSX from "xlsx";
 
 export interface IStorage {
   // Users
@@ -1092,7 +1093,6 @@ export class MemStorage implements IStorage {
 
   // Excel Import Methods
   async importTendersFromExcel(filePath: string): Promise<{ imported: number; duplicates: number }> {
-    const XLSX = await import('xlsx');
     try {
       // Read the Excel file
       const workbook = XLSX.readFile(filePath);
@@ -1241,7 +1241,6 @@ export class MemStorage implements IStorage {
   }
 
   async importTenderResultsFromExcel(filePath: string): Promise<{ imported: number; duplicates: number }> {
-    const XLSX = await import('xlsx');
     try {
       // Read the Excel file
       const workbook = XLSX.readFile(filePath);
