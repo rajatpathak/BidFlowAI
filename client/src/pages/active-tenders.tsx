@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -75,6 +75,9 @@ export default function ActiveTendersPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadHistory, setUploadHistory] = useState<any[]>([]);
   const itemsPerPage = 20;
 
   const { user } = useAuth();
@@ -167,6 +170,89 @@ export default function ActiveTendersPage() {
       });
     } finally {
       setIsUploading(false);
+    }
+  };
+
+  // Handle file selection for new upload tabs
+  const handleFileSelect = (file: File | null) => {
+    setSelectedFile(file);
+    setUploadProgress(0);
+  };
+
+  // Handle file upload with progress tracking for new tabs
+  const handleNewFileUpload = async () => {
+    if (!selectedFile) return;
+    
+    setIsUploading(true);
+    setUploadProgress(0);
+    
+    const formData = new FormData();
+    formData.append("file", selectedFile);
+    
+    try {
+      // Simulate progress
+      const progressInterval = setInterval(() => {
+        setUploadProgress(prev => {
+          if (prev >= 90) return prev;
+          return prev + Math.random() * 15;
+        });
+      }, 200);
+
+      const response = await fetch("/api/upload-tenders", {
+        method: "POST",
+        body: formData,
+      });
+
+      clearInterval(progressInterval);
+      setUploadProgress(100);
+
+      if (!response.ok) {
+        throw new Error("Upload failed");
+      }
+
+      const result = await response.json();
+      
+      toast({
+        title: "Upload successful",
+        description: `${result.imported || 0} tenders imported, ${result.duplicates || 0} duplicates skipped`,
+      });
+
+      // Refresh tender data
+      queryClient.invalidateQueries({ queryKey: ["/api/tenders"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tender-imports"] });
+      
+      // Clear file selection
+      setSelectedFile(null);
+      setUploadProgress(0);
+
+    } catch (error: any) {
+      toast({
+        title: "Upload failed",
+        description: error.message || "Failed to upload file",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  // Load upload history from imports data
+  useEffect(() => {
+    if (imports && imports.length > 0) {
+      setUploadHistory(imports);
+    }
+  }, [imports]);
+
+  // Fetch upload history
+  const fetchUploadHistory = async () => {
+    try {
+      const response = await fetch("/api/tender-imports");
+      if (response.ok) {
+        const data = await response.json();
+        setUploadHistory(data);
+      }
+    } catch (error) {
+      console.error("Failed to fetch upload history:", error);
     }
   };
 
@@ -471,6 +557,192 @@ export default function ActiveTendersPage() {
           )}
         </CardContent>
       </Card>
+        </TabsContent>
+
+        {/* Upload Tenders Tab */}
+        <TabsContent value="upload-tenders" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <FileSpreadsheet className="h-5 w-5" />
+                <div>
+                  <CardTitle>Upload Active Tenders</CardTitle>
+                  <CardDescription>
+                    Upload Excel files containing active tender data with automatic AI scoring
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="bg-blue-50 p-4 rounded-lg">
+                <h4 className="font-medium text-blue-900 mb-2">Expected Excel Format:</h4>
+                <div className="text-sm text-blue-800 space-y-1">
+                  <p>• <strong>Title</strong>: Tender title or work description</p>
+                  <p>• <strong>Organization</strong>: Department or organization name</p>
+                  <p>• <strong>Value</strong>: Tender value or EMD amount</p>
+                  <p>• <strong>Deadline</strong>: Last date for submission</p>
+                  <p>• <strong>Turnover</strong>: Eligibility turnover requirement</p>
+                  <p>• <strong>Location</strong>: Place or location of work</p>
+                  <p>• <strong>Reference No</strong>: Tender reference number</p>
+                  <p>• <strong>Link</strong>: URL to tender details (optional)</p>
+                </div>
+              </div>
+
+              <div className="border-2 border-dashed border-gray-300 rounded-lg p-6">
+                <div className="text-center">
+                  <FileSpreadsheet className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <div className="space-y-4">
+                    <div>
+                      <div className="text-lg font-medium">Choose Excel File</div>
+                      <div className="text-sm text-gray-500">Upload .xlsx files with tender data</div>
+                    </div>
+                    <Input
+                      type="file"
+                      accept=".xlsx,.xls"
+                      onChange={(e) => handleFileSelect(e.target.files?.[0] || null)}
+                      className="max-w-md mx-auto"
+                    />
+                  </div>
+                  {selectedFile && (
+                    <div className="mt-4">
+                      <Badge variant="secondary" className="gap-1">
+                        <FileSpreadsheet className="h-3 w-3" />
+                        {selectedFile.name}
+                      </Badge>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex justify-center">
+                <Button
+                  onClick={handleNewFileUpload}
+                  disabled={!selectedFile || isUploading}
+                  className="px-8 py-2"
+                  size="lg"
+                >
+                  {isUploading ? (
+                    <>
+                      <Clock className="h-4 w-4 mr-2 animate-spin" />
+                      Processing...
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="h-4 w-4 mr-2" />
+                      Upload Active Tenders
+                    </>
+                  )}
+                </Button>
+              </div>
+
+              {uploadProgress > 0 && uploadProgress < 100 && (
+                <div className="max-w-md mx-auto">
+                  <div className="flex justify-between text-sm mb-1">
+                    <span>Processing Excel file...</span>
+                    <span>{uploadProgress}%</span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div 
+                      className="bg-blue-600 h-2 rounded-full transition-all duration-300" 
+                      style={{ width: `${uploadProgress}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Upload History Tab */}
+        <TabsContent value="upload-history" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Clock className="h-5 w-5" />
+                  <div>
+                    <CardTitle>Upload History</CardTitle>
+                    <CardDescription>
+                      View previous tender upload attempts and results
+                    </CardDescription>
+                  </div>
+                </div>
+                <Button variant="outline" size="sm" onClick={fetchUploadHistory}>
+                  <Upload className="h-4 w-4 mr-2" />
+                  Refresh
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {uploadHistory.length === 0 ? (
+                <div className="text-center py-8">
+                  <Clock className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-gray-900">No upload history</h3>
+                  <p className="text-gray-500 mt-1">Upload some tender Excel files to see history here.</p>
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>File Name</TableHead>
+                      <TableHead>Upload Date</TableHead>
+                      <TableHead>Tenders Imported</TableHead>
+                      <TableHead>Duplicates Skipped</TableHead>
+                      <TableHead>Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {uploadHistory.map((upload) => (
+                      <TableRow key={upload.id}>
+                        <TableCell className="font-medium">
+                          <div className="flex items-center gap-2">
+                            <FileSpreadsheet className="h-4 w-4 text-gray-400" />
+                            {upload.fileName}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Calendar className="h-3 w-3 text-gray-400" />
+                            <span className="text-sm text-gray-600">
+                              {upload.uploadedAt ? new Date(upload.uploadedAt).toLocaleDateString() : "N/A"}
+                            </span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <span className="font-medium text-green-600">
+                            {upload.tendersProcessed || 0}
+                          </span>
+                        </TableCell>
+                        <TableCell>
+                          <span className="text-yellow-600">
+                            {upload.duplicatesSkipped || 0}
+                          </span>
+                        </TableCell>
+                        <TableCell>
+                          {upload.status === 'completed' ? (
+                            <Badge variant="default" className="gap-1 bg-green-500 text-white">
+                              <CheckCircle className="h-3 w-3" />
+                              Success
+                            </Badge>
+                          ) : upload.status === 'failed' ? (
+                            <Badge variant="destructive" className="gap-1">
+                              <XCircle className="h-3 w-3" />
+                              Failed
+                            </Badge>
+                          ) : (
+                            <Badge variant="secondary" className="gap-1">
+                              <Clock className="h-3 w-3" />
+                              Processing
+                            </Badge>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
     </div>

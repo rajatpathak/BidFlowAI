@@ -395,6 +395,19 @@ export const insertExcelUploadSchema = createInsertSchema(excelUploads).omit({
   uploadedAt: true,
 });
 
+// Tender Imports table for tracking active tender uploads
+export const tenderImports = mysqlTable("tender_imports", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`(UUID())`),
+  fileName: varchar("file_name", { length: 255 }).notNull(),
+  filePath: varchar("file_path", { length: 500 }).notNull(),
+  uploadedAt: timestamp("uploaded_at").defaultNow(),
+  uploadedBy: varchar("uploaded_by", { length: 36 }),
+  tendersProcessed: int("tenders_processed").default(0),
+  duplicatesSkipped: int("duplicates_skipped").default(0),
+  status: varchar("status", { length: 50 }).notNull().default("processing"), // processing, completed, failed
+  errorLog: text("error_log"),
+});
+
 // Tender Results Import table for tracking uploaded results
 export const tenderResultsImport = mysqlTable("tender_results_import", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`(UUID())`),
@@ -405,6 +418,11 @@ export const tenderResultsImport = mysqlTable("tender_results_import", {
   resultsProcessed: int("results_processed").default(0),
   status: varchar("status", { length: 50 }).notNull().default("processing"), // processing, completed, failed
   errorLog: text("error_log"),
+});
+
+export const insertTenderImportSchema = createInsertSchema(tenderImports).omit({
+  id: true,
+  uploadedAt: true,
 });
 
 export const insertTenderResultsImportSchema = createInsertSchema(tenderResultsImport).omit({

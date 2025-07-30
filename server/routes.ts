@@ -366,10 +366,73 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.json({
         message: "Tenders uploaded successfully",
+        imported: result.processed || 0,
+        duplicates: result.skipped || 0,
         ...result
       });
     } catch (error: any) {
       res.status(500).json({ error: "Failed to process tender file", details: error.message });
+    }
+  });
+
+  // Get tender imports history
+  app.get("/api/tender-imports", async (req, res) => {
+    try {
+      // For now, return a simple history structure
+      // In a full implementation, this would come from the tender_imports table
+      const mockHistory = [
+        {
+          id: "1",
+          fileName: "sample-tenders.xlsx",
+          uploadedAt: new Date().toISOString(),
+          uploadedBy: "admin",
+          tendersProcessed: 150,
+          duplicatesSkipped: 12,
+          status: "completed",
+          errorLog: null
+        }
+      ];
+      res.json(mockHistory);
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to fetch tender imports", details: error.message });
+    }
+  });
+
+  // Create tender import record
+  app.post("/api/tender-imports", upload.single('tendersFile'), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+
+      const uploadedBy = req.body.uploadedBy || "admin";
+      
+      // Process the Excel file
+      const { processTenderExcelFile } = await import('./process-tender-excel');
+      const result = await processTenderExcelFile(req.file.path);
+      
+      // Create import record (for now, just return success)
+      const importRecord = {
+        id: Date.now().toString(),
+        fileName: req.file.originalname,
+        filePath: req.file.path,
+        uploadedAt: new Date().toISOString(),
+        uploadedBy,
+        tendersProcessed: result.processed || 0,
+        duplicatesSkipped: result.skipped || 0,
+        status: "completed",
+        errorLog: null
+      };
+
+      res.json({
+        message: "Tenders imported successfully",
+        ...importRecord
+      });
+    } catch (error: any) {
+      res.status(500).json({ 
+        error: "Failed to import tenders", 
+        details: error.message 
+      });
     }
   });
 
