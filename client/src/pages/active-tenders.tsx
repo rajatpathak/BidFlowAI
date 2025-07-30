@@ -6,6 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Table,
   TableBody,
@@ -36,7 +38,9 @@ import {
   CheckCircle,
   Upload,
   FileSpreadsheet,
-  XCircle
+  XCircle,
+  UserPlus,
+  Users
 } from "lucide-react";
 import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -81,6 +85,11 @@ export default function ActiveTendersPage() {
   const [uploadHistory, setUploadHistory] = useState<any[]>([]);
   const [selectedTenders, setSelectedTenders] = useState<Set<string>>(new Set());
   const [isDeleting, setIsDeleting] = useState(false);
+  const [assignDialogOpen, setAssignDialogOpen] = useState(false);
+  const [selectedTenderId, setSelectedTenderId] = useState<string>("");
+  const [assignedTo, setAssignedTo] = useState("");
+  const [assignmentNotes, setAssignmentNotes] = useState("");
+  const [isAssigning, setIsAssigning] = useState(false);
   const itemsPerPage = 20;
 
   const { user } = useAuth();
@@ -338,6 +347,58 @@ export default function ActiveTendersPage() {
     } finally {
       setIsDeleting(false);
     }
+  };
+
+  // Handle tender assignment
+  const handleAssignTender = async () => {
+    if (!selectedTenderId || !assignedTo) return;
+    
+    setIsAssigning(true);
+    try {
+      const response = await fetch(`/api/tenders/${selectedTenderId}/assign`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          assignedTo,
+          notes: assignmentNotes,
+          assignedBy: user?.username || 'admin'
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to assign tender');
+      }
+
+      toast({
+        title: "Success",
+        description: `Tender assigned to ${assignedTo} successfully`,
+      });
+
+      // Reset form and close dialog
+      setAssignDialogOpen(false);
+      setSelectedTenderId("");
+      setAssignedTo("");
+      setAssignmentNotes("");
+      
+      // Refresh data
+      queryClient.invalidateQueries({ queryKey: ["/api/tenders"] });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to assign tender",
+        variant: "destructive",
+      });
+    } finally {
+      setIsAssigning(false);
+    }
+  };
+
+  // Open assignment dialog
+  const openAssignDialog = (tenderId: string) => {
+    setSelectedTenderId(tenderId);
+    setAssignDialogOpen(true);
   };
 
   if (isLoading) {
@@ -689,6 +750,26 @@ export default function ActiveTendersPage() {
                               </a>
                             </Button>
                           )}
+                          {user?.role === 'admin' && (
+                            <Button 
+                              size="sm" 
+                              variant="outline"
+                              onClick={() => openAssignDialog(tender.id)}
+                              disabled={tender.assignedTo ? true : false}
+                            >
+                              {tender.assignedTo ? (
+                                <>
+                                  <Users className="h-3 w-3 mr-1" />
+                                  Assigned
+                                </>
+                              ) : (
+                                <>
+                                  <UserPlus className="h-3 w-3 mr-1" />
+                                  Assign
+                                </>
+                              )}
+                            </Button>
+                          )}
                           <Button size="sm" variant="outline">
                             View Details
                           </Button>
@@ -915,6 +996,74 @@ export default function ActiveTendersPage() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Assignment Dialog */}
+      <Dialog open={assignDialogOpen} onOpenChange={setAssignDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Assign Tender</DialogTitle>
+            <DialogDescription>
+              Assign this tender to a bidder for processing.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="assignedTo" className="text-right">
+                Bidder
+              </Label>
+              <Select value={assignedTo} onValueChange={setAssignedTo}>
+                <SelectTrigger className="col-span-3">
+                  <SelectValue placeholder="Select bidder" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="senior_bidder">Senior Bidder</SelectItem>
+                  <SelectItem value="junior_bidder">Junior Bidder</SelectItem>
+                  <SelectItem value="technical_lead">Technical Lead</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="notes" className="text-right">
+                Notes
+              </Label>
+              <Textarea
+                id="notes"
+                placeholder="Assignment notes (optional)"
+                value={assignmentNotes}
+                onChange={(e) => setAssignmentNotes(e.target.value)}
+                className="col-span-3"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button 
+              type="button" 
+              variant="outline" 
+              onClick={() => setAssignDialogOpen(false)}
+              disabled={isAssigning}
+            >
+              Cancel
+            </Button>
+            <Button 
+              type="button" 
+              onClick={handleAssignTender}
+              disabled={isAssigning || !assignedTo}
+            >
+              {isAssigning ? (
+                <>
+                  <Clock className="h-4 w-4 mr-2 animate-spin" />
+                  Assigning...
+                </>
+              ) : (
+                <>
+                  <UserPlus className="h-4 w-4 mr-2" />
+                  Assign Tender
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

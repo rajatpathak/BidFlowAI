@@ -21,12 +21,14 @@ import {
   Upload,
   LogOut,
   Shield,
-  History
+  History,
+  Bell
 } from "lucide-react";
 
 const navigation = [
   { name: "Dashboard", href: "/", icon: BarChart3 },
   { name: "Active Tenders", href: "/active-tenders", icon: FileText },
+  { name: "Assigned Tenders", href: "/assigned-tenders", icon: Bell },
   { name: "Tender Results", href: "/tender-results", icon: Trophy },
   { name: "Create Bid", href: "/create-bid", icon: Plus },
   { name: "Meetings", href: "/meetings", icon: Calendar },
@@ -88,6 +90,7 @@ export default function Sidebar() {
             if (item.href === "/user-management" && user?.role !== "admin") return null;
             if (item.href === "/admin-settings" && user?.role !== "admin") return null;
             if (item.href === "/finance" && user?.role !== "finance_manager" && user?.role !== "admin") return null;
+            if (item.href === "/assigned-tenders" && user?.role !== "senior_bidder" && user?.role !== "junior_bidder" && user?.role !== "bidder") return null;
             
             return (
               <Link

@@ -20,12 +20,13 @@ export const tenders = mysqlTable("tenders", {
   description: text("description"),
   value: bigint("value", { mode: "number" }).notNull(), // in cents
   deadline: timestamp("deadline").notNull(),
-  status: text("status").notNull().default("draft"), // draft, in_progress, submitted, won, lost
+  status: text("status").notNull().default("draft"), // draft, in_progress, submitted, won, lost, assigned
   source: text("source").notNull().default("non_gem"), // gem, non_gem
   aiScore: int("ai_score").default(0), // 0-100
   requirements: json("requirements").default([]),
   documents: json("documents").default([]),
   bidContent: text("bid_content"),
+  assignedTo: text("assigned_to"), // username or role of assigned bidder
   submittedAt: timestamp("submitted_at"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),

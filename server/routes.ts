@@ -625,6 +625,63 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Assign tender to bidder
+  app.post("/api/tenders/:id/assign", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { assignedTo, notes } = req.body;
+      
+      if (!assignedTo) {
+        return res.status(400).json({ error: "assignedTo is required" });
+      }
+
+      // Update tender with assignment
+      await db.update(tenders)
+        .set({ 
+          assignedTo,
+          status: 'assigned',
+          updatedAt: new Date()
+        })
+        .where(eq(tenders.id, id));
+
+      // Create assignment record if tenderAssignments table exists
+      try {
+        const { tenderAssignments } = await import("@shared/schema");
+        await db.insert(tenderAssignments).values({
+          id: randomUUID(),
+          tenderId: id,
+          assignedTo,
+          assignedBy: req.body.assignedBy || 'admin',
+          notes: notes || '',
+          status: 'assigned',
+          createdAt: new Date()
+        });
+      } catch (error) {
+        console.log("TenderAssignments table not available, skipping assignment record");
+      }
+
+      res.json({ message: "Tender assigned successfully" });
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to assign tender", details: error.message });
+    }
+  });
+
+  // Get assigned tenders for a user
+  app.get("/api/tenders/assigned/:username", async (req, res) => {
+    try {
+      const { username } = req.params;
+      
+      // Get tenders assigned to this user (using username or role)
+      const assignedTenders = await db.select()
+        .from(tenders)
+        .where(eq(tenders.assignedTo, username));
+
+      res.json(assignedTenders);
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to fetch assigned tenders", details: error.message });
+    }
+  });
+
   // Delete tender
   app.delete("/api/tenders/:id", async (req, res) => {
     try {
