@@ -1,91 +1,43 @@
 import * as XLSX from 'xlsx';
-import fs from 'fs';
+import * as fs from 'fs';
 
-const filePath = process.argv[2] || 'attached_assets/Results-(07-29-2025)_1753792177743.xlsx';
-
-console.log(`Analyzing Excel file: ${filePath}`);
-
-try {
-  const workbook = XLSX.read(fs.readFileSync(filePath), { type: 'buffer' });
-  
-  let totalRows = 0;
-  let rowsWithData = 0;
-  let rowsWithReferenceNo = 0;
-  let emptyRows = 0;
-  const sheetStats: any[] = [];
-
-  // Process each worksheet
-  for (const sheetName of workbook.SheetNames) {
-    const worksheet = workbook.Sheets[sheetName];
-    const data = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' }) as any[][];
+// Analyze Excel file structure for tender results
+export function analyzeExcelStructure(filePath: string) {
+  try {
+    console.log(`Analyzing Excel file: ${filePath}`);
     
-    let sheetRowsWithData = 0;
-    let sheetRowsWithRef = 0;
-    let sheetEmptyRows = 0;
+    const workbook = XLSX.read(fs.readFileSync(filePath), { type: 'buffer' });
     
-    // Skip header row
-    for (let i = 1; i < data.length; i++) {
-      const row = data[i];
-      totalRows++;
+    console.log('Sheet Names:', workbook.SheetNames);
+    
+    // Analyze each sheet
+    for (const sheetName of workbook.SheetNames) {
+      console.log(`\n--- Sheet: ${sheetName} ---`);
+      const worksheet = workbook.Sheets[sheetName];
+      const data = XLSX.utils.sheet_to_json(worksheet);
       
-      // Check if row has any data
-      const hasData = row.some(cell => cell !== '' && cell !== null && cell !== undefined);
+      console.log(`Rows: ${data.length}`);
       
-      if (hasData) {
-        rowsWithData++;
-        sheetRowsWithData++;
-        
-        // Check if row has reference number (usually in column C/index 2)
-        const refNo = row[2] || row[1]; // Sometimes it's in column B
-        if (refNo && refNo.toString().trim() !== '') {
-          rowsWithReferenceNo++;
-          sheetRowsWithRef++;
-        }
-      } else {
-        emptyRows++;
-        sheetEmptyRows++;
+      if (data.length > 0) {
+        console.log('Column Headers:', Object.keys(data[0]));
+        console.log('Sample Row:', data[0]);
       }
     }
     
-    sheetStats.push({
-      sheetName,
-      totalRows: data.length - 1, // Exclude header
-      rowsWithData: sheetRowsWithData,
-      rowsWithRef: sheetRowsWithRef,
-      emptyRows: sheetEmptyRows
-    });
+    return {
+      success: true,
+      sheetNames: workbook.SheetNames,
+      analysis: 'Complete'
+    };
+  } catch (error) {
+    console.error('Error analyzing Excel file:', error);
+    return {
+      success: false,
+      error: error.message
+    };
   }
-  
-  console.log('\n=== Excel File Analysis ===');
-  console.log(`Total sheets: ${workbook.SheetNames.length}`);
-  console.log(`Total rows (all sheets): ${totalRows}`);
-  console.log(`Rows with data: ${rowsWithData}`);
-  console.log(`Rows with reference numbers: ${rowsWithReferenceNo}`);
-  console.log(`Empty rows: ${emptyRows}`);
-  
-  console.log('\n=== Sheet-by-Sheet Breakdown ===');
-  sheetStats.forEach(sheet => {
-    console.log(`\nSheet: ${sheet.sheetName}`);
-    console.log(`  Total rows: ${sheet.totalRows}`);
-    console.log(`  Rows with data: ${sheet.rowsWithData}`);
-    console.log(`  Rows with reference numbers: ${sheet.rowsWithRef}`);
-    console.log(`  Empty rows: ${sheet.emptyRows}`);
-  });
-  
-  // Sample some rows to see the data
-  console.log('\n=== Sample Data from First Sheet ===');
-  const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-  const sampleData = XLSX.utils.sheet_to_json(firstSheet, { header: 1, range: 0, defval: '' }) as any[][];
-  
-  console.log('Header row:', sampleData[0]);
-  console.log('\nFirst 5 data rows:');
-  for (let i = 1; i <= Math.min(5, sampleData.length - 1); i++) {
-    const row = sampleData[i];
-    if (row.some(cell => cell !== '')) {
-      console.log(`Row ${i}: Reference No: ${row[2] || row[1] || 'N/A'}, Title: ${row[0] || 'N/A'}`);
-    }
-  }
-  
-} catch (error) {
-  console.error('Error analyzing Excel file:', error);
 }
+
+// Test with the provided file - run directly
+const filePath = '../attached_assets/Results-(07-29-2025)_1753884230517.xlsx';
+analyzeExcelStructure(filePath);

@@ -83,8 +83,8 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
       const uploadedBy = req.body.uploadedBy || "admin";
       console.log(`Processing tender results upload: ${req.file.originalname}`);
 
-      // Use simple upload processor
-      const { processTenderResultsExcel } = await import('./simple-uploads.js');
+      // Use enhanced upload processor with proper column mapping
+      const { processTenderResultsExcel } = await import('./process-tender-excel.js');
       const result = await processTenderResultsExcel(req.file.path, req.file.originalname, uploadedBy);
 
       if (!result.success) {
