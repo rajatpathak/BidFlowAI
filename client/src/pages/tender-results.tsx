@@ -86,44 +86,14 @@ export default function TenderResultsPage() {
   const itemsPerPage = 50;
   const { toast } = useToast();
 
-  // Use regular tenders API since enhanced-tender-results returns empty
-  const { data: allTenders = [], isLoading: tendersLoading } = useQuery({
-    queryKey: ["/api/tenders"],
+  // Fetch actual tender results (not active tenders)
+  const { data: results = [], isLoading: resultsLoading } = useQuery<EnhancedTenderResult[]>({
+    queryKey: ["/api/enhanced-tender-results"],
   });
 
   const { data: imports = [], isLoading: importsLoading } = useQuery<TenderResultsImport[]>({
     queryKey: ["/api/tender-results-imports"],
   });
-
-  // Transform tenders to match expected result format
-  const results = allTenders.map((tender: any) => ({
-    id: tender.id,
-    tenderTitle: tender.title || tender.name || 'Untitled Tender',
-    organization: tender.organization || 'Unknown Organization',
-    referenceNo: tender.referenceNo,
-    location: tender.location,
-    department: tender.department,
-    tenderValue: tender.value || tender.estimatedValue,
-    contractValue: null,
-    marginalDifference: null,
-    tenderStage: tender.stage || 'Active',
-    ourBidValue: null,
-    status: tender.status || 'active', // Default to active for display
-    awardedTo: null,
-    awardedValue: null,
-    participatorBidders: null,
-    resultDate: tender.deadline ? new Date(tender.deadline) : null,
-    assignedTo: tender.assignedTo,
-    reasonForLoss: null,
-    missedReason: null,
-    companyEligible: true,
-    aiMatchScore: tender.aiScore || 0,
-    notes: tender.description,
-    createdAt: tender.createdAt ? new Date(tender.createdAt) : null,
-    link: tender.link
-  })) as EnhancedTenderResult[];
-
-  const resultsLoading = tendersLoading;
 
   const handleFileUpload = async () => {
     if (!uploadFile) return;

@@ -1562,69 +1562,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Enhanced Tender Results Routes - Now reading from tender_results with reference numbers
+  // Enhanced Tender Results Routes - Using storage method to get enhanced results
   app.get("/api/enhanced-tender-results", async (req, res) => {
     try {
-      // Get actual tender results from database  
-      const results = await db.select().from(tenderResults).limit(500);
+      // Get enhanced tender results from storage
+      const results = await storage.getEnhancedTenderResults();
       
-      // Transform to match frontend expected format
-      const enhancedResults = results.map(result => {
-        // Parse notes to get reference number and other data
-        let parsedNotes: any = {};
-        try {
-          parsedNotes = JSON.parse(result.notes || '{}');
-        } catch (e) {
-          // If notes aren't JSON, treat as plain text
-        }
-        
-        // Extract reference number from parsed notes
-        const referenceNo = parsedNotes.referenceNo || null;
-        const tenderBrief = parsedNotes.tenderBrief || 'Historical tender result';
-        
-        // Transform competitors array to participator bidders
-        const participatorBidders = result.competitors?.map((c: any) => c.name) || [];
-        
-        // Determine status based on Appentus involvement
-        let status = 'lost';
-        const isAppentusWinner = result.winner.toLowerCase().includes('appentus');
-        const hasAppentusParticipant = result.competitors?.some((c: any) => c.isAppentus);
-        
-        if (isAppentusWinner) {
-          status = 'won';
-        } else if (hasAppentusParticipant) {
-          status = 'lost';
-        }
-        
-        return {
-          id: result.id,
-          tenderTitle: tenderBrief,
-          organization: 'Various', // Default since we don't have org data
-          referenceNo: referenceNo,
-          location: null,
-          department: null,
-          tenderValue: null,
-          contractValue: result.winningAmount,
-          marginalDifference: null,
-          tenderStage: 'AOC',
-          ourBidValue: result.ourBidAmount,
-          status: status,
-          awardedTo: result.winner,
-          awardedValue: result.winningAmount,
-          participatorBidders: participatorBidders,
-          resultDate: result.resultDate,
-          assignedTo: null,
-          reasonForLoss: null,
-          missedReason: null,
-          companyEligible: null,
-          aiMatchScore: null,
-          notes: result.notes,
-          createdAt: result.createdAt,
-          link: null
-        };
-      });
-      
-      res.json(enhancedResults);
+      // Results are already in the correct format from storage
+      res.json(results);
     } catch (error: any) {
       console.error("Error fetching enhanced tender results:", error);
       res.status(500).json({ error: "Failed to fetch tender results", details: error.message });
