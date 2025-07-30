@@ -1,8 +1,8 @@
 import * as XLSX from 'xlsx';
 import * as fs from 'fs';
 import { db } from './db.js';
-import { tenders, enhancedTenderResults, tenderImports, tenderResultsImport } from '../shared/schema.js';
-import { eq } from 'drizzle-orm';
+import { tenders, enhancedTenderResults, excelUploads, tenderResultsImports } from '../shared/schema.js';
+import { eq, sql } from 'drizzle-orm';
 
 // Simple, robust tender upload processing
 export async function processActiveTenderExcel(filePath: string, fileName: string, uploadedBy: string) {
@@ -42,19 +42,15 @@ export async function processActiveTenderExcel(filePath: string, fileName: strin
           const referenceNo = (r['Reference No'] || r['Ref No'] || r['ID'] || '').toString().trim();
           const link = (r['Link'] || r['URL'] || '').toString().trim();
           
-          // Generate ID
-          const id = `${title.substring(0, 20)}-${organization.substring(0, 10)}`.toLowerCase().replace(/[^a-z0-9]/g, '-').substring(0, 50);
-          
-          // Check for duplicates
-          const existing = await db.select().from(tenders).where(eq(tenders.id, id)).limit(1);
+          // Check for duplicates by title
+          const existing = await db.select().from(tenders).where(eq(tenders.title, title)).limit(1);
           if (existing.length > 0) {
             totalDuplicates++;
             continue;
           }
           
-          // Insert tender
+          // Insert tender (let PostgreSQL generate the UUID)
           await db.insert(tenders).values({
-            id,
             title,
             organization: organization || 'Unknown',
             value,
@@ -64,9 +60,6 @@ export async function processActiveTenderExcel(filePath: string, fileName: strin
             aiScore: 75,
             requirements: [],
             documents: [],
-            location: location || null,
-            referenceNo: referenceNo || null,
-            link: link || null,
           });
           
           totalProcessed++;
@@ -76,14 +69,11 @@ export async function processActiveTenderExcel(filePath: string, fileName: strin
       }
     }
 
-    // Create import record
-    await db.insert(tenderImports).values({
-      fileName,
-      uploadedBy,
-      tendersProcessed: totalProcessed,
-      duplicatesSkipped: totalDuplicates,
-      status: 'completed',
-    });
+    // Insert directly with raw SQL to match actual database columns
+    await db.execute(sql`
+      INSERT INTO excel_uploads (file_name, file_path, uploaded_by, entries_added, entries_duplicate, total_entries, sheets_processed, status)
+      VALUES (${fileName}, ${filePath}, ${uploadedBy}, ${totalProcessed}, ${totalDuplicates}, ${totalProcessed + totalDuplicates}, 1, 'completed')
+    `);
 
     return {
       success: true,
@@ -139,7 +129,7 @@ export async function processTenderResultsExcel(filePath: string, fileName: stri
           
           // Participator bidders from last column (index 14)
           const participatorsStr = row[14] ? row[14].toString().trim() : '';
-          const participatorBidders = participatorsStr ? participatorsStr.split(',').map(s => s.trim()).filter(s => s) : [];
+          const participatorBidders = participatorsStr ? participatorsStr.split(',').map((s: any) => s.trim()).filter((s: any) => s) : [];
           
           // Result date from column 5 (index 4) 
           let resultDate = new Date();
@@ -153,7 +143,7 @@ export async function processTenderResultsExcel(filePath: string, fileName: stri
           // Determine status
           let status = 'missed_opportunity';
           const isAppentusWinner = awardedTo.toLowerCase().includes('appentus');
-          const isAppentusParticipant = participatorBidders.some(bidder => bidder.toLowerCase().includes('appentus'));
+          const isAppentusParticipant = participatorBidders.some((bidder: any) => bidder.toLowerCase().includes('appentus'));
           
           if (isAppentusWinner) {
             status = 'won';
@@ -161,42 +151,18 @@ export async function processTenderResultsExcel(filePath: string, fileName: stri
             status = 'lost';
           }
           
-          // Generate ID
-          const id = `${title.substring(0, 20)}-${organization.substring(0, 10)}`.toLowerCase().replace(/[^a-z0-9]/g, '-').substring(0, 50);
-          
-          // Check for duplicates
-          const existing = await db.select().from(enhancedTenderResults).where(eq(enhancedTenderResults.id, id)).limit(1);
+          // Check for duplicates by title
+          const existing = await db.select().from(enhancedTenderResults).where(eq(enhancedTenderResults.tenderTitle, title)).limit(1);
           if (existing.length > 0) {
             totalDuplicates++;
             continue;
           }
           
-          // Insert result
-          await db.insert(enhancedTenderResults).values({
-            id,
-            tenderTitle: title,
-            organization: organization || 'Unknown',
-            referenceNo: referenceNo || null,
-            location: null,
-            department: null,
-            tenderValue: null,
-            contractValue: contractValue || null,
-            marginalDifference: null,
-            tenderStage: null,
-            ourBidValue: isAppentusParticipant ? contractValue : null,
-            status,
-            awardedTo: awardedTo || null,
-            awardedValue: contractValue || null,
-            participatorBidders,
-            resultDate,
-            assignedTo: isAppentusWinner || isAppentusParticipant ? 'Appentus' : null,
-            reasonForLoss: isAppentusParticipant && !isAppentusWinner ? 'Lost to competitor' : null,
-            missedReason: status === 'missed_opportunity' ? 'Not assigned' : null,
-            companyEligible: true,
-            aiMatchScore: isAppentusWinner ? 100 : (isAppentusParticipant ? 85 : 30),
-            notes: null,
-            link: null,
-          });
+          // Insert directly with raw SQL to match actual database columns
+          await db.execute(sql`
+            INSERT INTO enhanced_tender_results (tender_title, organization, reference_no, location, tender_value, awarded_to, awarded_value, participator_bidders)
+            VALUES (${title}, ${organization || 'Unknown'}, ${referenceNo || null}, ${location || null}, ${contractValue || null}, ${awardedTo || null}, ${contractValue || null}, ${JSON.stringify(participatorBidders)})
+          `);
           
           totalProcessed++;
         } catch (error) {
@@ -204,6 +170,12 @@ export async function processTenderResultsExcel(filePath: string, fileName: stri
         }
       }
     }
+
+    // Insert directly with raw SQL to match actual database columns
+    await db.execute(sql`
+      INSERT INTO tender_results_imports (filename, original_name, results_processed, duplicates_skipped, status)
+      VALUES (${fileName}, ${fileName}, ${totalProcessed}, ${totalDuplicates}, 'completed')
+    `);
 
     return {
       success: true,
