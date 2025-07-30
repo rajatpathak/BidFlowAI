@@ -698,6 +698,15 @@ export default function ActiveTendersPage() {
                               Ref: {tender.requirements[0].reference}
                             </div>
                           )}
+                          {/* Show Link if available */}
+                          {tender.link && (
+                            <div className="text-sm">
+                              <a href={tender.link} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:text-blue-700 flex items-center">
+                                <ExternalLink className="h-3 w-3 mr-1" />
+                                View Tender
+                              </a>
+                            </div>
+                          )}
                           {tender.location && (
                             <div className="flex items-center text-sm text-gray-500">
                               <Building2 className="h-3 w-3 mr-1" />

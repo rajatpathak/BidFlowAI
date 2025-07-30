@@ -222,7 +222,7 @@ export async function processActiveTendersWithSubsheets(filePath: string, fileNa
                 category: category,
                 sheet: sheetName,
                 t247_id: t247Id
-              }])}, ${tenderLink}
+              }])}, ${tenderLink || null}
             )
           `);
           
