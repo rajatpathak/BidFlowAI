@@ -1,5 +1,6 @@
 import { db } from './db.js';
 import { users, tenders, companySettings } from '../../shared/schema.js';
+import { eq } from 'drizzle-orm';
 
 export async function seedDatabase() {
   try {
@@ -8,49 +9,45 @@ export async function seedDatabase() {
     // Create sample users
     const sampleUsers = [
       {
-        id: '1',
         username: 'admin',
         password: 'admin123',
         email: 'admin@company.com',
-        fullName: 'System Administrator',
+        name: 'System Administrator',
         role: 'admin',
-        department: 'IT',
-        isActive: true,
       },
       {
-        id: '2',
         username: 'finance',
         password: 'finance123',
         email: 'finance@company.com',
-        fullName: 'Finance Manager',
+        name: 'Finance Manager',
         role: 'finance_manager',
-        department: 'Finance',
-        isActive: true,
       },
       {
-        id: '3',
         username: 'bidder',
         password: 'bidder123',
         email: 'bidder@company.com',
-        fullName: 'Senior Bidder',
+        name: 'Senior Bidder',
         role: 'senior_bidder',
-        department: 'Sales',
-        isActive: true,
       }
     ];
 
-    // Insert users (ignore duplicates)
+    // Insert users (check if exists first)
     for (const user of sampleUsers) {
       try {
-        await db.insert(users).values(user).ignore();
+        const existingUser = await db.select().from(users).where(eq(users.username, user.username)).limit(1);
+        if (existingUser.length === 0) {
+          await db.insert(users).values(user);
+          console.log(`✅ Created user: ${user.username}`);
+        } else {
+          console.log(`👤 User already exists: ${user.username}`);
+        }
       } catch (error) {
-        // User might already exist, continue
+        console.log(`❌ Error creating user ${user.username}:`, error);
       }
     }
 
     // Create company settings
     const companyData = {
-      id: '1',
       companyName: 'Appentus Technologies',
       turnoverCriteria: '5 cr',
       headquarters: 'Bangalore, India',
@@ -58,19 +55,22 @@ export async function seedDatabase() {
       certifications: ['ISO 9001:2015', 'ISO 27001:2013'],
       businessSectors: ['Information Technology', 'Software Development'],
       projectTypes: ['mobile', 'web', 'software', 'infrastructure'],
-      updatedBy: '1'
+      updatedBy: 'admin'
     };
 
     try {
-      await db.insert(companySettings).values(companyData).ignore();
+      const existingSettings = await db.select().from(companySettings).limit(1);
+      if (existingSettings.length === 0) {
+        await db.insert(companySettings).values(companyData);
+        console.log('✅ Created company settings');
+      }
     } catch (error) {
-      // Settings might already exist
+      console.log('❌ Error creating company settings:', error);
     }
 
     // Create sample tenders
     const sampleTenders = [
       {
-        id: '1',
         title: 'Development of Mobile Application for Tax Collection',
         organization: 'Government of Karnataka',
         description: 'Development and implementation of mobile application for property tax collection',
@@ -83,7 +83,6 @@ export async function seedDatabase() {
         referenceNo: 'GOK/IT/2025/001'
       },
       {
-        id: '2',
         title: 'Web Portal Development for Citizen Services',
         organization: 'Municipal Corporation',
         description: 'Development of citizen services web portal with online payment integration',
@@ -96,7 +95,6 @@ export async function seedDatabase() {
         referenceNo: 'MC/WEB/2025/002'
       },
       {
-        id: '3',
         title: 'Software Maintenance and Support Services',
         organization: 'State Bank of India',
         description: 'Annual maintenance contract for existing banking software applications',
@@ -110,12 +108,16 @@ export async function seedDatabase() {
       }
     ];
 
-    // Insert tenders (ignore duplicates)
+    // Insert tenders (check if exists first)
     for (const tender of sampleTenders) {
       try {
-        await db.insert(tenders).values(tender).ignore();
+        const existingTender = await db.select().from(tenders).where(eq(tenders.referenceNo, tender.referenceNo)).limit(1);
+        if (existingTender.length === 0) {
+          await db.insert(tenders).values(tender);
+          console.log(`✅ Created tender: ${tender.referenceNo}`);
+        }
       } catch (error) {
-        // Tender might already exist, continue
+        console.log(`❌ Error creating tender ${tender.referenceNo}:`, error);
       }
     }
 

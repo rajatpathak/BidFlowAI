@@ -1,7 +1,5 @@
 import express from 'express';
-import { eq } from 'drizzle-orm';
-import { users } from '../../../shared/schema.js';
-import { db } from '../db.js';
+import { memoryStorage } from '../memory-storage.js';
 
 const router = express.Router();
 
@@ -10,34 +8,47 @@ router.post('/login', async (req, res) => {
   try {
     const { username, password } = req.body;
     
+    console.log(`🔐 Login attempt received:`, { username, password: '***' });
+    
     if (!username || !password) {
+      console.log(`❌ Missing credentials`);
       return res.status(400).json({ error: 'Username and password are required' });
     }
 
-    // Find user by username
-    const user = await db.select().from(users).where(eq(users.username, username)).limit(1);
+    // Initialize storage if not already done
+    memoryStorage.initialize();
     
-    if (!user.length) {
-      return res.status(401).json({ error: 'Invalid credentials' });
+    // Debug: List all users
+    const allUsers = await memoryStorage.getAllUsers();
+    // Find user by username
+    const user = await memoryStorage.findUserByUsername(username);
+    
+    if (!user) {
+      return res.status(401).json({ 
+        error: 'Invalid credentials',
+        debug: 'User not found'
+      });
     }
-
-    const foundUser = user[0];
     
     // In production, use proper password hashing (bcrypt)
-    if (foundUser.password !== password) {
-      return res.status(401).json({ error: 'Invalid credentials' });
+    if (user.password !== password) {
+      return res.status(401).json({ 
+        error: 'Invalid credentials',
+        debug: 'Password mismatch'
+      });
     }
 
     // Return user data (exclude password)
-    const { password: _, ...userWithoutPassword } = foundUser;
+    const { password: _, ...userWithoutPassword } = user;
     
+    console.log(`✅ Login successful for: ${username}`);
     res.json({
       success: true,
       user: userWithoutPassword,
       message: 'Login successful'
     });
   } catch (error) {
-    console.error('Login error:', error);
+    console.error('❌ Login error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
