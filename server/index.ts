@@ -47,15 +47,12 @@ app.use((req, res, next) => {
     throw err;
   });
 
-  // Disabled Vite integration for separated architecture
-  // Frontend runs on separate port (3000), backend on port 5000
-  /*
+  // Re-enable Vite integration for full frontend functionality
   if (app.get("env") === "development") {
     await setupVite(app, server);
   } else {
     serveStatic(app);
   }
-  */
 
   // ALWAYS serve the app on the port specified in the environment variable PORT
   // Other ports are firewalled. Default to 5000 if not specified.
