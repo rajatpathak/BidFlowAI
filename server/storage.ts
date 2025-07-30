@@ -435,6 +435,12 @@ export class MemStorage implements IStorage {
     );
   }
 
+  async getAIRecommendations(): Promise<AIRecommendation[]> {
+    return Array.from(this.recommendations.values()).sort((a, b) => 
+      new Date(b.createdAt!).getTime() - new Date(a.createdAt!).getTime()
+    );
+  }
+
   async getRecommendationsByTender(tenderId: string): Promise<AIRecommendation[]> {
     return Array.from(this.recommendations.values()).filter(
       rec => rec.tenderId === tenderId
