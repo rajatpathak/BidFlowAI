@@ -262,4 +262,22 @@ Project Architecture: Separated frontend (React.js) and backend (Node.js) with M
   - Tender management: GET /api/tenders
   - Database operations: All CRUD operations functional
 
+### Excel Upload Functionality for Active Tenders (July 30, 2025) ✅
+- **Upload Tenders Tab**: Complete Excel file upload interface in Active Tenders page
+  - File selection with drag-and-drop support and format validation (.xlsx, .xls)
+  - Real-time progress bar showing upload and processing status
+  - Clear format guidelines showing expected Excel columns (Title, Organization, Value, Deadline, etc.)
+  - Integration with existing process-tender-excel.ts for data processing
+- **Upload History Tab**: Comprehensive tracking of all Excel imports
+  - Displays file name, upload date, tenders processed, duplicates skipped
+  - Status indicators (Success, Failed, Processing) with visual badges
+  - Refresh functionality to update history in real-time
+- **API Integration**: 
+  - Enhanced `/api/upload-tenders` endpoint with improved response format
+  - New `/api/tender-imports` endpoints for tracking upload history
+  - Automatic AI scoring calculation for imported tenders
+  - Progress tracking with user feedback during processing
+- **Database Schema**: Added tender_imports table for tracking active tender uploads
+- **User Experience**: Seamless integration with existing tender management workflow
+
 The architecture prioritizes type safety, developer experience, and scalability while maintaining a clean separation between frontend, backend, and data layers. The AI integration is designed to enhance user decision-making without being intrusive to the core workflow. The system now supports complete tender lifecycle management from discovery through award with integrated financial tracking and team coordination.
