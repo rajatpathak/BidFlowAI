@@ -66,7 +66,7 @@ export default function TenderResults() {
       setUploadProgress(0);
 
       const formData = new FormData();
-      formData.append('resultsFile', file);
+      formData.append('file', file);
       formData.append('uploadedBy', 'admin');
 
       const response = await fetch('/api/tender-results-imports', {

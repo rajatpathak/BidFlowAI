@@ -692,8 +692,20 @@ export default function ActiveTendersPage() {
                       <TableCell>
                         <div className="space-y-1">
                           <div className="font-medium">{tender.title}</div>
-                          {tender.referenceNo && (
-                            <div className="text-sm text-gray-500">Ref: {tender.referenceNo}</div>
+                          {/* Show Reference No from requirements */}
+                          {tender.requirements && typeof tender.requirements === 'string' && (
+                            (() => {
+                              try {
+                                const req = JSON.parse(tender.requirements);
+                                return req.reference && (
+                                  <div className="text-sm text-blue-600 font-mono">
+                                    Ref: {req.reference}
+                                  </div>
+                                );
+                              } catch {
+                                return null;
+                              }
+                            })()
                           )}
                           {tender.location && (
                             <div className="flex items-center text-sm text-gray-500">

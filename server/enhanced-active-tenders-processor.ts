@@ -100,14 +100,35 @@ export async function processActiveTendersWithSubsheets(filePath: string, fileNa
             continue; // Skip rows without meaningful titles
           }
           
-          // Check for duplicates based on title
-          const existingTender = await db.execute(sql`
-            SELECT id FROM tenders 
-            WHERE title = ${title}
-            LIMIT 1
-          `);
+          // Extract T247 ID for duplicate checking
+          const t247Id = columnMap.referenceNo >= 0 && row[1] ? 
+            row[1].toString().trim() : null;
           
-          if (existingTender.rows && existingTender.rows.length > 0) {
+          // Check for duplicates based on T247 ID or title
+          let isDuplicate = false;
+          if (t247Id) {
+            const existingById = await db.execute(sql`
+              SELECT id FROM tenders 
+              WHERE requirements::text LIKE ${'%"t247_id":"' + t247Id + '"%'}
+              LIMIT 1
+            `);
+            if (existingById.length > 0) {
+              isDuplicate = true;
+            }
+          }
+          
+          if (!isDuplicate) {
+            const existingByTitle = await db.execute(sql`
+              SELECT id FROM tenders 
+              WHERE title = ${title}
+              LIMIT 1
+            `);
+            if (existingByTitle.length > 0) {
+              isDuplicate = true;
+            }
+          }
+          
+          if (isDuplicate) {
             totalDuplicates++;
             continue;
           }
@@ -121,6 +142,31 @@ export async function processActiveTendersWithSubsheets(filePath: string, fileNa
           
           const referenceNo = columnMap.referenceNo >= 0 ? 
             (row[columnMap.referenceNo] || '').toString().trim() || null : null;
+          
+          // Determine source first
+          let source = 'non_gem';
+          if (organization.toLowerCase().includes('gem') || title.toLowerCase().includes('gem')) {
+            source = 'gem';
+          }
+          
+          // Extract hyperlinks from TENDER BRIEF
+          let tenderLink = null;
+          
+          // Look for common URL patterns in tender brief
+          const urlRegex = /(https?:\/\/[^\s]+)/gi;
+          const urlMatch = title.match(urlRegex);
+          if (urlMatch && urlMatch.length > 0) {
+            tenderLink = urlMatch[0];
+          }
+          
+          // If no direct URL, try to construct tender portal links
+          if (!tenderLink && referenceNo) {
+            if (source === 'gem') {
+              tenderLink = `https://gem.gov.in/tender/search?q=${encodeURIComponent(referenceNo)}`;
+            } else if (referenceNo.toLowerCase().includes('eprocure')) {
+              tenderLink = `https://eprocure.gov.in/eprocure/app?searchTender=${encodeURIComponent(referenceNo)}`;
+            }
+          }
           
           const department = columnMap.department >= 0 ? 
             (row[columnMap.department] || '').toString().trim() || null : null;
@@ -147,16 +193,7 @@ export async function processActiveTendersWithSubsheets(filePath: string, fileNa
             }
           }
           
-          // Determine source
-          let source = 'non_gem';
-          if (columnMap.source >= 0) {
-            const sourceStr = (row[columnMap.source] || '').toString().toLowerCase();
-            if (sourceStr.includes('gem') || sourceStr.includes('eprocure')) {
-              source = 'gem';
-            }
-          } else if (organization.toLowerCase().includes('gem') || title.toLowerCase().includes('gem')) {
-            source = 'gem';
-          }
+
           
           // Calculate basic AI score (can be enhanced later)
           let aiScore = 50; // Default score
@@ -174,18 +211,19 @@ export async function processActiveTendersWithSubsheets(filePath: string, fileNa
           await db.execute(sql`
             INSERT INTO tenders (
               title, organization, value, deadline, status, source, ai_score,
-              description, assigned_to, requirements
+              description, assigned_to, requirements, link
             )
             VALUES (
               ${title}, ${organization}, ${value}, ${deadline.toISOString()}, 'active', ${source}, ${aiScore},
               ${'Imported from ' + sheetName + ' - ' + fileName}, null,
-              ${JSON.stringify([{
+              ${JSON.stringify({
                 location: location,
                 reference: referenceNo,
                 department: department,
                 category: category,
-                sheet: sheetName
-              }])}
+                sheet: sheetName,
+                t247_id: t247Id
+              })}, ${tenderLink}
             )
           `);
           
@@ -196,7 +234,7 @@ export async function processActiveTendersWithSubsheets(filePath: string, fileNa
           }
           
         } catch (error) {
-          console.error(`Error processing row ${i} in sheet ${sheetName}:`, error);
+          console.error(`Error processing row ${i} in sheet ${sheetName}:`, (error as Error).message);
           totalErrors++;
         }
       }

@@ -27,6 +27,7 @@ export const tenders = pgTable("tenders", {
   documents: json("documents").default([]),
   bidContent: text("bid_content"),
   assignedTo: text("assigned_to"), // username or role of assigned bidder
+  link: text("link"), // URL to tender details
   submittedAt: timestamp("submitted_at"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),

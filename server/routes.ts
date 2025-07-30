@@ -41,8 +41,10 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
 
       res.json({
         message: "Tenders imported successfully",
-        tendersProcessed: result.tendersProcessed,
-        duplicatesSkipped: result.duplicatesSkipped,
+        tendersProcessed: result.tendersProcessed || 0,
+        duplicatesSkipped: result.duplicatesSkipped || 0,
+        sheetsProcessed: result.sheetsProcessed || 0,
+        errorsEncountered: result.errorsEncountered || 0
       });
     } catch (error) {
       console.error("Excel upload error:", error);
@@ -62,12 +64,43 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
     }
   });
 
-  // Tender Results Import Routes
+  // Upload tender results via Excel file  
+  app.post("/api/tender-results-imports", upload.single('file'), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+
+      const uploadedBy = req.body.uploadedBy || "admin"; 
+      console.log(`Processing tender results upload: ${req.file.originalname}`);
+
+      // Use enhanced results processor for multi-sheet support
+      const { processEnhancedTenderResults } = await import('./enhanced-results-processor.js');
+      const result = await processEnhancedTenderResults(req.file.path, req.file.originalname, uploadedBy);
+
+      if (!result.success) {
+        return res.status(500).json({ error: result.error || "Failed to process tender results Excel file" });
+      }
+
+      res.json({
+        message: "Tender results imported successfully",
+        resultsProcessed: result.resultsProcessed || 0,
+        duplicatesSkipped: result.duplicatesSkipped || 0,
+        sheetsProcessed: result.sheetsProcessed || 0,
+        appentusCount: result.appentusCount || 0
+      });
+    } catch (error) {
+      console.error("Tender results upload error:", error);
+      res.status(500).json({ error: "Failed to process tender results Excel file" });
+    }
+  });
+
+  // Get tender results imports history
   app.get("/api/tender-results-imports", async (req, res) => {
     try {
       // Query the database directly using raw SQL
       const result = await db.execute(sql`SELECT * FROM tender_results_imports ORDER BY uploaded_at DESC`);
-      res.json(result.rows || []);
+      res.json(result || []);
     } catch (error) {
       console.error("Tender results imports fetch error:", error);
       res.status(500).json({ error: "Failed to fetch tender results imports" });
