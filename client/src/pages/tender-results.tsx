@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { TableSkeleton, CardGridSkeleton } from "@/components/loading/ImportSkeleton";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -244,12 +245,27 @@ export default function TenderResultsPage() {
 
   if (resultsLoading || importsLoading) {
     return (
-      <div className="p-6">
-        <div className="animate-pulse space-y-4">
-          <div className="h-8 bg-gray-200 rounded w-1/4"></div>
-          <div className="grid grid-cols-1 gap-6">
-            <div className="h-96 bg-gray-200 rounded"></div>
+      <div className="p-6 space-y-6">
+        <div className="flex items-center justify-between">
+          <div className="space-y-2">
+            <div className="h-8 bg-gray-200 rounded w-64 animate-pulse"></div>
+            <div className="h-4 bg-gray-200 rounded w-96 animate-pulse"></div>
           </div>
+        </div>
+        
+        {/* Statistics Cards Skeleton */}
+        <CardGridSkeleton cards={5} />
+        
+        {/* Table Skeleton */}
+        <div className="space-y-4">
+          <div className="flex justify-between items-center">
+            <div className="h-6 bg-gray-200 rounded w-32 animate-pulse"></div>
+            <div className="flex gap-2">
+              <div className="h-9 bg-gray-200 rounded w-24 animate-pulse"></div>
+              <div className="h-9 bg-gray-200 rounded w-32 animate-pulse"></div>
+            </div>
+          </div>
+          <TableSkeleton rows={8} />
         </div>
       </div>
     );

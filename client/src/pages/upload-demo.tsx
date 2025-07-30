@@ -19,6 +19,8 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { formatDistanceToNow } from "date-fns";
 import { useUpload } from "@/contexts/UploadContext";
+import { ImportSkeleton, TableSkeleton } from "@/components/loading/ImportSkeleton";
+import DataImportLoader from "@/components/loading/DataImportLoader";
 
 interface UploadHistory {
   id: string;
@@ -162,20 +164,49 @@ export default function UploadDemoPage() {
                 
                 {/* Background Processing Status */}
                 {activeTasks.length > 0 && (
-                  <div className="space-y-2 max-w-md mx-auto">
+                  <div className="space-y-4 max-w-md mx-auto">
                     <div className="text-sm text-gray-600 text-center">
                       {activeTasks.length} file(s) processing in background
                     </div>
                     {activeTasks.map((task) => (
-                      <div key={task.id} className="bg-blue-50 p-3 rounded-md space-y-2">
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="font-medium">{task.fileName}</span>
-                          <Badge variant={task.status === 'completed' ? 'default' : task.status === 'failed' ? 'destructive' : 'secondary'}>
-                            {task.status}
-                          </Badge>
+                      <div key={task.id} className="space-y-3">
+                        <div className="bg-blue-50 p-3 rounded-md space-y-2">
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="font-medium">{task.fileName}</span>
+                            <Badge variant={task.status === 'completed' ? 'default' : task.status === 'failed' ? 'destructive' : 'secondary'}>
+                              {task.status}
+                            </Badge>
+                          </div>
+                          {task.status === 'processing' && (
+                            <Progress value={task.progress} className="h-2" />
+                          )}
                         </div>
-                        {task.status === 'processing' && (
-                          <Progress value={task.progress} className="h-2" />
+                        
+                        {/* Show detailed import loader when processing */}
+                        {(task.status === 'processing' || task.status === 'uploading') && (
+                          <DataImportLoader 
+                            stage={task.status === 'uploading' ? 'upload' : task.progress < 25 ? 'parse' : task.progress < 50 ? 'validate' : task.progress < 100 ? 'import' : 'complete'}
+                            fileName={task.fileName}
+                            progress={task.progress}
+                            message={task.status === 'uploading' ? 'Uploading file...' : `Processing ${task.type} data...`}
+                            stats={task.result ? {
+                              importedRecords: task.result.imported || task.result.tendersImported || task.result.resultsImported,
+                              duplicatesSkipped: task.result.duplicates || task.result.duplicatesSkipped,
+                            } : undefined}
+                          />
+                        )}
+                        
+                        {/* Show completion state */}
+                        {task.status === 'completed' && (
+                          <DataImportLoader 
+                            stage="complete"
+                            fileName={task.fileName}
+                            progress={100}
+                            stats={{
+                              importedRecords: task.result?.imported || task.result?.tendersImported || task.result?.resultsImported || 0,
+                              duplicatesSkipped: task.result?.duplicates || task.result?.duplicatesSkipped || 0,
+                            }}
+                          />
                         )}
                       </div>
                     ))}
