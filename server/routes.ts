@@ -6,7 +6,8 @@ const storage = new MemStorage();
 import { seedDatabase } from "./seed-database";
 import { openaiService } from "./services/openai";
 import { db } from "./db";
-import { tenderResults } from "@shared/schema";
+import { eq } from "drizzle-orm";
+import { tenderResults, enhancedTenderResults, tenderResultsImport } from "@shared/schema";
 import {
   insertTenderSchema,
   insertRecommendationSchema,
@@ -1275,7 +1276,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Tender Results Import Routes
   app.get("/api/tender-results-imports", async (req, res) => {
     try {
-      const imports = await storage.getTenderResultsImports();
+      const imports = await db.select().from(tenderResultsImport).orderBy(tenderResultsImport.uploadedAt);
       res.json(imports);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch tender results imports" });
@@ -1288,13 +1289,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "No file uploaded" });
       }
 
-      // Create import record
-      const importRecord = await storage.createTenderResultsImport({
+      // Create import record in database
+      const [importRecord] = await db.insert(tenderResultsImport).values({
         fileName: req.file.originalname,
         filePath: req.file.path,
         uploadedBy: req.body.uploadedBy || "admin",
         status: "processing",
-      });
+      }).returning();
 
       // Process Excel file for results
       try {
@@ -1413,8 +1414,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
               const marginalDifference = contractValue && estimatedValue ? contractValue - estimatedValue : null;
               const tenderStage = getField(['Tender Stage', 'Stage', 'Status', 'Phase']);
               const participatorBiddersStr = getField(['Participator Bidders', 'Bidders', 'Participants', 'Companies', 'Participator Bidders']);
-              const participatorBidders = participatorBiddersStr ? 
-                participatorBiddersStr.split(/[,;]/).map((b: string) => b.trim()).filter((b: string) => b) : [];
+              let participatorBidders: string[] = [];
+              
+              if (participatorBiddersStr) {
+                try {
+                  // Try to parse as JSON array first (if it's already formatted as JSON)
+                  if (participatorBiddersStr.trim().startsWith('[')) {
+                    participatorBidders = JSON.parse(participatorBiddersStr);
+                  } else {
+                    // Otherwise split by comma/semicolon
+                    participatorBidders = participatorBiddersStr.split(/[,;]/).map((b: string) => b.trim()).filter((b: string) => b);
+                  }
+                } catch (e) {
+                  // Fallback to simple split if JSON parsing fails
+                  participatorBidders = participatorBiddersStr.split(/[,;]/).map((b: string) => b.trim()).filter((b: string) => b);
+                }
+              }
               const resultDateStr = getField(['Result Date', 'Award Date', 'Date of Award', 'Contract Date', 'Last Updated on', 'End Submission date']);
               const resultDate = resultDateStr ? new Date(resultDateStr) : new Date();
               
@@ -1502,7 +1517,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 aiNotes += "Consider for future similar tenders.";
               }
               
-              await storage.createEnhancedTenderResult({
+              // Store directly in database instead of memory storage
+              await db.insert(enhancedTenderResults).values({
                 tenderTitle,
                 organization,
                 referenceNo,
@@ -1516,7 +1532,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 status,
                 awardedTo,
                 awardedValue,
-                participatorBidders: participatorBidders.length > 0 ? participatorBidders : null,
+                participatorBidders: participatorBidders.length > 0 ? JSON.stringify(participatorBidders) : null,
                 resultDate: resultDate instanceof Date && !isNaN(resultDate.getTime()) ? resultDate : new Date(),
                 assignedTo: isAppentusWinner || isAppentusParticipant ? "Appentus" : assignedTo,
                 reasonForLoss: isAppentusParticipant && !isAppentusWinner ? "Lost to competitor" : getField(['Reason', 'Comments', 'Remarks', 'Loss Reason']) || null,
@@ -1534,11 +1550,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         }
 
-        // Update import record
-        await storage.updateTenderResultsImport(importRecord.id, {
-          status: "completed",
-          resultsProcessed: totalResultsProcessed,
-        });
+        // Update import record in database
+        await db.update(tenderResultsImport)
+          .set({
+            status: "completed",
+            resultsProcessed: totalResultsProcessed,
+          })
+          .where(eq(tenderResultsImport.id, importRecord.id));
 
         // Send response immediately to avoid timeout
         res.json({
@@ -1549,10 +1567,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
 
       } catch (error: any) {
-        await storage.updateTenderResultsImport(importRecord.id, {
-          status: "failed",
-          errorLog: error.message,
-        });
+        await db.update(tenderResultsImport)
+          .set({
+            status: "failed",
+            errorLog: error.message,
+          })
+          .where(eq(tenderResultsImport.id, importRecord.id));
         
         res.status(500).json({ error: "Failed to process results file", details: error.message });
       }
@@ -1562,13 +1582,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Enhanced Tender Results Routes - Using storage method to get enhanced results
+  // Enhanced Tender Results Routes - Reading directly from database
   app.get("/api/enhanced-tender-results", async (req, res) => {
     try {
-      // Get enhanced tender results from storage
-      const results = await storage.getEnhancedTenderResults();
+      // Get enhanced tender results directly from database
+      const results = await db.select().from(enhancedTenderResults).orderBy(enhancedTenderResults.resultDate);
       
-      // Results are already in the correct format from storage
+      // Results are already in the correct format from database
       res.json(results);
     } catch (error: any) {
       console.error("Error fetching enhanced tender results:", error);

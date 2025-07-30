@@ -26,7 +26,6 @@ import {
 
 const navigation = [
   { name: "Dashboard", href: "/", icon: BarChart3 },
-  { name: "Excel Upload", href: "/upload-demo", icon: Upload },
   { name: "Active Tenders", href: "/active-tenders", icon: FileText },
   { name: "Tender Results", href: "/tender-results", icon: Trophy },
   { name: "Create Bid", href: "/create-bid", icon: Plus },

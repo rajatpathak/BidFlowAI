@@ -32,8 +32,14 @@ import {
   ExternalLink,
   Target,
   Clock,
-  CheckCircle
+  CheckCircle,
+  Upload,
+  FileSpreadsheet,
+  XCircle
 } from "lucide-react";
+import { queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
 
 type Tender = {
   id: string;
@@ -50,12 +56,29 @@ type Tender = {
   createdAt: string | null;
 };
 
+type TenderImport = {
+  id: string;
+  fileName: string;
+  filePath: string;
+  uploadedAt: Date | null;
+  uploadedBy: string | null;
+  tendersProcessed: number | null;
+  duplicatesSkipped: number | null;
+  status: string;
+  errorLog: string | null;
+};
+
 export default function ActiveTendersPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [locationFilter, setLocationFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
   const itemsPerPage = 20;
+
+  const { user } = useAuth();
+  const { toast } = useToast();
 
   const { data: tenders = [], isLoading } = useQuery<Tender[]>({
     queryKey: ["/api/tenders"],
