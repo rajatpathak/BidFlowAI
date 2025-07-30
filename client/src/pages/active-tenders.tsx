@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table,
@@ -78,6 +79,8 @@ export default function ActiveTendersPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadHistory, setUploadHistory] = useState<any[]>([]);
+  const [selectedTenders, setSelectedTenders] = useState<Set<string>>(new Set());
+  const [isDeleting, setIsDeleting] = useState(false);
   const itemsPerPage = 20;
 
   const { user } = useAuth();
@@ -256,6 +259,87 @@ export default function ActiveTendersPage() {
     }
   };
 
+  // Handle tender selection
+  const handleTenderSelect = (tenderId: string, checked: boolean) => {
+    const newSelected = new Set(selectedTenders);
+    if (checked) {
+      newSelected.add(tenderId);
+    } else {
+      newSelected.delete(tenderId);
+    }
+    setSelectedTenders(newSelected);
+  };
+
+  // Handle select all tenders
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      const allIds = new Set(paginatedTenders.map(t => t.id));
+      setSelectedTenders(allIds);
+    } else {
+      setSelectedTenders(new Set());
+    }
+  };
+
+  // Delete selected tenders
+  const handleDeleteSelected = async () => {
+    if (selectedTenders.size === 0) return;
+    
+    setIsDeleting(true);
+    try {
+      const deletePromises = Array.from(selectedTenders).map(id =>
+        fetch(`/api/tenders/${id}`, { method: 'DELETE' })
+      );
+      
+      await Promise.all(deletePromises);
+      
+      toast({
+        title: "Success",
+        description: `${selectedTenders.size} tenders deleted successfully`,
+      });
+      
+      // Refresh data and clear selection
+      queryClient.invalidateQueries({ queryKey: ["/api/tenders"] });
+      setSelectedTenders(new Set());
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to delete selected tenders",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  // Delete all tenders
+  const handleDeleteAll = async () => {
+    setIsDeleting(true);
+    try {
+      const response = await fetch('/api/tenders/delete-all', { method: 'DELETE' });
+      
+      if (!response.ok) {
+        throw new Error('Failed to delete all tenders');
+      }
+      
+      toast({
+        title: "Success",
+        description: "All tenders deleted successfully",
+      });
+      
+      // Refresh data and clear selection
+      queryClient.invalidateQueries({ queryKey: ["/api/tenders"] });
+      setSelectedTenders(new Set());
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to delete all tenders",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="p-6 space-y-6">
@@ -408,21 +492,95 @@ export default function ActiveTendersPage() {
 
             <div className="space-y-2">
               <Label className="invisible">Actions</Label>
-              <Button 
-                variant="outline" 
-                onClick={() => {
-                  setSearchQuery("");
-                  setLocationFilter("all");
-                  setStatusFilter("all");
-                }}
-                className="w-full"
-              >
-                Clear Filters
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={handleDeleteAll}
+                  disabled={isDeleting || tenders.length === 0}
+                >
+                  {isDeleting ? (
+                    <>
+                      <Clock className="h-4 w-4 mr-2 animate-spin" />
+                      Deleting...
+                    </>
+                  ) : (
+                    <>
+                      <XCircle className="h-4 w-4 mr-2" />
+                      Delete All
+                    </>
+                  )}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleDeleteSelected}
+                  disabled={isDeleting || selectedTenders.size === 0}
+                >
+                  {isDeleting ? (
+                    <>
+                      <Clock className="h-4 w-4 mr-2 animate-spin" />
+                      Deleting...
+                    </>
+                  ) : (
+                    <>
+                      <XCircle className="h-4 w-4 mr-2" />
+                      Delete Selected ({selectedTenders.size})
+                    </>
+                  )}
+                </Button>
+              </div>
             </div>
           </div>
+
+          {selectedTenders.size > 0 && (
+            <div className="flex items-center gap-2 p-3 bg-blue-50 rounded-lg">
+              <CheckCircle className="h-4 w-4 text-blue-600" />
+              <span className="text-sm text-blue-800">
+                {selectedTenders.size} tender{selectedTenders.size !== 1 ? 's' : ''} selected
+              </span>
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => setSelectedTenders(new Set())}
+              >
+                Clear Selection
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
+
+      {/* Selection Actions */}
+      {selectedTenders.size > 0 && (
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-gray-600">
+                {selectedTenders.size} tender{selectedTenders.size !== 1 ? 's' : ''} selected
+              </span>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={handleDeleteSelected}
+                disabled={isDeleting}
+              >
+                {isDeleting ? (
+                  <>
+                    <Clock className="h-4 w-4 mr-2 animate-spin" />
+                    Deleting...
+                  </>
+                ) : (
+                  <>
+                    <XCircle className="h-4 w-4 mr-2" />
+                    Delete Selected
+                  </>
+                )}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Tenders Table */}
       <Card>
@@ -446,6 +604,12 @@ export default function ActiveTendersPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-12">
+                      <Checkbox
+                        checked={selectedTenders.size === paginatedTenders.length && paginatedTenders.length > 0}
+                        onCheckedChange={handleSelectAll}
+                      />
+                    </TableHead>
                     <TableHead>Tender Details</TableHead>
                     <TableHead>Organization</TableHead>
                     <TableHead>Value</TableHead>
@@ -458,6 +622,12 @@ export default function ActiveTendersPage() {
                 <TableBody>
                   {paginatedTenders.map((tender) => (
                     <TableRow key={tender.id}>
+                      <TableCell>
+                        <Checkbox
+                          checked={selectedTenders.has(tender.id)}
+                          onCheckedChange={(checked) => handleTenderSelect(tender.id, checked as boolean)}
+                        />
+                      </TableCell>
                       <TableCell>
                         <div className="space-y-1">
                           <div className="font-medium">{tender.title}</div>

@@ -550,6 +550,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Delete all tenders (must come before :id route)
+  app.delete("/api/tenders/delete-all", async (req, res) => {
+    try {
+      await db.delete(tenders);
+      res.json({ message: "All tenders deleted successfully" });
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to delete all tenders", details: error.message });
+    }
+  });
+
+  // Delete individual tender
+  app.delete("/api/tenders/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      await db.delete(tenders).where(eq(tenders.id, id));
+      res.json({ message: "Tender deleted successfully" });
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to delete tender", details: error.message });
+    }
+  });
+
   // Get tender by ID
   app.get("/api/tenders/:id", async (req, res) => {
     try {
@@ -1668,6 +1689,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Enhanced Tender Results Routes - Reading directly from database
+  // Delete all tender results (must come before :id route) 
+  app.delete("/api/enhanced-tender-results/delete-all", async (req, res) => {
+    try {
+      await db.delete(enhancedTenderResults);
+      res.json({ message: "All tender results deleted successfully" });
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to delete all tender results", details: error.message });
+    }
+  });
+
+  // Delete individual tender result
+  app.delete("/api/enhanced-tender-results/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      await db.delete(enhancedTenderResults).where(eq(enhancedTenderResults.id, id));
+      res.json({ message: "Tender result deleted successfully" });
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to delete tender result", details: error.message });
+    }
+  });
+
   app.get("/api/enhanced-tender-results", async (req, res) => {
     try {
       // Get enhanced tender results directly from database

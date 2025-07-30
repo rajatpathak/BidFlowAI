@@ -38,6 +38,7 @@ import {
 } from "lucide-react";
 import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { Checkbox } from "@/components/ui/checkbox";
 
 type EnhancedTenderResult = {
   id: string;
@@ -83,6 +84,8 @@ export default function TenderResultsPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
+  const [selectedResults, setSelectedResults] = useState<Set<string>>(new Set());
+  const [isDeleting, setIsDeleting] = useState(false);
   const itemsPerPage = 50;
   const { toast } = useToast();
 
@@ -169,6 +172,87 @@ export default function TenderResultsPage() {
       currency: 'INR',
       minimumFractionDigits: 0,
     }).format(amount / 100);
+  };
+
+  // Handle result selection
+  const handleResultSelect = (resultId: string, checked: boolean) => {
+    const newSelected = new Set(selectedResults);
+    if (checked) {
+      newSelected.add(resultId);
+    } else {
+      newSelected.delete(resultId);
+    }
+    setSelectedResults(newSelected);
+  };
+
+  // Handle select all results
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      const allIds = new Set(paginatedResults.map(r => r.id));
+      setSelectedResults(allIds);
+    } else {
+      setSelectedResults(new Set());
+    }
+  };
+
+  // Delete selected results
+  const handleDeleteSelected = async () => {
+    if (selectedResults.size === 0) return;
+    
+    setIsDeleting(true);
+    try {
+      const deletePromises = Array.from(selectedResults).map(id =>
+        fetch(`/api/enhanced-tender-results/${id}`, { method: 'DELETE' })
+      );
+      
+      await Promise.all(deletePromises);
+      
+      toast({
+        title: "Success",
+        description: `${selectedResults.size} results deleted successfully`,
+      });
+      
+      // Refresh data and clear selection
+      queryClient.invalidateQueries({ queryKey: ["/api/enhanced-tender-results"] });
+      setSelectedResults(new Set());
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to delete selected results",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  // Delete all results
+  const handleDeleteAll = async () => {
+    setIsDeleting(true);
+    try {
+      const response = await fetch('/api/enhanced-tender-results/delete-all', { method: 'DELETE' });
+      
+      if (!response.ok) {
+        throw new Error('Failed to delete all results');
+      }
+      
+      toast({
+        title: "Success",
+        description: "All tender results deleted successfully",
+      });
+      
+      // Refresh data and clear selection
+      queryClient.invalidateQueries({ queryKey: ["/api/enhanced-tender-results"] });
+      setSelectedResults(new Set());
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to delete all results",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   const filteredResults = results
@@ -385,7 +469,62 @@ export default function TenderResultsPage() {
                     </SelectContent>
                   </Select>
                 </div>
+                
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={handleDeleteAll}
+                    disabled={isDeleting || results.length === 0}
+                  >
+                    {isDeleting ? (
+                      <>
+                        <Clock className="h-4 w-4 mr-2 animate-spin" />
+                        Deleting...
+                      </>
+                    ) : (
+                      <>
+                        <XCircle className="h-4 w-4 mr-2" />
+                        Delete All
+                      </>
+                    )}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleDeleteSelected}
+                    disabled={isDeleting || selectedResults.size === 0}
+                  >
+                    {isDeleting ? (
+                      <>
+                        <Clock className="h-4 w-4 mr-2 animate-spin" />
+                        Deleting...
+                      </>
+                    ) : (
+                      <>
+                        <XCircle className="h-4 w-4 mr-2" />
+                        Delete Selected ({selectedResults.size})
+                      </>
+                    )}
+                  </Button>
+                </div>
               </div>
+              
+              {selectedResults.size > 0 && (
+                <div className="mt-3 flex items-center gap-2 p-3 bg-blue-50 rounded-lg">
+                  <CheckCircle className="h-4 w-4 text-blue-600" />
+                  <span className="text-sm text-blue-800">
+                    {selectedResults.size} result{selectedResults.size !== 1 ? 's' : ''} selected
+                  </span>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => setSelectedResults(new Set())}
+                  >
+                    Clear Selection
+                  </Button>
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -402,6 +541,12 @@ export default function TenderResultsPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead className="w-12">
+                        <Checkbox
+                          checked={selectedResults.size === paginatedResults.length && paginatedResults.length > 0}
+                          onCheckedChange={handleSelectAll}
+                        />
+                      </TableHead>
                       <TableHead>Tender Reference No</TableHead>
                       <TableHead>Location</TableHead>
                       <TableHead>Department</TableHead>
@@ -418,6 +563,12 @@ export default function TenderResultsPage() {
                   <TableBody>
                     {paginatedResults.map((result) => (
                       <TableRow key={result.id}>
+                        <TableCell>
+                          <Checkbox
+                            checked={selectedResults.has(result.id)}
+                            onCheckedChange={(checked) => handleResultSelect(result.id, checked as boolean)}
+                          />
+                        </TableCell>
                         {/* Tender Reference No */}
                         <TableCell>
                           {result.referenceNo ? (
