@@ -696,6 +696,139 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
     }
   });
 
+  // Tender Assignment API Routes
+
+  // Assign tender to bidder
+  app.post("/api/tenders/:id/assign", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { bidderId, priority, budget, assignedBy } = req.body;
+
+      // Create tender assignment record
+      const [assignment] = await db.insert(tenderAssignments).values({
+        tenderId: id,
+        userId: bidderId,
+        priority: priority || 'medium',
+        budget: budget || null, // Budget can be blank initially
+        assignedBy,
+        status: 'assigned'
+      }).returning();
+
+      // Update tender status and assigned_to field
+      await db.update(tenders)
+        .set({ 
+          status: 'assigned',
+          assignedTo: bidderId
+        })
+        .where(eq(tenders.id, id));
+
+      // Get bidder details for response
+      const [bidder] = await db.select().from(users).where(eq(users.id, bidderId));
+
+      res.json({
+        success: true,
+        message: `Tender assigned to ${bidder.name}`,
+        assignment,
+        bidderName: bidder.name
+      });
+    } catch (error) {
+      console.error("Error assigning tender:", error);
+      res.status(500).json({ error: "Failed to assign tender" });
+    }
+  });
+
+  // Get assignments for a specific tender
+  app.get("/api/tenders/:id/assignments", async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      const assignments = await db.execute(sql`
+        SELECT ta.*, u.name as bidder_name, u.email as bidder_email
+        FROM tender_assignments ta
+        LEFT JOIN users u ON ta.user_id = u.id
+        WHERE ta.tender_id = ${id}
+        ORDER BY ta.created_at DESC
+      `);
+      
+      res.json(assignments);
+    } catch (error) {
+      console.error("Error fetching tender assignments:", error);
+      res.status(500).json({ error: "Failed to fetch assignments" });
+    }
+  });
+
+  // Get assigned tenders for a specific bidder
+  app.get("/api/users/:userId/assigned-tenders", async (req, res) => {
+    try {
+      const { userId } = req.params;
+      
+      const assignedTenders = await db.execute(sql`
+        SELECT t.*, ta.priority, ta.budget, ta.status as assignment_status, ta.created_at as assigned_at
+        FROM tenders t
+        LEFT JOIN tender_assignments ta ON t.id = ta.tender_id
+        WHERE ta.user_id = ${userId}
+        ORDER BY ta.created_at DESC
+      `);
+      
+      res.json(assignedTenders);
+    } catch (error) {
+      console.error("Error fetching assigned tenders:", error);
+      res.status(500).json({ error: "Failed to fetch assigned tenders" });
+    }
+  });
+
+  // Update assignment priority and budget
+  app.put("/api/assignments/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { priority, budget, status } = req.body;
+      
+      const [updatedAssignment] = await db.update(tenderAssignments)
+        .set({ priority, budget, status })
+        .where(eq(tenderAssignments.id, id))
+        .returning();
+      
+      if (!updatedAssignment) {
+        return res.status(404).json({ error: "Assignment not found" });
+      }
+      
+      res.json(updatedAssignment);
+    } catch (error) {
+      console.error("Error updating assignment:", error);
+      res.status(500).json({ error: "Failed to update assignment" });
+    }
+  });
+
+  // Remove tender assignment
+  app.delete("/api/assignments/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      // Get assignment details before deleting
+      const [assignment] = await db.select().from(tenderAssignments).where(eq(tenderAssignments.id, id));
+      
+      if (!assignment) {
+        return res.status(404).json({ error: "Assignment not found" });
+      }
+
+      // Delete the assignment
+      await db.delete(tenderAssignments).where(eq(tenderAssignments.id, id));
+      
+      // Update tender status back to active and remove assignedTo
+      await db.update(tenders)
+        .set({ 
+          status: 'active',
+          assignedTo: null
+        })
+        .where(eq(tenders.id, assignment.tenderId));
+      
+      res.json({ success: true, message: "Assignment removed successfully" });
+    } catch (error) {
+      console.error("Error removing assignment:", error);
+      res.status(500).json({ error: "Failed to remove assignment" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

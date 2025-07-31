@@ -19,6 +19,7 @@ import {
   Eye,
   Trash2,
 } from "lucide-react";
+import { TenderAssignmentDialog } from "../tender-assignment-dialog";
 
 interface Tender {
   id: string;
@@ -47,7 +48,7 @@ interface TenderTableProps {
   setCurrentPage: (page: number) => void;
   selectedTenders: Set<string>;
   setSelectedTenders: (tenders: Set<string>) => void;
-  openAssignDialog: (tenderId: string) => void;
+
   onMarkNotRelevant?: (tenderId: string) => void;
   onDelete?: (tenderId: string) => void;
   onSelectAll?: (tenders: Tender[]) => void;
@@ -67,7 +68,7 @@ export function TenderTable({
   setCurrentPage,
   selectedTenders,
   setSelectedTenders,
-  openAssignDialog,
+
   onMarkNotRelevant,
   onDelete,
   onSelectAll,
@@ -324,31 +325,25 @@ export function TenderTable({
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <Badge variant="outline">
-                        {tender.status || 'Active'}
+                      <Badge variant={tender.assignedTo ? "default" : "outline"}>
+                        {tender.assignedTo ? `Assigned to ${tender.assignedTo}` : (tender.status || 'Active')}
                       </Badge>
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1">
                         {user?.role === 'admin' && (
-                          <Button 
-                            size="sm" 
-                            variant="outline"
-                            onClick={() => openAssignDialog(tender.id)}
-                            disabled={tender.assignedTo ? true : false}
-                          >
-                            {tender.assignedTo ? (
-                              <>
-                                <Users className="h-3 w-3 mr-1" />
-                                Assigned
-                              </>
-                            ) : (
-                              <>
-                                <UserPlus className="h-3 w-3 mr-1" />
-                                Assign
-                              </>
-                            )}
-                          </Button>
+                          <TenderAssignmentDialog
+                            tenderId={tender.id}
+                            tenderTitle={tender.title}
+                            currentAssignment={tender.assignedTo ? {
+                              bidderName: tender.assignedTo,
+                              priority: 'medium' // Default value, would need to fetch from assignments
+                            } : undefined}
+                            onAssignmentChange={() => {
+                              // Refresh tenders after assignment
+                              window.location.reload();
+                            }}
+                          />
                         )}
                         <Button 
                           size="sm" 

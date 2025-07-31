@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TenderTable } from "@/components/tenders/tender-table";
+import { TenderAssignmentDialog } from "@/components/tender-assignment-dialog";
 import { FileSpreadsheet, FileText, Target, Building2, DollarSign } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -307,13 +308,7 @@ export default function ActiveTendersPage() {
   const { tendersList: paginatedGemTenders, totalPages: gemTotalPages } = getPaginatedTenders(gemTenders);
   const { tendersList: paginatedNonGemTenders, totalPages: nonGemTotalPages } = getPaginatedTenders(nonGemTenders);
 
-  // Assignment dialog handler
-  const openAssignDialog = (tenderId: string) => {
-    toast({
-      title: "Assignment Feature",
-      description: "Assignment functionality will be implemented soon.",
-    });
-  };
+  // Assignment functionality now handled by TenderAssignmentDialog component
 
   // State for Not Relevant dialog
   const [selectedTenderId, setSelectedTenderId] = useState<string | null>(null);
@@ -715,7 +710,6 @@ export default function ActiveTendersPage() {
               setCurrentPage={setCurrentPage}
               selectedTenders={selectedTenders}
               setSelectedTenders={setSelectedTenders}
-              openAssignDialog={openAssignDialog}
               onMarkNotRelevant={handleMarkNotRelevant}
               onDelete={handleDelete}
               onSelectAll={handleSelectAll}
@@ -737,7 +731,6 @@ export default function ActiveTendersPage() {
               setCurrentPage={setCurrentPage}
               selectedTenders={selectedTenders}
               setSelectedTenders={setSelectedTenders}
-              openAssignDialog={openAssignDialog}
               onMarkNotRelevant={handleMarkNotRelevant}
               onDelete={handleDelete}
               onSelectAll={handleSelectAll}
