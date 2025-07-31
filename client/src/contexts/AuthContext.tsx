@@ -17,6 +17,8 @@ interface AuthContextType {
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
   isAuthenticated: boolean;
+  hasPermission: (permission: string) => boolean;
+  hasRole: (role: string) => boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -140,6 +142,37 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   };
 
+  const hasPermission = (permission: string): boolean => {
+    if (!user) return false;
+    
+    // Admin has all permissions
+    if (user.role === 'admin') return true;
+    
+    // Check role-based permissions
+    const rolePermissions: Record<string, string[]> = {
+      admin: ['*'], // All permissions
+      finance_manager: [
+        'view_finance', 'manage_finance', 'approve_requests', 
+        'view_reports', 'manage_budgets', 'view_tenders'
+      ],
+      senior_bidder: [
+        'create_bids', 'view_tenders', 'manage_tenders', 
+        'upload_documents', 'use_ai_insights', 'view_assignments'
+      ],
+      bidder: [
+        'create_bids', 'view_tenders', 'manage_tenders', 
+        'upload_documents', 'use_ai_insights', 'view_assignments'
+      ]
+    };
+
+    const permissions = rolePermissions[user.role] || [];
+    return permissions.includes('*') || permissions.includes(permission);
+  };
+
+  const hasRole = (role: string): boolean => {
+    return user?.role === role;
+  };
+
   useEffect(() => {
     refreshUser();
   }, []);
@@ -151,6 +184,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
     logout,
     refreshUser,
     isAuthenticated: !!user,
+    hasPermission,
+    hasRole,
   };
 
   return (
