@@ -361,6 +361,11 @@ Project Architecture: Separated frontend (React.js) and backend (Node.js) with M
   - Demo credentials: admin/admin123, senior_bidder/bidder123, finance_manager/finance123
   - Token-based session management with automatic refresh and logout functionality
   - **Fixed Login Issue**: Corrected username mapping to match database users (July 31, 2025)
+- **Tender Assignment System**: Fully functional tender assignment with role-based access control
+  - Fixed field mapping issue between frontend (`bidderId`) and backend (`assignedTo`)
+  - Assignment dialog with bidder selection, priority setting, budget allocation
+  - Real-time status updates and activity logging with proper username resolution
+  - **Confirmed Working**: Senior bidder can successfully receive assignments and access "Start Preparing"/"Not Relevant" features
 - **Enhanced Error Handling**: Comprehensive error boundaries and loading states throughout the application
   - ErrorBoundary component with development stack traces and user-friendly error messages
   - LoadingSpinner variants (PageLoader, CardLoader, TableLoader) for different contexts
