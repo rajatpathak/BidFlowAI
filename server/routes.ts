@@ -259,21 +259,34 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
     }
   });
 
-  // Get all tenders with optional missed opportunities
+  // Get all tenders with optional missed opportunities and assigned user names
   app.get("/api/tenders", async (req, res) => {
     try {
       const { includeMissedOpportunities } = req.query;
       
-      // By default, exclude missed opportunities unless explicitly requested
-      let query = db.select().from(tenders);
+      // Join with users table to get assigned user names
+      let query = sql`
+        SELECT t.*, u.name as assigned_to_name 
+        FROM tenders t 
+        LEFT JOIN users u ON t.assigned_to = u.id
+      `;
       
       if (includeMissedOpportunities !== 'true') {
-        query = query.where(sql`status != 'missed_opportunity'`);
+        query = sql`${query} WHERE t.status != 'missed_opportunity'`;
       }
       
-      const allTenders = await query.orderBy(tenders.deadline);
-      res.json(allTenders);
+      query = sql`${query} ORDER BY t.deadline`;
+      
+      const result = await db.execute(query);
+      const tendersWithNames = result.rows.map(row => ({
+        ...row,
+        requirements: typeof row.requirements === 'string' ? JSON.parse(row.requirements) : row.requirements,
+        assignedToName: row.assigned_to_name // Add username for display
+      }));
+      
+      res.json(tendersWithNames);
     } catch (error) {
+      console.error("Tenders fetch error:", error);
       res.status(500).json({ error: "Failed to fetch tenders" });
     }
   });
@@ -718,6 +731,17 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
         WHERE id = ${id}
       `);
 
+      // Add activity log with username
+      const assignerResult = await db.execute(sql`SELECT name FROM users WHERE id = ${assignedBy}`);
+      const assignerName = assignerResult.rows[0]?.name || 'Unknown User';
+      
+      await db.execute(sql`
+        INSERT INTO activity_logs (id, tender_id, activity_type, description, created_by, created_at)
+        VALUES (gen_random_uuid(), ${id}, 'tender_assigned', 
+                ${'Tender assigned to ' + bidderName + ' with priority: ' + priority}, 
+                ${assignerName}, NOW())
+      `);
+
       // Get bidder details for response
       const bidderResult = await db.execute(sql`SELECT name FROM users WHERE id = ${bidderId}`);
       const bidderName = bidderResult.rows[0]?.name || 'Unknown User';
@@ -823,6 +847,57 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
     } catch (error) {
       console.error("Error removing assignment:", error);
       res.status(500).json({ error: "Failed to remove assignment" });
+    }
+  });
+
+  // Get activity logs for a specific tender
+  app.get("/api/tenders/:id/activity-logs", async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      const result = await db.execute(sql`
+        SELECT al.*, u.name as created_by_name 
+        FROM activity_logs al
+        LEFT JOIN users u ON al.created_by = u.name OR al.created_by = u.id
+        WHERE al.tender_id = ${id}
+        ORDER BY al.created_at DESC
+      `);
+      
+      res.json(result.rows || []);
+    } catch (error) {
+      console.error("Activity logs fetch error:", error);
+      res.status(500).json({ error: "Failed to fetch activity logs" });
+    }
+  });
+
+  // Get single tender with details
+  app.get("/api/tenders/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      const result = await db.execute(sql`
+        SELECT t.*, u.name as assigned_to_name 
+        FROM tenders t 
+        LEFT JOIN users u ON t.assigned_to = u.id
+        WHERE t.id = ${id}
+      `);
+      
+      if (result.rows.length === 0) {
+        return res.status(404).json({ error: "Tender not found" });
+      }
+      
+      const tender = {
+        ...result.rows[0],
+        requirements: typeof result.rows[0].requirements === 'string' 
+          ? JSON.parse(result.rows[0].requirements) 
+          : result.rows[0].requirements,
+        assignedToName: result.rows[0].assigned_to_name
+      };
+      
+      res.json(tender);
+    } catch (error) {
+      console.error("Single tender fetch error:", error);
+      res.status(500).json({ error: "Failed to fetch tender" });
     }
   });
 

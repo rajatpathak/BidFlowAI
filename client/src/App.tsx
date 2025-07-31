@@ -16,6 +16,7 @@ import AdminSettings from "@/pages/admin-settings";
 import ActiveTenders from "@/pages/active-tenders-new";
 import TenderResults from "@/pages/tender-results";
 import TenderDetail from "@/pages/tender-detail-enhanced";
+import TenderDetailPage from "@/pages/tender-detail";
 import MissedOpportunities from "@/pages/missed-opportunities";
 import AssignedTenders from "@/pages/assigned-tenders";
 import UploadDemo from "@/pages/upload-demo";

@@ -326,7 +326,7 @@ export function TenderTable({
                     </TableCell>
                     <TableCell>
                       <Badge variant={tender.assignedTo ? "default" : "outline"}>
-                        {tender.assignedTo ? `Assigned to ${tender.assignedTo}` : (tender.status || 'Active')}
+                        {tender.assignedTo ? `Assigned to ${(tender as any).assignedToName || tender.assignedTo}` : (tender.status || 'Active')}
                       </Badge>
                     </TableCell>
                     <TableCell>
