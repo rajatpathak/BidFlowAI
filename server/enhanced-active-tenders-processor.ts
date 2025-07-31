@@ -157,14 +157,26 @@ export async function processActiveTendersWithSubsheets(filePath: string, fileNa
             source = 'gem';
           }
           
-          // Extract hyperlinks from TENDER BRIEF
+          // Extract hyperlinks from TENDER BRIEF column
           let tenderLink = null;
           
-          // Look for common URL patterns in tender brief
-          const urlRegex = /(https?:\/\/[^\s]+)/gi;
-          const urlMatch = title.match(urlRegex);
-          if (urlMatch && urlMatch.length > 0) {
-            tenderLink = urlMatch[0];
+          // For Excel hyperlinks, check if the cell has hyperlink data
+          try {
+            const cellAddress = worksheet.getCell(i + 1, columnMap.title + 1);
+            if (cellAddress && cellAddress.hyperlink && cellAddress.hyperlink.hyperlink) {
+              tenderLink = cellAddress.hyperlink.hyperlink;
+            }
+          } catch (error) {
+            // Continue with text-based URL extraction
+          }
+          
+          // If no hyperlink, look for URL patterns in the title text
+          if (!tenderLink) {
+            const urlRegex = /(https?:\/\/[^\s\)]+)/gi;
+            const urlMatch = title.match(urlRegex);
+            if (urlMatch && urlMatch.length > 0) {
+              tenderLink = urlMatch[0];
+            }
           }
           
           // If no direct URL, try to construct tender portal links
@@ -188,6 +200,19 @@ export async function processActiveTendersWithSubsheets(filePath: string, fileNa
           // Extract turnover requirement
           const turnover = columnMap.turnover >= 0 ? 
             (row[columnMap.turnover] || '').toString().trim() || null : null;
+          
+          // Extract additional GeM fields
+          const msmeExemption = headers.findIndex(h => h && h.toLowerCase().includes('msme exemption')) >= 0 ?
+            (row[headers.findIndex(h => h && h.toLowerCase().includes('msme exemption'))] || '').toString().trim() || null : null;
+            
+          const startupExemption = headers.findIndex(h => h && h.toLowerCase().includes('startup exemption')) >= 0 ?
+            (row[headers.findIndex(h => h && h.toLowerCase().includes('startup exemption'))] || '').toString().trim() || null : null;
+            
+          const eligibilityCriteria = headers.findIndex(h => h && h.toLowerCase().includes('eligibility criteria')) >= 0 ?
+            (row[headers.findIndex(h => h && h.toLowerCase().includes('eligibility criteria'))] || '').toString().trim() || null : null;
+            
+          const checklist = headers.findIndex(h => h && h.toLowerCase().includes('checklist')) >= 0 ?
+            (row[headers.findIndex(h => h && h.toLowerCase().includes('checklist'))] || '').toString().trim() || null : null;
           
           // Parse tender value
           const valueStr = columnMap.value >= 0 ? 
@@ -248,7 +273,11 @@ export async function processActiveTendersWithSubsheets(filePath: string, fileNa
                 category: category,
                 sheet: sheetName,
                 t247_id: t247Id,
-                turnover: turnover
+                turnover: turnover,
+                msmeExemption: msmeExemption,
+                startupExemption: startupExemption,
+                eligibilityCriteria: eligibilityCriteria,
+                checklist: checklist
               }])}, ${tenderLink || null}
             )
           `);

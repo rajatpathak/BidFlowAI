@@ -43,6 +43,7 @@ import {
   Users
 } from "lucide-react";
 import { queryClient } from "@/lib/queryClient";
+import { TenderTable } from "@/components/tenders/tender-table";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -105,35 +106,50 @@ export default function ActiveTendersPage() {
     queryKey: ["/api/tender-imports"],
   });
 
-  // Filter tenders
-  const filteredTenders = tenders.filter(tender => {
-    // Search filter
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      const matchesSearch = (
-        tender.title.toLowerCase().includes(query) ||
-        tender.organization.toLowerCase().includes(query) ||
-        (tender.location && tender.location.toLowerCase().includes(query)) ||
-        (tender.referenceNo && tender.referenceNo.toLowerCase().includes(query))
-      );
-      if (!matchesSearch) return false;
-    }
+  // Filter tenders by source and other criteria
+  const getFilteredTenders = (source: string) => {
+    return tenders.filter(tender => {
+      // Source filter
+      if (source === 'gem' && tender.source !== 'gem') return false;
+      if (source === 'non_gem' && tender.source !== 'non_gem') return false;
+      
+      // Search filter
+      if (searchQuery) {
+        const query = searchQuery.toLowerCase();
+        const matchesSearch = (
+          tender.title.toLowerCase().includes(query) ||
+          tender.organization.toLowerCase().includes(query) ||
+          (tender.location && tender.location.toLowerCase().includes(query)) ||
+          (tender.requirements?.[0]?.reference && tender.requirements[0].reference.toLowerCase().includes(query))
+        );
+        if (!matchesSearch) return false;
+      }
 
-    // Location filter
-    if (locationFilter !== "all" && tender.location !== locationFilter) return false;
+      // Location filter
+      if (locationFilter !== "all" && tender.location !== locationFilter) return false;
 
-    // Status filter
-    if (statusFilter !== "all" && tender.status !== statusFilter) return false;
+      // Status filter
+      if (statusFilter !== "all" && tender.status !== statusFilter) return false;
 
-    return true;
-  });
+      return true;
+    });
+  };
 
-  // Pagination
-  const totalPages = Math.ceil(filteredTenders.length / itemsPerPage);
-  const paginatedTenders = filteredTenders.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
+  const gemTenders = getFilteredTenders('gem');
+  const nonGemTenders = getFilteredTenders('non_gem');
+
+  // Pagination for each source
+  const getPaginatedTenders = (tendersList: typeof tenders) => {
+    const totalPages = Math.ceil(tendersList.length / itemsPerPage);
+    const paginatedTenders = tendersList.slice(
+      (currentPage - 1) * itemsPerPage,
+      currentPage * itemsPerPage
+    );
+    return { tendersList: paginatedTenders, totalPages };
+  };
+
+  const { tendersList: paginatedGemTenders, totalPages: gemTotalPages } = getPaginatedTenders(gemTenders);
+  const { tendersList: paginatedNonGemTenders, totalPages: nonGemTotalPages } = getPaginatedTenders(nonGemTenders);
 
   // Get unique locations for filter
   const locations = Array.from(new Set(tenders.map(t => t.location).filter(Boolean)));
@@ -449,14 +465,15 @@ export default function ActiveTendersPage() {
         </div>
       </div>
 
-      <Tabs defaultValue="active-tenders" className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="active-tenders">Active Tenders</TabsTrigger>
+      <Tabs defaultValue="gem-tenders" className="w-full">
+        <TabsList className="grid w-full grid-cols-4">
+          <TabsTrigger value="gem-tenders">GeM Tenders</TabsTrigger>
+          <TabsTrigger value="non-gem-tenders">Non-GeM Tenders</TabsTrigger>
           <TabsTrigger value="upload-tenders">Upload Tenders</TabsTrigger>
           <TabsTrigger value="upload-history">Upload History</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="active-tenders" className="space-y-6">{/* Active Tenders Content */}
+        <TabsContent value="gem-tenders" className="space-y-6">{/* GeM Tenders Content */}
 
       {/* Statistics Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -654,17 +671,18 @@ export default function ActiveTendersPage() {
         </Card>
       )}
 
-      {/* Tenders Table */}
-      <Card>
-        <CardHeader>
-          <div className="flex justify-between items-center">
-            <CardTitle>Active Tenders ({filteredTenders.length})</CardTitle>
-            <div className="text-sm text-gray-500">
-              Page {currentPage} of {totalPages}
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent>
+      {/* GeM Tenders Table */}
+      <TenderTable
+        tenders={paginatedGemTenders}
+        totalPages={gemTotalPages}
+        currentPage={currentPage}
+        setCurrentPage={setCurrentPage}
+        selectedTenders={selectedTenders}
+        setSelectedTenders={setSelectedTenders}
+        openAssignDialog={openAssignDialog}
+        user={user}
+        source="gem"
+      />
           {paginatedTenders.length === 0 ? (
             <div className="text-center py-8">
               <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
@@ -802,10 +820,7 @@ export default function ActiveTendersPage() {
                           <Button 
                             size="sm" 
                             variant="outline"
-                            onClick={() => {
-                              setSelectedTender(tender);
-                              setDetailModalOpen(true);
-                            }}
+                            onClick={() => window.location.href = `/tender/${tender.id}`}
                           >
                             View Details
                           </Button>

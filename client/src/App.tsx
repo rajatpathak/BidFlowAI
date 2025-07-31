@@ -13,8 +13,9 @@ import Finance from "@/pages/finance";
 import Meetings from "@/pages/meetings";
 import UserManagement from "@/pages/user-management";
 import AdminSettings from "@/pages/admin-settings";
-import ActiveTenders from "@/pages/active-tenders";
+import ActiveTenders from "@/pages/active-tenders-new";
 import TenderResults from "@/pages/tender-results";
+import TenderDetail from "@/pages/tender-detail";
 import AssignedTenders from "@/pages/assigned-tenders";
 import UploadDemo from "@/pages/upload-demo";
 import Login from "@/pages/login";
@@ -58,6 +59,7 @@ function Router() {
               <Route path="/" component={() => <ProtectedRoute><Dashboard /></ProtectedRoute>} />
               <Route path="/dashboard" component={() => <ProtectedRoute><Dashboard /></ProtectedRoute>} />
               <Route path="/active-tenders" component={() => <ProtectedRoute requiredPermission="view_tenders"><ActiveTenders /></ProtectedRoute>} />
+              <Route path="/tender/:id" component={() => <ProtectedRoute requiredPermission="view_tenders"><TenderDetail /></ProtectedRoute>} />
               <Route path="/assigned-tenders" component={() => <ProtectedRoute requiredPermission="create_bids"><AssignedTenders /></ProtectedRoute>} />
               <Route path="/tender-results" component={() => <ProtectedRoute requiredPermission="view_tenders"><TenderResults /></ProtectedRoute>} />
               <Route path="/create-bid" component={() => <ProtectedRoute requiredPermission="create_bids"><CreateBid /></ProtectedRoute>} />
