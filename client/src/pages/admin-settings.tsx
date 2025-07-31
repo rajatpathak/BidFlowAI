@@ -334,7 +334,7 @@ export default function AdminSettingsPage() {
         <TabsList>
           <TabsTrigger value="company">Company Settings</TabsTrigger>
           <TabsTrigger value="excel">Excel Uploads</TabsTrigger>
-          <TabsTrigger value="documents">Document Templates</TabsTrigger>
+          <TabsTrigger value="documents">Document Manager</TabsTrigger>
         </TabsList>
 
         <TabsContent value="company" className="space-y-4">
@@ -598,28 +598,40 @@ export default function AdminSettingsPage() {
         </TabsContent>
 
         <TabsContent value="documents" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <FileText className="h-5 w-5" />
-                  <div>
-                    <CardTitle>Document Templates</CardTitle>
-                    <CardDescription>
-                      Manage document templates for participation requirements
-                    </CardDescription>
+          <div className="flex items-center gap-2 mb-4">
+            <FileText className="h-6 w-6" />
+            <div>
+              <h2 className="text-2xl font-bold">Document Manager</h2>
+              <p className="text-gray-600">Manage document templates and selection criteria</p>
+            </div>
+          </div>
+
+          <Tabs defaultValue="templates" className="space-y-4">
+            <TabsList>
+              <TabsTrigger value="templates">Document Templates</TabsTrigger>
+              <TabsTrigger value="selector">Document Selector</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="templates" className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle>Document Templates</CardTitle>
+                      <CardDescription>
+                        Manage document templates for participation requirements
+                      </CardDescription>
+                    </div>
+                    <Button
+                      onClick={() => setShowTemplateForm(true)}
+                      className="flex items-center gap-2"
+                    >
+                      <Plus className="h-4 w-4" />
+                      Add Template
+                    </Button>
                   </div>
-                </div>
-                <Button
-                  onClick={() => setShowTemplateForm(true)}
-                  className="flex items-center gap-2"
-                >
-                  <Plus className="h-4 w-4" />
-                  Add Template
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent>
+                </CardHeader>
+                <CardContent>
               {showTemplateForm && (
                 <Card className="mb-6">
                   <CardHeader>
@@ -781,8 +793,127 @@ export default function AdminSettingsPage() {
                   )}
                 </TableBody>
               </Table>
-            </CardContent>
-          </Card>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="selector" className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Document Selector</CardTitle>
+                  <CardDescription>
+                    Select and configure documents for specific tenders or categories
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-4">
+                      <div>
+                        <Label htmlFor="document-search">Search Documents</Label>
+                        <Input
+                          id="document-search"
+                          placeholder="Search by document name..."
+                          className="mt-1"
+                        />
+                      </div>
+                      
+                      <div>
+                        <Label>Available Documents</Label>
+                        <div className="mt-2 border rounded-lg p-4 h-80 overflow-y-auto">
+                          {documentTemplates.map((template) => (
+                            <div
+                              key={template.id}
+                              className="flex items-center justify-between p-3 border-b last:border-b-0 hover:bg-gray-50 cursor-pointer"
+                            >
+                              <div className="flex items-center space-x-3">
+                                <input
+                                  type="checkbox"
+                                  className="h-4 w-4 text-blue-600"
+                                />
+                                <div>
+                                  <div className="font-medium">{template.name}</div>
+                                  <div className="text-sm text-gray-500">
+                                    {template.description}
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="flex items-center space-x-2">
+                                <Badge variant="secondary" className="text-xs">
+                                  {template.category}
+                                </Badge>
+                                {template.mandatory && (
+                                  <Badge variant="destructive" className="text-xs">
+                                    Required
+                                  </Badge>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                          {documentTemplates.length === 0 && (
+                            <div className="text-center py-8 text-gray-500">
+                              No document templates available. Create templates first.
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-4">
+                      <div>
+                        <Label htmlFor="selection-name">Selection Name</Label>
+                        <Input
+                          id="selection-name"
+                          placeholder="e.g., Standard Participation Documents"
+                          className="mt-1"
+                        />
+                      </div>
+                      
+                      <div>
+                        <Label htmlFor="selection-description">Description</Label>
+                        <Textarea
+                          id="selection-description"
+                          placeholder="Describe this document selection..."
+                          className="mt-1"
+                          rows={3}
+                        />
+                      </div>
+
+                      <div>
+                        <Label>Selected Documents</Label>
+                        <div className="mt-2 border rounded-lg p-4 h-60 overflow-y-auto">
+                          <div className="text-center py-8 text-gray-500">
+                            Select documents from the left panel to build your selection.
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex gap-2">
+                        <Button className="flex-1">
+                          Save Selection
+                        </Button>
+                        <Button variant="outline">
+                          Clear All
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-8">
+                    <h4 className="text-lg font-semibold mb-4">Saved Document Selections</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      <Card className="border-dashed border-gray-300">
+                        <CardContent className="p-4 text-center">
+                          <div className="text-gray-500 text-sm">
+                            No saved selections yet. Create your first document selection above.
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
         </TabsContent>
       </Tabs>
     </div>
