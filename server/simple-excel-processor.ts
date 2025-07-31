@@ -101,11 +101,27 @@ export async function processSimpleExcelUpload(
               }
             }
             
-            // More precise duplicate checking - only check valid identifiers
+            // Enhanced duplicate checking with multiple methods
             let isDuplicate = false;
             
-            // Primary check: T247 ID (only for numeric IDs with sufficient length)
-            if (t247Id && t247Id.length >= 6 && /^\d+$/.test(t247Id)) {
+            // Method 1: Check by title and organization combination (most reliable)
+            try {
+              const existingByTitleOrg = await db.execute(sql`
+                SELECT id FROM tenders 
+                WHERE title = ${title} AND organization = ${organization}
+                LIMIT 1
+              `);
+              
+              if (existingByTitleOrg.length > 0) {
+                console.log(`Duplicate found (title+org): ${title.substring(0, 50)}...`);
+                isDuplicate = true;
+              }
+            } catch (error) {
+              console.log(`Error checking title+org duplicate:`, error);
+            }
+            
+            // Method 2: T247 ID check (if not already duplicate and ID is valid)
+            if (!isDuplicate && t247Id && t247Id.length >= 6 && /^\d+$/.test(t247Id)) {
               try {
                 const existingByT247 = await db.execute(sql`
                   SELECT id FROM tenders 
@@ -122,7 +138,7 @@ export async function processSimpleExcelUpload(
               }
             }
             
-            // Secondary check: Reference No (only for substantial references with proper format)
+            // Method 3: Reference No check (if not already duplicate and reference is substantial)
             if (!isDuplicate && reference && reference.length > 8 && (reference.includes('/') || reference.includes('GEM'))) {
               try {
                 const existingByRef = await db.execute(sql`
