@@ -79,22 +79,33 @@ export function AuthProvider({ children }: AuthProviderProps) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Accept': 'application/json',
         },
         credentials: 'include',
         body: JSON.stringify(credentials),
       });
 
       if (response.ok) {
-        const { user: userData, token } = await response.json();
-        localStorage.setItem('auth_token', token);
-        setUser(userData);
-        toast({
-          title: "Login Successful",
-          description: `Welcome back, ${userData.name}!`,
-        });
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          const { user: userData, token } = await response.json();
+          localStorage.setItem('auth_token', token);
+          setUser(userData);
+          toast({
+            title: "Login Successful",
+            description: `Welcome back, ${userData.name}!`,
+          });
+        } else {
+          throw new Error('Server returned non-JSON response');
+        }
       } else {
-        const error = await response.json();
-        throw new Error(error.message || 'Login failed');
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          const error = await response.json();
+          throw new Error(error.message || 'Login failed');
+        } else {
+          throw new Error(`Login failed: Server returned HTML instead of JSON (${response.status})`);
+        }
       }
     } catch (error) {
       toast({

@@ -32,10 +32,20 @@ const upload = multer({
 
 export function registerRoutes(app: express.Application, storage: IStorage) {
   
-  // Authentication routes
-  app.post('/api/auth/login', validateRequest(loginSchema), async (req: AuthenticatedRequest, res) => {
+  // Authentication routes with proper error handling
+  app.post('/api/auth/login', async (req: AuthenticatedRequest, res) => {
     try {
-      const { username, password } = req.validatedData;
+      // Ensure response is JSON
+      res.setHeader('Content-Type', 'application/json');
+      
+      const { username, password } = req.body;
+      
+      if (!username || !password) {
+        return res.status(400).json({ 
+          message: 'Username and password are required',
+          error: 'VALIDATION_ERROR'
+        });
+      }
       
       // Find user by username
       const [user] = await db
@@ -45,18 +55,25 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
         .limit(1);
       
       if (!user) {
-        return res.status(401).json({ message: 'Invalid username or password' });
+        return res.status(401).json({ 
+          message: 'Invalid username or password',
+          error: 'INVALID_CREDENTIALS'
+        });
       }
       
       // Simple authentication for demo - accept hardcoded passwords
       let isValidPassword = false;
       
-      // Demo credentials
+      console.log('Login attempt:', { username, passwordLength: password?.length });
+      
+      // Demo credentials with logging
       const demoCredentials = {
         'admin': 'admin123',
         'rahul.kumar': 'bidder123',  
         'priya.sharma': 'finance123'
       };
+      
+      console.log('Available demo users:', Object.keys(demoCredentials));
       
       if (demoCredentials[username] && demoCredentials[username] === password) {
         isValidPassword = true;
@@ -65,7 +82,10 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
       }
       
       if (!isValidPassword) {
-        return res.status(401).json({ message: 'Invalid username or password' });
+        return res.status(401).json({ 
+          message: 'Invalid username or password',
+          error: 'INVALID_CREDENTIALS' 
+        });
       }
       
       // Generate JWT token
@@ -85,7 +105,11 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
       });
     } catch (error) {
       console.error('Login error:', error);
-      res.status(500).json({ message: 'Internal server error' });
+      res.setHeader('Content-Type', 'application/json');
+      res.status(500).json({ 
+        message: 'Internal server error',
+        error: 'SERVER_ERROR'
+      });
     }
   });
 
