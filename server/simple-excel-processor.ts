@@ -143,27 +143,22 @@ export async function processSimpleExcelUpload(
             // If existing tender found, UPDATE instead of INSERT
             if (existingTender) {
               let hasChanges = false;
-              const updates = [];
+              // Check each field for changes and update if needed
               
               // Check each field for changes
               if (existingTender.title !== title) {
-                updates.push(`title = ${title}`);
                 hasChanges = true;
               }
               if (existingTender.organization !== organization) {
-                updates.push(`organization = ${organization}`);
                 hasChanges = true;
               }
               if (existingTender.value !== value) {
-                updates.push(`value = ${value}`);
                 hasChanges = true;
               }
-              if (new Date(existingTender.deadline).getTime() !== deadline.getTime()) {
-                updates.push(`deadline = '${deadline.toISOString()}'`);
+              if (new Date(existingTender.deadline as string).getTime() !== deadline.getTime()) {
                 hasChanges = true;
               }
               if (link && existingTender.link !== link) {
-                updates.push(`link = ${link}`);
                 hasChanges = true;
               }
               

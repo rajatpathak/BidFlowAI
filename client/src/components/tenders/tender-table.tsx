@@ -31,6 +31,7 @@ interface Tender {
   source: string;
   aiScore: number;
   assignedTo?: string;
+  referenceNo?: string;
   requirements?: Array<{
     reference?: string;
     msmeExemption?: string;
@@ -250,8 +251,13 @@ export function TenderTable({
                     </TableCell>
                     <TableCell className="max-w-96">
                       <div>
-                        <div className="font-medium text-gray-900 line-clamp-2">
-                          {tender.title}
+                        <div className="font-medium text-gray-900 line-clamp-2 flex items-start gap-2">
+                          <span>{tender.title}</span>
+                          {tender.title.toLowerCase().includes('corrigendum') && (
+                            <Badge variant="destructive" className="text-xs px-1 py-0 flex-shrink-0">
+                              Corrigendum
+                            </Badge>
+                          )}
                         </div>
                         <div className="text-sm text-gray-500 mt-1">
                           {tender.location || 'Location not specified'}
