@@ -84,7 +84,7 @@ export function TenderAssignmentDialog({
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          bidderId: data.bidderId,
+          assignedTo: data.bidderId,
           priority: data.priority,
           budget: data.budget ? parseFloat(data.budget) : null,
           assignedBy: "current-user-id", // This should come from auth context

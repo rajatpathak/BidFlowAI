@@ -289,6 +289,34 @@ app.post('/api/tenders/:id/not-relevant', async (req, res) => {
   }
 });
 
+// Assign tender to bidder
+app.post('/api/tenders/:id/assign', async (req, res) => {
+  try {
+    const { assignedTo, assignedBy, notes, priority, budget } = req.body;
+    const tenderId = req.params.id;
+    
+    console.log('Assignment request:', { tenderId, assignedTo, assignedBy });
+    
+    // Update the tender's assigned_to field and status
+    await sql`
+      UPDATE tenders 
+      SET assigned_to = ${assignedTo}, 
+          status = 'assigned', 
+          updated_at = NOW()
+      WHERE id = ${tenderId}
+    `;
+    
+    res.json({ 
+      success: true, 
+      message: 'Tender assigned successfully',
+      assignedTo
+    });
+  } catch (error) {
+    console.error('Assignment error:', error);
+    res.status(500).json({ error: 'Failed to assign tender', details: error.message });
+  }
+});
+
 // Get documents for tender
 app.get('/api/tenders/:id/documents', async (req, res) => {
   try {

@@ -588,20 +588,49 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
   // Assign tender to bidder
   app.post("/api/tenders/:id/assign", async (req, res) => {
     try {
-      const { assignedTo, assignedBy, notes } = req.body;
+      const { assignedTo, assignedBy, notes, priority, budget } = req.body;
+      const tenderId = req.params.id;
       
-      const [assignment] = await db.insert(tenderAssignments).values({
-        tenderId: req.params.id,
+      console.log('Assignment request:', { tenderId, assignedTo, assignedBy, notes, priority, budget });
+      
+      // Validate required fields
+      if (!assignedTo) {
+        return res.status(400).json({ error: "assignedTo is required" });
+      }
+      
+      // Update the tender's assigned_to field and status
+      await db.execute(sql`
+        UPDATE tenders 
+        SET assigned_to = ${assignedTo}, 
+            status = 'assigned', 
+            updated_at = NOW()
+        WHERE id = ${tenderId}
+      `);
+      
+      // Get assignee name for logging
+      const [assignee] = await db.execute(sql`
+        SELECT name FROM users WHERE id = ${assignedTo} LIMIT 1
+      `);
+      
+      const assigneeName = assignee?.name || 'Unknown User';
+      
+      // Log the assignment activity
+      const description = `Tender assigned to ${assigneeName}${priority ? ` with priority: ${priority}` : ''}${budget ? `, Budget: ₹${budget}` : ''}`;
+      
+      await db.execute(sql`
+        INSERT INTO activity_logs (id, tender_id, activity_type, description, created_by, created_at, details)
+        VALUES (gen_random_uuid(), ${tenderId}, 'tender_assigned', ${description}, ${assignedBy || 'System'}, NOW(), ${JSON.stringify({ assignedTo, assigneeName, priority, budget, notes })})
+      `);
+      
+      res.json({ 
+        success: true, 
+        message: "Tender assigned successfully",
         assignedTo,
-        assignedBy,
-        notes,
-        status: "assigned",
-        dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
-      }).returning();
-      
-      res.status(201).json(assignment);
+        assigneeName
+      });
     } catch (error) {
-      res.status(500).json({ error: "Failed to assign tender" });
+      console.error("Assignment error:", error);
+      res.status(500).json({ error: "Failed to assign tender", details: error.message });
     }
   });
 
