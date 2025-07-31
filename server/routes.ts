@@ -39,6 +39,7 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
 
     // Store the client connection
     uploadClients.set(sessionId, res);
+    console.log(`SSE client connected for session: ${sessionId}`);
 
     // Send initial progress
     const progress = uploadProgress.get(sessionId) || { 
@@ -72,17 +73,27 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
 
       // Use simple Excel processor with progress callback
       const { processSimpleExcelUpload } = await import('./simple-excel-processor.js');
+      
+      console.log(`SSE clients for session ${sessionId}:`, uploadClients.has(sessionId));
+      
       const result = await processSimpleExcelUpload(
         req.file.path, 
         req.file.originalname, 
         uploadedBy,
         (progress) => {
+          console.log(`Sending progress update for session ${sessionId}:`, progress);
           uploadProgress.set(sessionId, progress);
           
           // Send progress to connected clients via SSE
           const client = uploadClients.get(sessionId);
-          if (client) {
-            client.write(`data: ${JSON.stringify(progress)}\n\n`);
+          if (client && !client.destroyed) {
+            try {
+              client.write(`data: ${JSON.stringify(progress)}\n\n`);
+            } catch (error) {
+              console.error('Error sending progress update:', error);
+            }
+          } else {
+            console.log('No active SSE client found for session:', sessionId);
           }
         }
       );

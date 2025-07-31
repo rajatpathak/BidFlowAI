@@ -174,7 +174,7 @@ export async function processSimpleExcelUpload(
                 // Calculate based on estimated total rows (approximate)
                 const estimatedTotal = 2500; // Rough estimate for total rows across sheets
                 const percentage = Math.min(95, Math.floor((totalProcessed / estimatedTotal) * 100));
-                progressCallback({
+                const progressData = {
                   processed: totalProcessed,
                   duplicates: duplicates,
                   total: totalProcessed + duplicates,
@@ -182,7 +182,9 @@ export async function processSimpleExcelUpload(
                   gemAdded: gemAdded,
                   nonGemAdded: nonGemAdded,
                   errors: totalErrors
-                });
+                };
+                console.log('Calling progress callback with:', progressData);
+                progressCallback(progressData);
               }
             }
             
