@@ -4,8 +4,25 @@ const path = require('path');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const cors = require('cors');
+const postgres = require('postgres');
 
 const app = express();
+
+// Database connection
+if (!process.env.DATABASE_URL) {
+  console.error('❌ DATABASE_URL environment variable is required');
+  process.exit(1);
+}
+
+const sql = postgres(process.env.DATABASE_URL);
+
+// Test database connection on startup
+sql`SELECT 1 as test`.then(() => {
+  console.log('✅ Database connected successfully');
+}).catch(err => {
+  console.error('❌ Database connection failed:', err.message);
+  process.exit(1);
+});
 
 // Middleware
 app.use(cors());
@@ -71,8 +88,8 @@ const sampleTenders = [
   }
 ];
 
-// Authentication endpoint
-app.post('/api/auth/login', (req, res) => {
+// Authentication endpoint with database
+app.post('/api/auth/login', async (req, res) => {
   try {
     const { username, password } = req.body;
     
@@ -85,9 +102,33 @@ app.post('/api/auth/login', (req, res) => {
       });
     }
     
-    const user = users.find(u => u.username === username && u.password === password);
+    // Find user in database
+    const [user] = await sql`
+      SELECT id, username, password, name, email, role 
+      FROM users 
+      WHERE username = ${username}
+      LIMIT 1
+    `;
     
     if (!user) {
+      return res.status(401).json({
+        message: 'Invalid username or password',
+        error: 'INVALID_CREDENTIALS'
+      });
+    }
+    
+    // Simple password check (in development, passwords are stored in plain text)
+    // Demo credentials check
+    let isValidPassword = false;
+    if ((username === 'admin' && password === 'admin123') ||
+        (username === 'rahul.kumar' && password === 'bidder123') ||
+        (username === 'priya.sharma' && password === 'finance123')) {
+      isValidPassword = true;
+    } else if (user.password === password) {
+      isValidPassword = true;
+    }
+    
+    if (!isValidPassword) {
       return res.status(401).json({
         message: 'Invalid username or password',
         error: 'INVALID_CREDENTIALS'
@@ -101,7 +142,7 @@ app.post('/api/auth/login', (req, res) => {
         username: user.username, 
         role: user.role 
       },
-      'your-secret-key', // In production, use environment variable
+      process.env.JWT_SECRET || 'your-secret-key',
       { expiresIn: '24h' }
     );
     
@@ -129,7 +170,7 @@ app.post('/api/auth/login', (req, res) => {
 });
 
 // Get current user
-app.get('/api/auth/user', (req, res) => {
+app.get('/api/auth/user', async (req, res) => {
   try {
     const authHeader = req.headers.authorization;
     
@@ -141,8 +182,14 @@ app.get('/api/auth/user', (req, res) => {
     }
     
     const token = authHeader.substring(7);
-    const decoded = jwt.verify(token, 'your-secret-key');
-    const user = users.find(u => u.id === decoded.id);
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
+    
+    const [user] = await sql`
+      SELECT id, username, name, email, role 
+      FROM users 
+      WHERE id = ${decoded.id}
+      LIMIT 1
+    `;
     
     if (!user) {
       return res.status(404).json({
@@ -173,19 +220,54 @@ app.post('/api/auth/logout', (req, res) => {
   res.json({ message: 'Logged out successfully' });
 });
 
-// Dashboard stats
-app.get('/api/dashboard/stats', (req, res) => {
-  res.json({
-    activeTenders: sampleTenders.length,
-    winRate: 25.5,
-    totalValue: sampleTenders.reduce((sum, t) => sum + t.value, 0),
-    averageValue: sampleTenders.reduce((sum, t) => sum + t.value, 0) / sampleTenders.length
-  });
+// Dashboard stats from database
+app.get('/api/dashboard/stats', async (req, res) => {
+  try {
+    const [stats] = await sql`
+      SELECT 
+        COUNT(*) as active_tenders,
+        COALESCE(AVG(CASE WHEN status = 'won' THEN 1 ELSE 0 END) * 100, 0) as win_rate,
+        COALESCE(SUM(value), 0) as total_value,
+        COALESCE(AVG(value), 0) as average_value
+      FROM tenders
+      WHERE status IN ('active', 'assigned', 'submitted', 'won', 'lost')
+    `;
+    
+    res.json({
+      activeTenders: parseInt(stats.active_tenders) || 0,
+      winRate: parseFloat(stats.win_rate) || 0,
+      totalValue: parseInt(stats.total_value) || 0,
+      averageValue: parseInt(stats.average_value) || 0
+    });
+  } catch (error) {
+    console.error('Dashboard stats error:', error);
+    res.json({
+      activeTenders: 0,
+      winRate: 0,
+      totalValue: 0,
+      averageValue: 0
+    });
+  }
 });
 
-// Get tenders
-app.get('/api/tenders', (req, res) => {
-  res.json(sampleTenders);
+// Get tenders from database
+app.get('/api/tenders', async (req, res) => {
+  try {
+    const tenders = await sql`
+      SELECT 
+        id, title, organization, value, deadline, status, source, 
+        ai_score as "aiScore", assigned_to as "assignedTo", link
+      FROM tenders
+      WHERE status != 'missed_opportunity'
+      ORDER BY created_at DESC
+      LIMIT 100
+    `;
+    
+    res.json(tenders);
+  } catch (error) {
+    console.error('Tenders error:', error);
+    res.json([]);
+  }
 });
 
 // Health check
