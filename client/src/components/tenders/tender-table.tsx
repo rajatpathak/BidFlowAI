@@ -56,6 +56,7 @@ interface TenderTableProps {
   source: 'gem' | 'non_gem';
   allTendersCount?: number;
   allTenders?: Tender[];
+  deleteProgress?: { current: number; total: number; isDeleting: boolean };
 }
 
 export function TenderTable({
@@ -74,7 +75,8 @@ export function TenderTable({
   user,
   source,
   allTendersCount = 0,
-  allTenders = []
+  allTenders = [],
+  deleteProgress = { current: 0, total: 0, isDeleting: false }
 }: TenderTableProps) {
   
   const handleSelectAll = (checked: boolean) => {
@@ -159,9 +161,13 @@ export function TenderTable({
                       variant="destructive"
                       size="sm"
                       onClick={onDeleteSelected}
+                      disabled={deleteProgress.isDeleting}
                     >
                       <Trash2 className="h-4 w-4 mr-1" />
-                      Delete Selected
+                      {deleteProgress.isDeleting 
+                        ? `Deleting... (${deleteProgress.current}/${deleteProgress.total})`
+                        : 'Delete Selected'
+                      }
                     </Button>
                   )}
                 </div>
@@ -174,6 +180,30 @@ export function TenderTable({
         </div>
       </CardHeader>
       <CardContent>
+        {/* Delete Progress Bar */}
+        {deleteProgress.isDeleting && (
+          <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-medium text-red-800">
+                Deleting Tenders...
+              </span>
+              <span className="text-sm text-red-600">
+                {deleteProgress.current} / {deleteProgress.total}
+              </span>
+            </div>
+            <div className="w-full bg-red-200 rounded-full h-2">
+              <div 
+                className="bg-red-600 h-2 rounded-full transition-all duration-300"
+                style={{ 
+                  width: `${deleteProgress.total > 0 ? (deleteProgress.current / deleteProgress.total) * 100 : 0}%` 
+                }}
+              />
+            </div>
+            <div className="text-xs text-red-600 mt-1">
+              {deleteProgress.total > 0 ? Math.round((deleteProgress.current / deleteProgress.total) * 100) : 0}% complete
+            </div>
+          </div>
+        )}
         {tenders.length === 0 ? (
           <div className="text-center py-8">
             <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />

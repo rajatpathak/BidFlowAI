@@ -375,31 +375,56 @@ export default function ActiveTendersPage() {
     const confirmation = confirm(`Are you sure you want to delete ${selectedTenders.size} selected tenders?`);
     if (!confirmation) return;
 
+    // Initialize progress tracking
+    setDeleteProgress({ current: 0, total: selectedTenders.size, isDeleting: true });
+
     try {
       console.log(`Starting bulk delete of ${selectedTenders.size} tenders...`);
       
-      const deletePromises = Array.from(selectedTenders).map(async (tenderId) => {
+      const tenderIds = Array.from(selectedTenders);
+      let completedCount = 0;
+      let successCount = 0;
+      
+      // Process deletions with progress tracking
+      const deletePromises = tenderIds.map(async (tenderId, index) => {
         try {
           const response = await fetch(`/api/tenders/${tenderId}`, { method: 'DELETE' });
+          completedCount++;
+          
+          // Update progress
+          setDeleteProgress(prev => ({ 
+            ...prev, 
+            current: completedCount 
+          }));
+          
           if (!response.ok) {
             console.error(`Failed to delete tender ${tenderId}: ${response.status}`);
             return false;
           }
+          successCount++;
           return true;
         } catch (error) {
+          completedCount++;
+          setDeleteProgress(prev => ({ 
+            ...prev, 
+            current: completedCount 
+          }));
           console.error(`Error deleting tender ${tenderId}:`, error);
           return false;
         }
       });
 
       const results = await Promise.all(deletePromises);
-      const successCount = results.filter(r => r).length;
+      const finalSuccessCount = results.filter(r => r).length;
       const failCount = results.filter(r => !r).length;
       
-      if (successCount > 0) {
+      // Reset progress
+      setDeleteProgress({ current: 0, total: 0, isDeleting: false });
+      
+      if (finalSuccessCount > 0) {
         toast({ 
-          title: "Success", 
-          description: `${successCount} tenders deleted successfully${failCount > 0 ? `, ${failCount} failed` : ''}` 
+          title: "Bulk Delete Complete", 
+          description: `${finalSuccessCount} tenders deleted successfully${failCount > 0 ? `, ${failCount} failed` : ''}` 
         });
       } else {
         toast({ title: "Error", description: "Failed to delete selected tenders", variant: "destructive" });
@@ -409,6 +434,7 @@ export default function ActiveTendersPage() {
       queryClient.invalidateQueries({ queryKey: ["/api/tenders"] });
     } catch (error) {
       console.error("Bulk delete error:", error);
+      setDeleteProgress({ current: 0, total: 0, isDeleting: false });
       toast({ title: "Error", description: "Failed to delete selected tenders", variant: "destructive" });
     }
   };
@@ -448,6 +474,9 @@ export default function ActiveTendersPage() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadStats, setUploadStats] = useState({ processed: 0, duplicates: 0, total: 0 });
+  
+  // Delete progress state
+  const [deleteProgress, setDeleteProgress] = useState({ current: 0, total: 0, isDeleting: false });
 
   // File upload handler
   const handleFileUpload = async (file: File) => {
@@ -643,6 +672,7 @@ export default function ActiveTendersPage() {
               source="gem"
               allTendersCount={gemTenders.length}
               allTenders={gemTenders}
+              deleteProgress={deleteProgress}
             />
           </TabsContent>
 
@@ -664,6 +694,7 @@ export default function ActiveTendersPage() {
               source="non_gem"
               allTendersCount={nonGemTenders.length}
               allTenders={nonGemTenders}
+              deleteProgress={deleteProgress}
             />
           </TabsContent>
 
