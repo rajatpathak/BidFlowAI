@@ -39,7 +39,7 @@ app.use((req, res, next) => {
 (async () => {
   // Setup storage and routes
   const { storage } = await import("./storage.js");
-  await registerRoutes(app, storage);
+  const server = await registerRoutes(app, storage);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
@@ -51,7 +51,7 @@ app.use((req, res, next) => {
 
   // Re-enable Vite integration for full frontend functionality
   if (app.get("env") === "development") {
-    await setupVite(app);
+    await setupVite(app, server);
   } else {
     serveStatic(app);
   }
