@@ -6,6 +6,26 @@ import { Button } from "@/components/ui/button";
 import { CalendarDays, ExternalLink, MapPin, Building, User, Clock, Activity } from "lucide-react";
 import { format } from "date-fns";
 
+// Helper function to display activity types
+const getActivityTypeDisplay = (activityType: string): string => {
+  const actionTypes: Record<string, string> = {
+    'tender_assigned': '👤 Assignment',
+    'assignment_updated': '✏️ Update',
+    'assignment_removed': '❌ Removed',
+    'tender_deleted': '🗑️ Deletion',
+    'marked_not_relevant': '⚠️ Not Relevant',
+    'excel_upload': '📊 Excel Upload',
+    'corrigendum_update': '📝 Corrigendum',
+    'missed_opportunity': '⏰ Missed',
+    'status_changed': '🔄 Status Change',
+    'document_uploaded': '📎 Document',
+    'comment_added': '💬 Comment',
+    'deadline_extended': '⏱️ Deadline'
+  };
+  
+  return actionTypes[activityType] || '📋 Action';
+};
+
 interface TenderDetail {
   id: string;
   title: string;
@@ -234,17 +254,52 @@ export default function TenderDetailPage() {
                 <div className="space-y-4 max-h-96 overflow-y-auto">
                   {activityLogs.map((log) => (
                     <div key={log.id} className="border-l-2 border-blue-200 pl-4 pb-4">
-                      <div className="flex items-start justify-between mb-1">
-                        <p className="text-sm font-medium text-gray-900">
-                          {log.description}
-                        </p>
+                      <div className="flex items-start justify-between mb-2">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-xs font-medium px-2 py-1 bg-blue-100 text-blue-800 rounded-full">
+                              {getActivityTypeDisplay(log.activityType)}
+                            </span>
+                          </div>
+                          <p className="text-sm font-medium text-gray-900 leading-relaxed">
+                            {log.description}
+                          </p>
+                        </div>
                       </div>
                       <div className="flex items-center gap-2 text-xs text-gray-500">
                         <Clock className="h-3 w-3" />
-                        <span>{format(new Date(log.createdAt), 'PPp')}</span>
+                        <span>{format(new Date(log.createdAt), 'MMM dd, yyyy HH:mm')}</span>
                         <span>•</span>
-                        <span>by {log.createdByName || log.createdBy}</span>
+                        <span className="font-medium">
+                          by {log.displayName || log.createdByName || log.createdBy || 'Unknown User'}
+                        </span>
                       </div>
+                      {log.details && Object.keys(log.details).length > 0 && (
+                        <div className="mt-2 p-2 bg-gray-50 rounded text-xs">
+                          <div className="grid grid-cols-2 gap-2">
+                            {log.details.priority && (
+                              <div>
+                                <span className="font-medium">Priority:</span> {log.details.priority}
+                              </div>
+                            )}
+                            {log.details.budget && (
+                              <div>
+                                <span className="font-medium">Budget:</span> ₹{log.details.budget}
+                              </div>
+                            )}
+                            {log.details.assignedToName && (
+                              <div>
+                                <span className="font-medium">Assigned to:</span> {log.details.assignedToName}
+                              </div>
+                            )}
+                            {log.details.reason && (
+                              <div className="col-span-2">
+                                <span className="font-medium">Reason:</span> {log.details.reason}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>

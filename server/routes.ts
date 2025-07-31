@@ -307,7 +307,7 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
       console.log(`Found ${result.length || (result.rows && result.rows.length) || 0} tenders`);
       
       // Handle result structure - it should be an array directly
-      const rows = Array.isArray(result) ? result : (result.rows || []);
+      const rows = Array.isArray(result) ? result : [];
       
       const tendersWithNames = rows.map(row => ({
         ...row,
@@ -761,25 +761,33 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
         WHERE id = ${id}
       `);
 
-      // Add activity log with username
-      const assignerResult = await db.execute(sql`SELECT name FROM users WHERE id = ${assignedBy}`);
-      const assignerName = assignerResult.rows[0]?.name || 'Unknown User';
-      
-      await db.execute(sql`
-        INSERT INTO activity_logs (id, tender_id, activity_type, description, created_by, created_at)
-        VALUES (gen_random_uuid(), ${id}, 'tender_assigned', 
-                ${'Tender assigned to ' + bidderName + ' with priority: ' + priority}, 
-                ${assignerName}, NOW())
-      `);
-
-      // Get bidder details for response
+      // Get bidder details first
       const bidderResult = await db.execute(sql`SELECT name FROM users WHERE id = ${bidderId}`);
-      const bidderName = bidderResult.rows[0]?.name || 'Unknown User';
+      const bidderName = bidderResult[0]?.name || 'Unknown User';
+
+      // Get assigner details
+      const assignerResult = await db.execute(sql`SELECT name FROM users WHERE id = ${assignedBy}`);
+      const assignerName = assignerResult[0]?.name || 'Unknown User';
+      
+      // Add detailed activity log
+      await db.execute(sql`
+        INSERT INTO activity_logs (id, tender_id, activity_type, description, created_by, created_at, details)
+        VALUES (gen_random_uuid(), ${id}, 'tender_assigned', 
+                ${'Tender assigned to ' + bidderName + ' with priority: ' + priority + ' and budget: ₹' + (budget || 'Not specified') + ' by ' + assignerName}, 
+                ${assignerName}, NOW(), ${JSON.stringify({
+                  assignedTo: bidderId,
+                  assignedToName: bidderName,
+                  priority: priority,
+                  budget: budget,
+                  assignedBy: assignedBy,
+                  assignedByName: assignerName
+                })})
+      `);
 
       res.json({
         success: true,
         message: `Tender assigned to ${bidderName}`,
-        assignment: assignment.rows[0],
+        assignment: assignment[0],
         bidderName
       });
     } catch (error) {
