@@ -49,6 +49,8 @@ interface TenderTableProps {
   openAssignDialog: (tenderId: string) => void;
   onMarkNotRelevant?: (tenderId: string) => void;
   onDelete?: (tenderId: string) => void;
+  onSelectAll?: (tenders: Tender[]) => void;
+  onDeleteSelected?: () => void;
   user?: { role: string };
   source: 'gem' | 'non_gem';
 }
@@ -63,17 +65,23 @@ export function TenderTable({
   openAssignDialog,
   onMarkNotRelevant,
   onDelete,
+  onSelectAll,
+  onDeleteSelected,
   user,
   source
 }: TenderTableProps) {
   
   const handleSelectAll = (checked: boolean) => {
-    if (checked) {
-      setSelectedTenders(new Set([...selectedTenders, ...tenders.map(t => t.id)]));
+    if (onSelectAll) {
+      onSelectAll(tenders);
     } else {
-      const newSelected = new Set(selectedTenders);
-      tenders.forEach(t => newSelected.delete(t.id));
-      setSelectedTenders(newSelected);
+      if (checked) {
+        setSelectedTenders(new Set([...selectedTenders, ...tenders.map(t => t.id)]));
+      } else {
+        const newSelected = new Set(selectedTenders);
+        tenders.forEach(t => newSelected.delete(t.id));
+        setSelectedTenders(newSelected);
+      }
     }
   };
 
@@ -120,8 +128,27 @@ export function TenderTable({
           <CardTitle>
             {source === 'gem' ? 'GeM' : 'Non-GeM'} Tenders ({tenders.length})
           </CardTitle>
-          <div className="text-sm text-gray-500">
-            Page {currentPage} of {totalPages}
+          <div className="flex items-center gap-2">
+            {selectedTenders.size > 0 && (
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-600">
+                  {selectedTenders.size} selected
+                </span>
+                {user?.role === 'admin' && onDeleteSelected && (
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={onDeleteSelected}
+                  >
+                    <Trash2 className="h-4 w-4 mr-1" />
+                    Delete Selected
+                  </Button>
+                )}
+              </div>
+            )}
+            <div className="text-sm text-gray-500">
+              Page {currentPage} of {totalPages}
+            </div>
           </div>
         </div>
       </CardHeader>

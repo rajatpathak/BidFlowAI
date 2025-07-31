@@ -326,6 +326,56 @@ export default function ActiveTendersPage() {
     }
   };
 
+  // Select all / deselect all handler
+  const handleSelectAll = (tendersList: Tender[]) => {
+    const allCurrentSelected = tendersList.every(t => selectedTenders.has(t.id));
+    if (allCurrentSelected) {
+      // Deselect all current page tenders
+      const newSelected = new Set(selectedTenders);
+      tendersList.forEach(t => newSelected.delete(t.id));
+      setSelectedTenders(newSelected);
+    } else {
+      // Select all current page tenders
+      const newSelected = new Set(selectedTenders);
+      tendersList.forEach(t => newSelected.add(t.id));
+      setSelectedTenders(newSelected);
+    }
+  };
+
+  // Delete selected tenders
+  const handleDeleteSelected = async () => {
+    if (!user || (user as any).role !== 'admin') {
+      toast({ title: "Error", description: "Only admins can delete tenders", variant: "destructive" });
+      return;
+    }
+
+    if (selectedTenders.size === 0) {
+      toast({ title: "Error", description: "No tenders selected for deletion", variant: "destructive" });
+      return;
+    }
+
+    const confirmation = confirm(`Are you sure you want to delete ${selectedTenders.size} selected tenders?`);
+    if (!confirmation) return;
+
+    try {
+      const deletePromises = Array.from(selectedTenders).map(tenderId =>
+        fetch(`/api/tenders/${tenderId}`, { method: 'DELETE' })
+      );
+
+      await Promise.all(deletePromises);
+      
+      toast({ 
+        title: "Success", 
+        description: `${selectedTenders.size} tenders deleted successfully` 
+      });
+      
+      setSelectedTenders(new Set());
+      queryClient.invalidateQueries({ queryKey: ["/api/tenders"] });
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to delete selected tenders", variant: "destructive" });
+    }
+  };
+
   // Handle Mark Not Relevant
   const handleMarkNotRelevant = (tenderId: string) => {
     setSelectedTenderId(tenderId);
@@ -549,7 +599,9 @@ export default function ActiveTendersPage() {
               openAssignDialog={openAssignDialog}
               onMarkNotRelevant={handleMarkNotRelevant}
               onDelete={handleDelete}
-              user={user}
+              onSelectAll={handleSelectAll}
+              onDeleteSelected={handleDeleteSelected}
+              user={user ? { role: user.role } : undefined}
               source="gem"
             />
           </TabsContent>
@@ -565,7 +617,9 @@ export default function ActiveTendersPage() {
               openAssignDialog={openAssignDialog}
               onMarkNotRelevant={handleMarkNotRelevant}
               onDelete={handleDelete}
-              user={user}
+              onSelectAll={handleSelectAll}
+              onDeleteSelected={handleDeleteSelected}
+              user={user ? { role: user.role } : undefined}
               source="non_gem"
             />
           </TabsContent>
