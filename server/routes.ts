@@ -576,25 +576,7 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
     }
   });
 
-  // Get documents for tender
-  app.get("/api/tenders/:id/documents", async (req, res) => {
-    try {
-      const { id } = req.params;
-      
-      const result = await db.execute(sql`
-        SELECT id, tender_id as "tenderId", filename, original_name as "originalName", 
-               mime_type as "mimeType", size, uploaded_at as "uploadedAt", uploaded_by as "uploadedBy"
-        FROM documents 
-        WHERE tender_id = ${id}
-        ORDER BY uploaded_at DESC
-      `);
-      
-      res.json(result || []);
-    } catch (error) {
-      console.error("Documents fetch error:", error);
-      res.status(500).json({ error: "Failed to fetch documents" });
-    }
-  });
+
 
   // Download document
   app.get("/api/documents/:id/download", async (req, res) => {
