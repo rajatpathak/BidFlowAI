@@ -376,20 +376,39 @@ export default function ActiveTendersPage() {
     if (!confirmation) return;
 
     try {
-      const deletePromises = Array.from(selectedTenders).map(tenderId =>
-        fetch(`/api/tenders/${tenderId}`, { method: 'DELETE' })
-      );
-
-      await Promise.all(deletePromises);
+      console.log(`Starting bulk delete of ${selectedTenders.size} tenders...`);
       
-      toast({ 
-        title: "Success", 
-        description: `${selectedTenders.size} tenders deleted successfully` 
+      const deletePromises = Array.from(selectedTenders).map(async (tenderId) => {
+        try {
+          const response = await fetch(`/api/tenders/${tenderId}`, { method: 'DELETE' });
+          if (!response.ok) {
+            console.error(`Failed to delete tender ${tenderId}: ${response.status}`);
+            return false;
+          }
+          return true;
+        } catch (error) {
+          console.error(`Error deleting tender ${tenderId}:`, error);
+          return false;
+        }
       });
+
+      const results = await Promise.all(deletePromises);
+      const successCount = results.filter(r => r).length;
+      const failCount = results.filter(r => !r).length;
+      
+      if (successCount > 0) {
+        toast({ 
+          title: "Success", 
+          description: `${successCount} tenders deleted successfully${failCount > 0 ? `, ${failCount} failed` : ''}` 
+        });
+      } else {
+        toast({ title: "Error", description: "Failed to delete selected tenders", variant: "destructive" });
+      }
       
       setSelectedTenders(new Set());
       queryClient.invalidateQueries({ queryKey: ["/api/tenders"] });
     } catch (error) {
+      console.error("Bulk delete error:", error);
       toast({ title: "Error", description: "Failed to delete selected tenders", variant: "destructive" });
     }
   };
@@ -623,6 +642,7 @@ export default function ActiveTendersPage() {
               user={user ? { role: user.role } : undefined}
               source="gem"
               allTendersCount={gemTenders.length}
+              allTenders={gemTenders}
             />
           </TabsContent>
 
@@ -643,6 +663,7 @@ export default function ActiveTendersPage() {
               user={user ? { role: user.role } : undefined}
               source="non_gem"
               allTendersCount={nonGemTenders.length}
+              allTenders={nonGemTenders}
             />
           </TabsContent>
 

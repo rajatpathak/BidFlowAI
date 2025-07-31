@@ -55,6 +55,7 @@ interface TenderTableProps {
   user?: { role: string };
   source: 'gem' | 'non_gem';
   allTendersCount?: number;
+  allTenders?: Tender[];
 }
 
 export function TenderTable({
@@ -72,7 +73,8 @@ export function TenderTable({
   onDeleteSelected,
   user,
   source,
-  allTendersCount = 0
+  allTendersCount = 0,
+  allTenders = []
 }: TenderTableProps) {
   
   const handleSelectAll = (checked: boolean) => {
@@ -140,7 +142,9 @@ export function TenderTable({
                   size="sm"
                   onClick={() => onGlobalSelectAll(source)}
                 >
-                  {allTendersCount > 0 && selectedTenders.size === allTendersCount 
+                  {allTendersCount > 0 && Array.from(selectedTenders).filter(id => 
+                    allTenders.some(t => t.id === id)
+                  ).length === allTendersCount 
                     ? 'Deselect All' 
                     : `Select All (${allTendersCount})`}
                 </Button>
