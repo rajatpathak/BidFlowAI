@@ -90,6 +90,8 @@ export default function ActiveTendersPage() {
   const [assignedTo, setAssignedTo] = useState("");
   const [assignmentNotes, setAssignmentNotes] = useState("");
   const [isAssigning, setIsAssigning] = useState(false);
+  const [selectedTender, setSelectedTender] = useState<any>(null);
+  const [detailModalOpen, setDetailModalOpen] = useState(false);
   const itemsPerPage = 20;
 
   const { user } = useAuth();
@@ -797,7 +799,14 @@ export default function ActiveTendersPage() {
                               )}
                             </Button>
                           )}
-                          <Button size="sm" variant="outline">
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            onClick={() => {
+                              setSelectedTender(tender);
+                              setDetailModalOpen(true);
+                            }}
+                          >
                             View Details
                           </Button>
                         </div>
@@ -835,6 +844,72 @@ export default function ActiveTendersPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Detail Modal */}
+      <Dialog open={detailModalOpen} onOpenChange={setDetailModalOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          {selectedTender && (
+            <>
+              <DialogHeader>
+                <DialogTitle className="text-xl font-semibold">Tender Details</DialogTitle>
+              </DialogHeader>
+              
+              <div className="space-y-6 mt-4">
+                {/* Basic Information */}
+                <div>
+                  <h3 className="text-lg font-semibold mb-3">Basic Information</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-sm text-gray-500">Title:</p>
+                      <p className="text-sm font-medium">{selectedTender.title}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500">Organization:</p>
+                      <p className="text-sm font-medium">{selectedTender.organization}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500">Value:</p>
+                      <p className="text-sm font-medium">₹{(selectedTender.value / 100).toLocaleString('en-IN')}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500">Deadline:</p>
+                      <p className="text-sm font-medium">{new Date(selectedTender.deadline).toLocaleDateString()}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500">Location:</p>
+                      <p className="text-sm font-medium">{selectedTender.location || 'Not specified'}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500">Reference No:</p>
+                      <p className="text-sm font-medium">{selectedTender.requirements?.[0]?.reference || 'Not available'}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500">T247 ID:</p>
+                      <p className="text-sm font-medium">{selectedTender.requirements?.[0]?.t247_id || 'Not available'}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500">Turnover Requirement:</p>
+                      <p className="text-sm font-medium">{selectedTender.requirements?.[0]?.turnover || 'Not specified'}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <div className="flex gap-4">
+                  {selectedTender.link && (
+                    <Button asChild>
+                      <a href={selectedTender.link} target="_blank" rel="noopener noreferrer">
+                        <ExternalLink className="h-4 w-4 mr-2" />
+                        View Tender Portal
+                      </a>
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
         </TabsContent>
 
         {/* Upload Tenders Tab */}

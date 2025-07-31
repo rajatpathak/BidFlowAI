@@ -78,7 +78,8 @@ export async function processActiveTendersWithSubsheets(filePath: string, fileNa
         referenceNo: getColumnIndex(['reference no', 'reference', 'ref no', 'tender no', 't247 id', 'id', 'number']),
         department: getColumnIndex(['department name', 'department', 'dept', 'division', 'section']),
         category: getColumnIndex(['similar category', 'category', 'type', 'classification', 'sector']),
-        source: getColumnIndex(['source', 'portal', 'website', 'platform'])
+        source: getColumnIndex(['source', 'portal', 'website', 'platform']),
+        turnover: getColumnIndex(['turnover', 'minimum annual turnover', 'annual turnover', 'required turnover', 'bidder turnover', 'minimum average annual turnover'])
       };
       
       console.log('Column mapping for sheet:', sheetName, columnMap);
@@ -168,10 +169,13 @@ export async function processActiveTendersWithSubsheets(filePath: string, fileNa
           
           // If no direct URL, try to construct tender portal links
           if (!tenderLink && referenceNo) {
-            if (source === 'gem') {
+            if (referenceNo.toLowerCase().includes('gem') || source === 'gem') {
               tenderLink = `https://gem.gov.in/tender/search?q=${encodeURIComponent(referenceNo)}`;
             } else if (referenceNo.toLowerCase().includes('eprocure')) {
               tenderLink = `https://eprocure.gov.in/eprocure/app?searchTender=${encodeURIComponent(referenceNo)}`;
+            } else {
+              // For Non-GeM tenders, try to construct general search links
+              tenderLink = `https://tender247.com/tender-search?ref=${encodeURIComponent(referenceNo)}`;
             }
           }
           
@@ -180,6 +184,10 @@ export async function processActiveTendersWithSubsheets(filePath: string, fileNa
           
           const category = columnMap.category >= 0 ? 
             (row[columnMap.category] || '').toString().trim() || null : null;
+          
+          // Extract turnover requirement
+          const turnover = columnMap.turnover >= 0 ? 
+            (row[columnMap.turnover] || '').toString().trim() || null : null;
           
           // Parse tender value
           const valueStr = columnMap.value >= 0 ? 
@@ -239,7 +247,8 @@ export async function processActiveTendersWithSubsheets(filePath: string, fileNa
                 department: department,
                 category: category,
                 sheet: sheetName,
-                t247_id: t247Id
+                t247_id: t247Id,
+                turnover: turnover
               }])}, ${tenderLink || null}
             )
           `);
