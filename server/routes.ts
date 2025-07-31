@@ -16,7 +16,7 @@ import {
   departments,
   userRoles
 } from '../shared/schema.js';
-import { eq, desc, sql } from 'drizzle-orm';
+import { eq, desc, sql, ne } from 'drizzle-orm';
 
 // Setup multer for file uploads
 const upload = multer({
@@ -276,37 +276,48 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
     try {
       const { includeMissedOpportunities } = req.query;
       
-      // Join with users table to get assigned user names
-      let query = sql`
-        SELECT t.*, u.name as assigned_to_name 
+      // Use SQL execute method that works consistently
+      const whereClause = includeMissedOpportunities === 'true' ? '' : `WHERE t.status != 'missed_opportunity'`;
+      
+      const result = await db.execute(sql`
+        SELECT 
+          t.id, 
+          t.title, 
+          t.organization, 
+          t.description,
+          t.value, 
+          t.deadline, 
+          t.status, 
+          t.source, 
+          t.ai_score as "aiScore", 
+          t.assigned_to as "assignedTo",
+          t.requirements, 
+          t.link, 
+          t.created_at as "createdAt", 
+          t.updated_at as "updatedAt",
+          u.name as "assignedToName"
         FROM tenders t 
         LEFT JOIN users u ON t.assigned_to = u.id
-      `;
+        ${includeMissedOpportunities === 'true' ? sql`` : sql`WHERE t.status != 'missed_opportunity'`}
+        ORDER BY t.deadline
+      `);
       
-      if (includeMissedOpportunities !== 'true') {
-        query = sql`${query} WHERE t.status != 'missed_opportunity'`;
-      }
+      console.log(`API tenders query result type:`, typeof result);
+      console.log(`Result is array:`, Array.isArray(result));
+      console.log(`Found ${result.length || (result.rows && result.rows.length) || 0} tenders`);
       
-      query = sql`${query} ORDER BY t.deadline`;
+      // Handle result structure - it should be an array directly
+      const rows = Array.isArray(result) ? result : (result.rows || []);
       
-      const result = await db.execute(query);
-      console.log('Query result:', result);
-      
-      if (!result || !Array.isArray(result.rows)) {
-        console.error('Invalid query result structure:', result);
-        return res.json([]);
-      }
-      
-      const tendersWithNames = result.rows.map(row => ({
+      const tendersWithNames = rows.map(row => ({
         ...row,
-        requirements: typeof row.requirements === 'string' ? JSON.parse(row.requirements) : row.requirements,
-        assignedToName: row.assigned_to_name // Add username for display
+        requirements: typeof row.requirements === 'string' ? JSON.parse(row.requirements) : row.requirements
       }));
       
       res.json(tendersWithNames);
     } catch (error) {
       console.error("Tenders fetch error:", error);
-      res.status(500).json({ error: "Failed to fetch tenders" });
+      res.status(500).json({ error: "Failed to fetch tenders", details: error.message });
     }
   });
 
