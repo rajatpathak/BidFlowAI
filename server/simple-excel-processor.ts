@@ -13,6 +13,7 @@ export async function processSimpleExcelUpload(filePath: string, fileName: strin
     console.log(`Found sheets: ${sheetNames.join(', ')}`);
     
     let totalProcessed = 0;
+  let duplicates = 0;
     let totalErrors = 0;
     let sheetsProcessed = 0;
     
@@ -72,10 +73,24 @@ export async function processSimpleExcelUpload(filePath: string, fileName: strin
             const reference = refCol >= 0 ? (row[refCol] || '').toString().trim() : '';
             const t247Id = t247Col >= 0 ? (row[t247Col] || '').toString().trim() : '';
             
-            // Skip duplicate checking for now to avoid errors - will be handled by database constraints
-            // if (t247Id && t247Id.length > 3) {
-            //   // Duplicate checking logic here
-            // }
+            // Check for duplicates using T247 ID
+            if (t247Id && t247Id.length > 3) {
+              try {
+                const existingTenders = await db.execute(sql`
+                  SELECT id FROM tenders 
+                  WHERE requirements::text LIKE '%' || ${t247Id} || '%'
+                  LIMIT 1
+                `);
+                
+                if (existingTenders.length > 0) {
+                  console.log(`Duplicate T247 ID found: ${t247Id}, skipping...`);
+                  duplicates++;
+                  continue;
+                }
+              } catch (error) {
+                console.log(`Error checking duplicate for ${t247Id}:`, error);
+              }
+            }
             
             // Simple AI score based on keywords
             const techKeywords = ['software', 'it', 'technology', 'digital', 'system', 'web', 'mobile'];
@@ -146,7 +161,7 @@ export async function processSimpleExcelUpload(filePath: string, fileName: strin
     console.error('Excel processing error:', error);
     return {
       success: false,
-      error: error.message,
+      error: (error as Error).message,
       tendersProcessed: 0,
       duplicatesSkipped: 0
     };

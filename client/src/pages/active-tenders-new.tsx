@@ -11,6 +11,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+import { Progress } from "@/components/ui/progress";
 
 // Upload Tenders Component
 function UploadTendersComponent() {
@@ -355,22 +356,44 @@ export default function ActiveTendersPage() {
     }
   };
 
+  // Upload state
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [isUploading, setIsUploading] = useState(false);
+
   // File upload handler
   const handleFileUpload = async (file: File) => {
+    setIsUploading(true);
+    setUploadProgress(0);
+    
     const formData = new FormData();
     formData.append("file", file);
     formData.append("uploadedBy", user?.username || "admin");
 
     try {
+      // Simulate progress for visual feedback
+      const progressInterval = setInterval(() => {
+        setUploadProgress((prev) => {
+          if (prev >= 90) {
+            clearInterval(progressInterval);
+            return prev;
+          }
+          return prev + 10;
+        });
+      }, 300);
+
       const response = await fetch("/api/upload-tenders", {
         method: "POST",
         body: formData,
       });
 
       if (!response.ok) {
+        clearInterval(progressInterval);
         throw new Error("Upload failed");
       }
 
+      setUploadProgress(100);
+      clearInterval(progressInterval);
+      
       const result = await response.json();
       
       toast({
@@ -379,13 +402,17 @@ export default function ActiveTendersPage() {
       });
 
       // Refresh tender data
-      window.location.reload();
+      queryClient.invalidateQueries({ queryKey: ["/api/tenders"] });
     } catch (error) {
+      setUploadProgress(0);
       toast({
         title: "Upload Failed",
         description: "Failed to upload and process the Excel file",
         variant: "destructive",
       });
+    } finally {
+      setIsUploading(false);
+      setTimeout(() => setUploadProgress(0), 2000);
     }
   };
 
@@ -577,13 +604,25 @@ export default function ActiveTendersPage() {
                         }}
                         className="hidden"
                         id="tender-file-upload"
+                        disabled={isUploading}
                       />
                       <label htmlFor="tender-file-upload">
-                        <Button asChild>
-                          <span>Select File</span>
+                        <Button asChild disabled={isUploading}>
+                          <span>{isUploading ? "Processing..." : "Select File"}</span>
                         </Button>
                       </label>
                     </div>
+                    
+                    {/* Progress Bar */}
+                    {isUploading && (
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-sm">
+                          <span>Processing Excel file...</span>
+                          <span>{uploadProgress}%</span>
+                        </div>
+                        <Progress value={uploadProgress} className="w-full" />
+                      </div>
+                    )}
                   </div>
                 </div>
               </CardContent>
