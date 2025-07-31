@@ -1,12 +1,14 @@
 import { Button } from "@/components/ui/button";
 import { Bell, Plus } from "lucide-react";
-import StatsCards from "@/components/dashboard/stats-cards";
+import EnhancedStatsCards from "@/components/dashboard/enhanced-stats-cards";
 import AIRecommendations from "@/components/dashboard/ai-recommendations";
 import TenderPipeline from "@/components/dashboard/tender-pipeline";
-import ActiveTendersTable from "@/components/dashboard/active-tenders-table";
+import DynamicTenderTable from "@/components/dashboard/dynamic-tender-table";
 import AIFeaturesPanel from "@/components/dashboard/ai-features-panel";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function Dashboard() {
+  const { user } = useAuth();
   return (
     <div className="min-h-screen bg-slate-50">
       {/* Mobile Header */}
@@ -25,7 +27,7 @@ export default function Dashboard() {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-              <p className="text-gray-600">Welcome back, John! Here's your tender overview.</p>
+              <p className="text-gray-600">Welcome back, {user?.name || 'User'}! Here's your tender overview.</p>
             </div>
             <div className="flex items-center space-x-3">
               <Button className="bg-primary hover:bg-primary/90">
@@ -45,14 +47,14 @@ export default function Dashboard() {
 
       {/* Main Dashboard Content */}
       <main className="p-6">
-        <StatsCards />
+        <EnhancedStatsCards />
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
           <AIRecommendations />
           <TenderPipeline />
         </div>
 
-        <ActiveTendersTable />
+        <DynamicTenderTable />
 
         <AIFeaturesPanel />
       </main>

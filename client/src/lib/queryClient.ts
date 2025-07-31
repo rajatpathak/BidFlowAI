@@ -8,22 +8,27 @@ async function throwIfResNotOk(res: Response) {
 }
 
 export async function apiRequest(
-  method: string,
   url: string,
-  data?: unknown | undefined,
+  options: RequestInit = {}
 ): Promise<Response> {
   // Add auth token to headers if available
   const token = localStorage.getItem('auth_token');
-  const headers: Record<string, string> = data ? { "Content-Type": "application/json" } : {};
+  const headers: Record<string, string> = {
+    ...options.headers as Record<string, string> || {},
+  };
+  
+  // Only add Content-Type for non-FormData requests
+  if (options.body && !(options.body instanceof FormData)) {
+    headers["Content-Type"] = "application/json";
+  }
   
   if (token) {
     headers.Authorization = `Bearer ${token}`;
   }
 
   const res = await fetch(url, {
-    method,
+    ...options,
     headers,
-    body: data ? JSON.stringify(data) : undefined,
     credentials: "include",
   });
 

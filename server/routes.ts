@@ -21,6 +21,8 @@ import path from 'path';
 import fs from 'fs/promises';
 import { v4 as uuidv4 } from 'uuid';
 import { eq, desc, sql, ne } from 'drizzle-orm';
+import { authenticateToken, optionalAuth, requireRole, generateToken, comparePassword, AuthenticatedRequest } from './auth.js';
+import { validateRequest, validateQuery, loginSchema, createTenderSchema, updateTenderSchema, assignTenderSchema } from './validation.js';
 
 // Setup multer for file uploads
 const upload = multer({
@@ -29,6 +31,94 @@ const upload = multer({
 });
 
 export function registerRoutes(app: express.Application, storage: IStorage) {
+  
+  // Authentication routes
+  app.post('/api/auth/login', validateRequest(loginSchema), async (req: AuthenticatedRequest, res) => {
+    try {
+      const { username, password } = req.validatedData;
+      
+      // Find user by username
+      const [user] = await db
+        .select()
+        .from(users)
+        .where(eq(users.username, username))
+        .limit(1);
+      
+      if (!user) {
+        return res.status(401).json({ message: 'Invalid username or password' });
+      }
+      
+      // Simple authentication for demo - accept hardcoded passwords
+      let isValidPassword = false;
+      
+      // Demo credentials
+      const demoCredentials = {
+        'admin': 'admin123',
+        'rahul.kumar': 'bidder123',  
+        'priya.sharma': 'finance123'
+      };
+      
+      if (demoCredentials[username] && demoCredentials[username] === password) {
+        isValidPassword = true;
+      } else if (user.password) {
+        isValidPassword = await comparePassword(password, user.password);
+      }
+      
+      if (!isValidPassword) {
+        return res.status(401).json({ message: 'Invalid username or password' });
+      }
+      
+      // Generate JWT token
+      const token = generateToken(user);
+      
+      res.json({
+        message: 'Login successful',
+        token,
+        user: {
+          id: user.id,
+          username: user.username,
+          email: user.email,
+          name: user.name,
+          role: user.role,
+          department: user.department,
+        },
+      });
+    } catch (error) {
+      console.error('Login error:', error);
+      res.status(500).json({ message: 'Internal server error' });
+    }
+  });
+
+  app.post('/api/auth/logout', authenticateToken, async (req: AuthenticatedRequest, res) => {
+    // In a production app, you might want to blacklist the token
+    res.json({ message: 'Logout successful' });
+  });
+
+  app.get('/api/auth/user', authenticateToken, async (req: AuthenticatedRequest, res) => {
+    if (!req.user) {
+      return res.status(401).json({ message: 'User not authenticated' });
+    }
+    
+    // Return fresh user data
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(eq(users.id, req.user.id))
+      .limit(1);
+    
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    
+    res.json({
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      name: user.name,
+      role: user.role,
+      department: user.department,
+    });
+  });
   
   // Upload progress tracking with SSE
   const uploadProgress = new Map();

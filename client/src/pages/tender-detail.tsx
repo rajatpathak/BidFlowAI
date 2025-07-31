@@ -1,5 +1,4 @@
 import { useParams } from "wouter";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -12,7 +11,9 @@ import { useToast } from "@/hooks/use-toast";
 import { CalendarDays, ExternalLink, MapPin, Building, User, Clock, Activity, FileText, Upload, PlayCircle } from "lucide-react";
 import { format } from "date-fns";
 import { useState } from "react";
-import { apiRequest } from "@/lib/queryClient";
+import { useTender, useApiQuery, useUploadDocuments } from "@/hooks/useApi";
+import { LoadingSpinner, CardLoader } from "@/components/common/LoadingSpinner";
+import { useAuth } from "@/contexts/AuthContext";
 
 // Helper function to display activity types
 const getActivityTypeDisplay = (activityType: string): string => {
@@ -83,49 +84,22 @@ export default function TenderDetailPage() {
   const [uploadedFiles, setUploadedFiles] = useState<FileList | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
   const { toast } = useToast();
-  const queryClient = useQueryClient();
+  const { user } = useAuth();
 
-  const { data: tender, isLoading: tenderLoading } = useQuery<TenderDetail>({
-    queryKey: [`/api/tenders/${id}`],
-    enabled: !!id,
-  });
+  // Use the new API hooks for better type safety and caching
+  const { data: tender, isLoading: tenderLoading, error: tenderError } = useTender(id!);
+  
+  const { data: activityLogs = [], isLoading: logsLoading } = useApiQuery<ActivityLog[]>(
+    [`/api/tenders/${id}/activity-logs`],
+    { enabled: !!id }
+  );
 
-  const { data: activityLogs = [], isLoading: logsLoading } = useQuery<ActivityLog[]>({
-    queryKey: [`/api/tenders/${id}/activity-logs`],
-    enabled: !!id,
-  });
+  const { data: documents = [], isLoading: documentsLoading } = useApiQuery<TenderDocument[]>(
+    [`/api/tenders/${id}/documents`],
+    { enabled: !!id }
+  );
 
-  const { data: documents = [], isLoading: documentsLoading } = useQuery<TenderDocument[]>({
-    queryKey: [`/api/tenders/${id}/documents`],
-    enabled: !!id,
-  });
-
-  const uploadDocumentsMutation = useMutation({
-    mutationFn: async (formData: FormData) => {
-      return apiRequest(`/api/tenders/${id}/documents`, {
-        method: 'POST',
-        body: formData,
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/tenders/${id}/documents`] });
-      queryClient.invalidateQueries({ queryKey: [`/api/tenders/${id}/activity-logs`] });
-      setShowBiddingDialog(false);
-      setUploadedFiles(null);
-      setUploadProgress(0);
-      toast({
-        title: "Documents Uploaded",
-        description: "RFP documents have been successfully uploaded.",
-      });
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Upload Failed",
-        description: error.message || "Failed to upload documents",
-        variant: "destructive",
-      });
-    },
-  });
+  const uploadDocumentsMutation = useUploadDocuments(id!);
 
   const handleStartBidding = () => {
     setShowBiddingDialog(true);
