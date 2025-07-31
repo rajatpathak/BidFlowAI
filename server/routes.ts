@@ -381,4 +381,38 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
       res.status(500).json({ error: 'Failed to fetch activity logs' });
     }
   });
+
+  // Process missed opportunities manually
+  app.post('/api/process-missed-opportunities', async (req, res) => {
+    try {
+      const { processMissedOpportunities } = await import('./missed-opportunities-processor.js');
+      const result = await processMissedOpportunities();
+      
+      res.json({
+        success: true,
+        message: `Processed ${result.processed} missed opportunities`,
+        data: result
+      });
+    } catch (error) {
+      console.error('Error processing missed opportunities:', error);
+      res.status(500).json({ error: 'Failed to process missed opportunities' });
+    }
+  });
+
+  // Get missed opportunities
+  app.get('/api/missed-opportunities', async (req, res) => {
+    try {
+      const missedOps = await db.execute(sql`
+        SELECT id, title, organization, value, deadline, created_at
+        FROM tenders 
+        WHERE status = 'missed_opportunity'
+        ORDER BY deadline DESC
+      `);
+      
+      res.json(missedOps);
+    } catch (error) {
+      console.error('Error fetching missed opportunities:', error);
+      res.status(500).json({ error: 'Failed to fetch missed opportunities' });
+    }
+  });
 }

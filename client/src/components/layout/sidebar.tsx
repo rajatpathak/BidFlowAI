@@ -22,7 +22,8 @@ import {
   LogOut,
   Shield,
   History,
-  Bell
+  Bell,
+  AlertTriangle
 } from "lucide-react";
 
 const navigation = [
@@ -30,6 +31,7 @@ const navigation = [
   { name: "Active Tenders", href: "/active-tenders", icon: FileText },
   { name: "Assigned Tenders", href: "/assigned-tenders", icon: Bell },
   { name: "Tender Results", href: "/tender-results", icon: Trophy },
+  { name: "Missed Opportunities", href: "/missed-opportunities", icon: AlertTriangle },
   { name: "Create Bid", href: "/create-bid", icon: Plus },
   { name: "Meetings", href: "/meetings", icon: Calendar },
   { name: "Finance", href: "/finance", icon: DollarSign },

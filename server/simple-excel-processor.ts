@@ -2,6 +2,7 @@ import * as XLSX from 'xlsx';
 import * as fs from 'fs';
 import { db } from './db.js';
 import { sql } from 'drizzle-orm';
+import { processMissedOpportunities, checkDeadlineExtensions } from './missed-opportunities-processor.js';
 
 export async function processSimpleExcelUpload(
   filePath: string, 
@@ -164,6 +165,9 @@ export async function processSimpleExcelUpload(
               
               if (hasChanges) {
                 try {
+                  // Check for deadline extension and reactivate if needed
+                  await checkDeadlineExtensions(existingTender.id, deadline);
+                  
                   // Log the update with before/after values
                   const updateLog = {
                     tenderId: existingTender.id,
@@ -322,6 +326,17 @@ export async function processSimpleExcelUpload(
       console.log(`Total hyperlinks extracted: ${totalLinksCount[0]?.count || 0} links found`);
     } catch (linkError) {
       console.log('Error checking total hyperlinks:', linkError);
+    }
+    
+    // Process missed opportunities after upload
+    console.log('🔍 Checking for missed opportunities after upload...');
+    try {
+      const missedOpportunitiesResult = await processMissedOpportunities();
+      if (missedOpportunitiesResult.processed > 0) {
+        console.log(`✅ Moved ${missedOpportunitiesResult.processed} expired tenders to missed opportunities`);
+      }
+    } catch (missedOpError) {
+      console.error('Error processing missed opportunities:', missedOpError);
     }
     
     // Final progress callback

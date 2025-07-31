@@ -16,6 +16,7 @@ import AdminSettings from "@/pages/admin-settings";
 import ActiveTenders from "@/pages/active-tenders-new";
 import TenderResults from "@/pages/tender-results";
 import TenderDetail from "@/pages/tender-detail-enhanced";
+import MissedOpportunities from "@/pages/missed-opportunities";
 import AssignedTenders from "@/pages/assigned-tenders";
 import UploadDemo from "@/pages/upload-demo";
 import Login from "@/pages/login";
@@ -62,6 +63,7 @@ function Router() {
               <Route path="/tender/:id" component={() => <ProtectedRoute requiredPermission="view_tenders"><TenderDetail /></ProtectedRoute>} />
               <Route path="/assigned-tenders" component={() => <ProtectedRoute requiredPermission="create_bids"><AssignedTenders /></ProtectedRoute>} />
               <Route path="/tender-results" component={() => <ProtectedRoute requiredPermission="view_tenders"><TenderResults /></ProtectedRoute>} />
+              <Route path="/missed-opportunities" component={() => <ProtectedRoute requiredPermission="view_tenders"><MissedOpportunities /></ProtectedRoute>} />
               <Route path="/create-bid" component={() => <ProtectedRoute requiredPermission="create_bids"><CreateBid /></ProtectedRoute>} />
               <Route path="/ai-insights" component={() => <ProtectedRoute requiredPermission="use_ai_insights"><AIInsights /></ProtectedRoute>} />
               <Route path="/finance" component={() => <ProtectedRoute requiredPermission="view_finance"><Finance /></ProtectedRoute>} />
