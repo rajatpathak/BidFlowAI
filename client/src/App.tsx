@@ -22,6 +22,8 @@ import TenderDetail from "@/pages/tender-detail-enhanced";
 import TenderDetailPage from "@/pages/tender-detail";
 import MissedOpportunities from "@/pages/missed-opportunities";
 import AssignedTenders from "@/pages/assigned-tenders";
+import AdminNotRelevantRequests from "@/pages/admin-not-relevant-requests";
+import NotRelevantTenders from "@/pages/not-relevant-tenders";
 import UploadDemo from "@/pages/upload-demo";
 import Login from "@/pages/login";
 import Unauthorized from "@/pages/unauthorized";
@@ -63,6 +65,8 @@ function Router() {
               <Route path="/active-tenders" component={() => <ProtectedRoute requiredPermission="view_tenders"><ActiveTenders /></ProtectedRoute>} />
               <Route path="/tender/:id" component={() => <ProtectedRoute requiredPermission="view_tenders"><TenderDetail /></ProtectedRoute>} />
               <Route path="/assigned-tenders" component={() => <ProtectedRoute requiredPermission="create_bids"><AssignedTenders /></ProtectedRoute>} />
+              <Route path="/not-relevant-tenders" component={() => <ProtectedRoute requiredPermission="view_tenders"><NotRelevantTenders /></ProtectedRoute>} />
+              <Route path="/admin/not-relevant-requests" component={() => <ProtectedRoute requiredRole="admin"><AdminNotRelevantRequests /></ProtectedRoute>} />
               <Route path="/tender-results" component={() => <ProtectedRoute requiredPermission="view_tenders"><TenderResults /></ProtectedRoute>} />
               <Route path="/missed-opportunities" component={() => <ProtectedRoute requiredPermission="view_tenders"><MissedOpportunities /></ProtectedRoute>} />
               <Route path="/create-bid" component={() => <ProtectedRoute requiredPermission="create_bids"><CreateBid /></ProtectedRoute>} />

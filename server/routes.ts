@@ -383,27 +383,171 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
     }
   });
 
-  // Mark tender as not relevant (alternative endpoint)
+  // Mark tender as not relevant (pending admin approval)
   app.post("/api/tenders/:id/not-relevant", async (req, res) => {
     try {
       const { id } = req.params;
       const { reason } = req.body;
+      const token = req.headers.authorization?.replace('Bearer ', '');
       
-      // Update tender status
+      if (!token) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      // Verify token and get user
+      const decoded = jwt.verify(token, JWT_SECRET) as any;
+      const [user] = await db.execute(sql`SELECT * FROM users WHERE id = ${decoded.userId}`);
+      
+      if (!user) {
+        return res.status(401).json({ error: "Invalid user" });
+      }
+      
+      // Update tender with not relevant request (pending approval)
       await db.execute(sql`
-        UPDATE tenders SET status = 'not_relevant' WHERE id = ${id}
+        UPDATE tenders SET 
+          not_relevant_reason = ${reason},
+          not_relevant_requested_by = ${user.id},
+          not_relevant_requested_at = NOW(),
+          not_relevant_status = 'pending',
+          updated_at = NOW()
+        WHERE id = ${id}
       `);
       
-      // Add activity log with username
+      // Add activity log
       await db.execute(sql`
         INSERT INTO activity_logs (id, tender_id, activity_type, description, created_by, created_at)
-        VALUES (gen_random_uuid(), ${id}, 'marked_not_relevant', ${'Tender marked as not relevant. Reason: ' + (reason || 'No reason provided')}, 'System User', NOW())
+        VALUES (gen_random_uuid(), ${id}, 'not_relevant_requested', ${`Not relevant request submitted for admin approval. Reason: ${reason}`}, ${user.name}, NOW())
       `);
       
-      res.json({ success: true, message: "Tender marked as not relevant" });
+      res.json({ success: true, message: "Not relevant request submitted for admin approval" });
     } catch (error) {
       console.error("Mark not relevant error:", error);
-      res.status(500).json({ error: "Failed to mark tender as not relevant" });
+      res.status(500).json({ error: "Failed to submit not relevant request" });
+    }
+  });
+
+  // Admin approve/reject not relevant request
+  app.post("/api/tenders/:id/not-relevant/approve", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { action, comments } = req.body; // action: 'approve' or 'reject'
+      const token = req.headers.authorization?.replace('Bearer ', '');
+      
+      if (!token) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      // Verify token and get user
+      const decoded = jwt.verify(token, JWT_SECRET) as any;
+      const [user] = await db.execute(sql`SELECT * FROM users WHERE id = ${decoded.userId}`);
+      
+      if (!user || user.role !== 'admin') {
+        return res.status(403).json({ error: "Only admins can approve/reject not relevant requests" });
+      }
+
+      // Get tender details
+      const [tender] = await db.execute(sql`SELECT * FROM tenders WHERE id = ${id}`);
+      if (!tender) {
+        return res.status(404).json({ error: "Tender not found" });
+      }
+
+      if (tender.not_relevant_status !== "pending") {
+        return res.status(400).json({ error: "No pending not relevant request for this tender" });
+      }
+
+      // Update tender based on admin decision
+      if (action === 'approve') {
+        await db.execute(sql`
+          UPDATE tenders SET 
+            status = 'not_relevant',
+            not_relevant_approved_by = ${user.id},
+            not_relevant_approved_at = NOW(),
+            not_relevant_status = 'approved',
+            updated_at = NOW()
+          WHERE id = ${id}
+        `);
+      } else {
+        await db.execute(sql`
+          UPDATE tenders SET 
+            not_relevant_approved_by = ${user.id},
+            not_relevant_approved_at = NOW(),
+            not_relevant_status = 'rejected',
+            updated_at = NOW()
+          WHERE id = ${id}
+        `);
+      }
+
+      // Log the activity
+      await db.execute(sql`
+        INSERT INTO activity_logs (id, tender_id, activity_type, description, created_by, created_at)
+        VALUES (gen_random_uuid(), ${id}, ${'not_relevant_' + action + 'd'}, 
+        ${`Not relevant request ${action}d by admin${comments ? `. Comments: ${comments}` : ''}`}, 
+        ${user.name}, NOW())
+      `);
+
+      res.json({ success: true, message: `Not relevant request ${action}d successfully` });
+    } catch (error) {
+      console.error(`Error ${req.body.action}ing not relevant request:`, error);
+      res.status(500).json({ error: `Failed to ${req.body.action} not relevant request` });
+    }
+  });
+
+  // Get pending not relevant requests (for admin)
+  app.get("/api/admin/not-relevant-requests", async (req, res) => {
+    try {
+      const token = req.headers.authorization?.replace('Bearer ', '');
+      
+      if (!token) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      // Verify token and get user
+      const decoded = jwt.verify(token, JWT_SECRET) as any;
+      const [user] = await db.execute(sql`SELECT * FROM users WHERE id = ${decoded.userId}`);
+      
+      if (!user || user.role !== 'admin') {
+        return res.status(403).json({ error: "Only admins can view not relevant requests" });
+      }
+
+      const requests = await db.execute(sql`
+        SELECT 
+          t.*,
+          u1.name as requested_by_name,
+          u1.username as requested_by_username
+        FROM tenders t
+        LEFT JOIN users u1 ON t.not_relevant_requested_by = u1.id
+        WHERE t.not_relevant_status = 'pending'
+        ORDER BY t.not_relevant_requested_at DESC
+      `);
+
+      res.json(requests);
+    } catch (error) {
+      console.error("Error fetching not relevant requests:", error);
+      res.status(500).json({ error: "Failed to fetch not relevant requests" });
+    }
+  });
+
+  // Get not relevant tenders
+  app.get("/api/tenders/not-relevant", async (req, res) => {
+    try {
+      const notRelevantTenders = await db.execute(sql`
+        SELECT 
+          t.*,
+          u1.name as requested_by_name,
+          u1.username as requested_by_username,
+          u2.name as approved_by_name,
+          u2.username as approved_by_username
+        FROM tenders t
+        LEFT JOIN users u1 ON t.not_relevant_requested_by = u1.id
+        LEFT JOIN users u2 ON t.not_relevant_approved_by = u2.id
+        WHERE t.status = 'not_relevant' AND t.not_relevant_status = 'approved'
+        ORDER BY t.not_relevant_approved_at DESC
+      `);
+
+      res.json(notRelevantTenders);
+    } catch (error) {
+      console.error("Error fetching not relevant tenders:", error);
+      res.status(500).json({ error: "Failed to fetch not relevant tenders" });
     }
   });
 

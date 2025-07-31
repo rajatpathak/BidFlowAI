@@ -29,6 +29,12 @@ export const tenders = pgTable("tenders", {
   assignedTo: text("assigned_to"), // username or role of assigned bidder
   link: text("link"), // URL to tender details
   submittedAt: timestamp("submitted_at"),
+  notRelevantReason: text("not_relevant_reason"),
+  notRelevantRequestedBy: uuid("not_relevant_requested_by").references(() => users.id),
+  notRelevantRequestedAt: timestamp("not_relevant_requested_at"),
+  notRelevantApprovedBy: uuid("not_relevant_approved_by").references(() => users.id),
+  notRelevantApprovedAt: timestamp("not_relevant_approved_at"),
+  notRelevantStatus: text("not_relevant_status").default("none"), // none, pending, approved, rejected
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

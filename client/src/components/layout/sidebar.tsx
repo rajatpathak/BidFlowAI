@@ -31,6 +31,7 @@ const navigation = [
   { name: "Dashboard", href: "/", icon: BarChart3 },
   { name: "Active Tenders", href: "/active-tenders", icon: FileText },
   { name: "Assigned Tenders", href: "/assigned-tenders", icon: Bell },
+  { name: "Not Relevant", href: "/not-relevant-tenders", icon: AlertTriangle },
   { name: "Tender Results", href: "/tender-results", icon: Trophy },
   { name: "Missed Opportunities", href: "/missed-opportunities", icon: AlertTriangle },
   { name: "Create Bid", href: "/create-bid", icon: Plus },
@@ -38,8 +39,9 @@ const navigation = [
   { name: "Finance", href: "/finance", icon: DollarSign },
   { name: "AI Insights", href: "/ai-insights", icon: Brain },
   { name: "AI Recommendations", href: "/ai-recommendations", icon: Lightbulb },
-  { name: "User Management", href: "/user-management", icon: UserCog },
-  { name: "Admin Settings", href: "/admin-settings", icon: Cog },
+  { name: "User Management", href: "/user-management", icon: UserCog, adminOnly: true },
+  { name: "Not Relevant Requests", href: "/admin/not-relevant-requests", icon: Shield, adminOnly: true },
+  { name: "Admin Settings", href: "/admin-settings", icon: Cog, adminOnly: true },
   { name: "Analytics", href: "/analytics", icon: PieChart },
   { name: "Settings", href: "/settings", icon: Settings },
 ];
@@ -91,8 +93,7 @@ export default function Sidebar() {
             const isActive = location === item.href;
             
             // Filter navigation based on user role
-            if (item.href === "/user-management" && user?.role !== "admin") return null;
-            if (item.href === "/admin-settings" && user?.role !== "admin") return null;
+            if (item.adminOnly && user?.role !== "admin") return null;
             if (item.href === "/finance" && user?.role !== "finance_manager" && user?.role !== "admin") return null;
             if (item.href === "/assigned-tenders" && user?.role !== "senior_bidder" && user?.role !== "junior_bidder" && user?.role !== "bidder") return null;
             
