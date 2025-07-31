@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle, Shield, FileText, Phone, Settings, Calculator, Target, AlertTriangle, Clock, Users } from "lucide-react";
+import { CheckCircle, Shield, FileText, Phone, Settings, Calculator, Target, AlertTriangle, Clock, Users, CheckSquare } from "lucide-react";
 
 interface AIAnalysisDisplayProps {
   analysis: any;
@@ -33,7 +33,7 @@ export function AIAnalysisDisplay({ analysis }: AIAnalysisDisplayProps) {
       </Card>
 
       {/* Pre-Qualification Criteria */}
-      {analysis.preQualificationCriteria && analysis.preQualificationCriteria.length > 0 && (
+      {(analysis.preQualificationCriteria || analysis.eligibilityCriteria) && (analysis.preQualificationCriteria || analysis.eligibilityCriteria).length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg">
@@ -43,15 +43,15 @@ export function AIAnalysisDisplay({ analysis }: AIAnalysisDisplayProps) {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {analysis.preQualificationCriteria.map((criteria: any, index: number) => (
+              {(analysis.preQualificationCriteria || analysis.eligibilityCriteria).map((criteria: any, index: number) => (
                 <div key={index} className="p-4 border rounded-lg">
                   <div className="flex items-center justify-between mb-2">
-                    <p className="font-medium">{criteria.category}</p>
+                    <p className="font-medium">{criteria.category || criteria.title}</p>
                     <Badge variant={
-                      criteria.companyStatus === 'Eligible' ? 'default' :
-                      criteria.companyStatus === 'Not Eligible' ? 'destructive' : 'secondary'
+                      (criteria.companyStatus || criteria.status) === 'Eligible' ? 'default' :
+                      (criteria.companyStatus || criteria.status) === 'Not Eligible' ? 'destructive' : 'secondary'
                     }>
-                      {criteria.companyStatus}
+                      {criteria.companyStatus || criteria.status}
                     </Badge>
                   </div>
                   <p className="text-sm text-gray-600 mb-2">{criteria.requirement}</p>
@@ -98,7 +98,7 @@ export function AIAnalysisDisplay({ analysis }: AIAnalysisDisplayProps) {
       )}
 
       {/* Contact Information */}
-      {analysis.contactInformation && analysis.contactInformation.length > 0 && (
+      {(analysis.contactInformation || analysis.contactInfo) && (analysis.contactInformation || analysis.contactInfo).length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg">
@@ -108,7 +108,7 @@ export function AIAnalysisDisplay({ analysis }: AIAnalysisDisplayProps) {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {analysis.contactInformation.map((contact: any, index: number) => (
+              {(analysis.contactInformation || analysis.contactInfo).map((contact: any, index: number) => (
                 <div key={index} className="p-4 bg-indigo-50 rounded-lg">
                   <div className="flex items-start justify-between">
                     <div>
@@ -143,6 +143,112 @@ export function AIAnalysisDisplay({ analysis }: AIAnalysisDisplayProps) {
                   </div>
                 </div>
               ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Other Criteria (Legacy Support) */}
+      {analysis.otherCriteria && analysis.otherCriteria.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <CheckSquare className="h-5 w-5 text-blue-600" />
+              Other Criteria & Requirements
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {analysis.otherCriteria.map((item: string, index: number) => (
+                <div key={index} className="flex items-start gap-2 p-2 bg-blue-50 rounded">
+                  <span className="text-blue-600 mt-1">•</span>
+                  <p className="text-sm">{item}</p>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Pre-bid Meeting (Legacy Support) */}
+      {analysis.preBidMeeting && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Clock className="h-5 w-5 text-orange-600" />
+              Pre-bid Meeting
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {analysis.preBidMeeting.date && (
+                <div className="p-3 bg-orange-50 rounded-lg">
+                  <p className="font-medium text-orange-900">Date</p>
+                  <p className="text-sm text-gray-700">{analysis.preBidMeeting.date}</p>
+                </div>
+              )}
+              {analysis.preBidMeeting.time && (
+                <div className="p-3 bg-orange-50 rounded-lg">
+                  <p className="font-medium text-orange-900">Time</p>
+                  <p className="text-sm text-gray-700">{analysis.preBidMeeting.time}</p>
+                </div>
+              )}
+              {analysis.preBidMeeting.location && (
+                <div className="p-3 bg-orange-50 rounded-lg">
+                  <p className="font-medium text-orange-900">Location</p>
+                  <p className="text-sm text-gray-700">{analysis.preBidMeeting.location}</p>
+                </div>
+              )}
+              {analysis.preBidMeeting.details && (
+                <div className="p-3 bg-orange-50 rounded-lg md:col-span-2">
+                  <p className="font-medium text-orange-900">Details</p>
+                  <p className="text-sm text-gray-700">{analysis.preBidMeeting.details}</p>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Quotation Analysis (Legacy Support) */}
+      {analysis.quotationAnalysis && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Calculator className="h-5 w-5 text-purple-600" />
+              AI Quotation Analysis (L1 Strategy)
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {analysis.quotationAnalysis.estimatedAmount && (
+                <div className="bg-purple-50 p-4 rounded-lg">
+                  <p className="font-medium text-purple-900">Estimated L1 Bid Amount</p>
+                  <p className="text-2xl font-bold text-purple-600">
+                    ₹{analysis.quotationAnalysis.estimatedAmount.toLocaleString('en-IN')}
+                  </p>
+                </div>
+              )}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {analysis.quotationAnalysis.strategy && (
+                  <div className="p-3 bg-purple-50 rounded-lg">
+                    <p className="font-medium text-purple-900">Strategy</p>
+                    <p className="text-sm text-gray-700">{analysis.quotationAnalysis.strategy}</p>
+                  </div>
+                )}
+                {analysis.quotationAnalysis.riskLevel && (
+                  <div className="p-3 bg-purple-50 rounded-lg">
+                    <p className="font-medium text-purple-900">Risk Level</p>
+                    <p className="text-sm text-gray-700">{analysis.quotationAnalysis.riskLevel}</p>
+                  </div>
+                )}
+                {analysis.quotationAnalysis.keyFactors && (
+                  <div className="p-3 bg-purple-50 rounded-lg md:col-span-2">
+                    <p className="font-medium text-purple-900">Key Factors</p>
+                    <p className="text-sm text-gray-700">{analysis.quotationAnalysis.keyFactors.join(', ')}</p>
+                  </div>
+                )}
+              </div>
             </div>
           </CardContent>
         </Card>
