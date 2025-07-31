@@ -49,13 +49,38 @@ app.use((req, res, next) => {
   console.log('✅ API routes registered successfully');
   console.log('Environment:', process.env.NODE_ENV || 'development');
 
+  // Production-specific API route handling
+  if (process.env.NODE_ENV === 'production') {
+    // Health check endpoint for production verification
+    app.get('/api/health', (req: Request, res: Response) => {
+      res.json({ 
+        status: 'ok', 
+        timestamp: new Date().toISOString(),
+        version: '1.0.0',
+        environment: 'production'
+      });
+    });
+
+    // Handle API 404s in production with JSON
+    app.use('/api/*', (req: Request, res: Response) => {
+      res.status(404).json({
+        message: `API endpoint not found: ${req.path}`,
+        error: 'NOT_FOUND'
+      });
+    });
+  }
+
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";
 
     // Ensure JSON response for API routes
-    res.setHeader('Content-Type', 'application/json');
-    res.status(status).json({ message, error: 'SERVER_ERROR' });
+    if (_req.path.startsWith('/api/')) {
+      res.setHeader('Content-Type', 'application/json');
+      res.status(status).json({ message, error: 'SERVER_ERROR' });
+    } else {
+      res.status(status).send(message);
+    }
     console.error('Server error:', err);
   });
 

@@ -381,8 +381,8 @@ Project Architecture: Separated frontend (React.js) and backend (Node.js) with M
   - Production-ready error handling with JSON responses for API endpoints
   - Environment-specific configurations and comprehensive logging
 
-### Production Deployment Fix for VPS via GitHub Actions (July 31, 2025) ✅
-- **JSON API Response Issue Resolved**: Fixed "Unexpected token '<', "<!DOCTYPE "... is not valid JSON" error
+### Critical Production Deployment Fix for VPS (July 31, 2025) ⚠️ IN PROGRESS
+- **JSON API Response Issue - Manual Fix Required**: VPS deployment still returning HTML instead of JSON for API calls
   - API routes now properly registered BEFORE static file serving to prevent HTML responses
   - All `/api/*` routes explicitly set `Content-Type: application/json` headers
   - Added comprehensive API route logging for debugging: `🔄 API Request: POST /api/auth/login`
