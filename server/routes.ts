@@ -1373,16 +1373,22 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
         WHERE t.id = ${id}
       `);
       
-      if (result.rows.length === 0) {
+      // Handle different result structures
+      const rows = result.rows || result;
+      
+      if (!rows || (Array.isArray(rows) && rows.length === 0)) {
         return res.status(404).json({ error: "Tender not found" });
       }
       
+      const tenderData = Array.isArray(rows) ? rows[0] : rows;
+      
       const tender = {
-        ...result.rows[0],
-        requirements: typeof result.rows[0].requirements === 'string' 
-          ? JSON.parse(result.rows[0].requirements) 
-          : result.rows[0].requirements,
-        assignedToName: result.rows[0].assigned_to_name
+        ...tenderData,
+        requirements: typeof tenderData.requirements === 'string' 
+          ? JSON.parse(tenderData.requirements) 
+          : tenderData.requirements || [],
+        assignedToName: tenderData.assigned_to_name,
+        aiScore: tenderData.ai_score // Add frontend-compatible field
       };
       
       res.json(tender);
