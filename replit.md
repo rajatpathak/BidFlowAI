@@ -332,4 +332,27 @@ Project Architecture: Separated frontend (React.js) and backend (Node.js) with M
   - AI scoring system integrated with imported tender data
 - **Production Ready**: Fully functional multi-sheet Excel upload with comprehensive data validation and user feedback
 
-The architecture prioritizes type safety, developer experience, and scalability while maintaining a clean separation between frontend, backend, and data layers. The AI integration is designed to enhance user decision-making without being intrusive to the core workflow. The system now supports complete tender lifecycle management from discovery through award with integrated financial tracking and team coordination.
+### Complete Username Display & Activity Logging System (July 31, 2025) ✅
+- **Username Display Implementation**: Fixed tender API to join with users table and display actual usernames
+  - Tender table now shows "Assigned to Rahul Kumar" instead of user IDs (d7eb51e7-1334-429e-b57c-48a346236eef)
+  - Assignment badges display proper names like "Priya Sharma" and "Rahul Kumar"
+  - Real-time username resolution in tender assignment status
+- **Comprehensive Activity Logging**: Complete audit trail with timestamps and usernames for all actions
+  - API endpoint: GET /api/tenders/:id/activity-logs with user joins for creator names
+  - Activity logs show proper format: "by Rahul Kumar" with ISO timestamps
+  - Professional detail page at /tender/:id with activity timeline sidebar
+- **All Actions Tracked**: Activity logging implemented for all major operations
+  - Tender assignments: "Tender assigned to [Username] with priority: [Priority]"
+  - Assignment updates: "Assignment updated - Priority: high, Budget: ₹100,000"
+  - Assignment removal: "Assignment removed and tender returned to active status"
+  - Tender deletion: "Tender deleted: [Tender Title]" (logged before deletion)
+  - Not relevant marking: "Tender marked as not relevant. Reason: [Reason]"
+  - Excel uploads: Automatic activity logging for tender updates and corrigendum changes
+  - Document uploads, comments, deadline extensions - all tracked with usernames
+- **Production Ready**: 
+  - Users table properly joined in all tender queries
+  - Activity logs display "by System Administrator", "by Rahul Kumar" format
+  - Complete tender detail pages with professional activity timeline
+  - All assignment operations show proper usernames instead of user IDs
+
+The architecture prioritizes type safety, developer experience, and scalability while maintaining a clean separation between frontend, backend, and data layers. The AI integration is designed to enhance user decision-making without being intrusive to the core workflow. The system now supports complete tender lifecycle management from discovery through award with integrated financial tracking, team coordination, and comprehensive activity tracking with proper username display.

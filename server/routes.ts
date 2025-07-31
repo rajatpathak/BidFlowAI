@@ -215,6 +215,18 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
   app.delete("/api/tenders/:id", async (req, res) => {
     try {
       const { id } = req.params;
+      
+      // Get tender title for activity log
+      const tenderResult = await db.execute(sql`SELECT title FROM tenders WHERE id = ${id}`);
+      const tenderTitle = tenderResult.rows[0]?.title || 'Unknown Tender';
+      
+      // Add activity log before deletion
+      await db.execute(sql`
+        INSERT INTO activity_logs (id, tender_id, activity_type, description, created_by, created_at)
+        VALUES (gen_random_uuid(), ${id}, 'tender_deleted', ${'Tender deleted: ' + tenderTitle}, 'System User', NOW())
+      `);
+      
+      // Delete tender
       await db.execute(sql`DELETE FROM tenders WHERE id = ${id}`);
       res.json({ success: true, message: "Tender deleted successfully" });
     } catch (error) {
@@ -229,15 +241,15 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
       const { id } = req.params;
       const { reason } = req.body;
       
-      // Add activity log
-      await db.execute(sql`
-        INSERT INTO activity_logs (id, tender_id, activity_type, description, created_by, created_at)
-        VALUES (gen_random_uuid(), ${id}, 'marked_not_relevant', ${reason}, 'user', NOW())
-      `);
-      
       // Update tender status
       await db.execute(sql`
         UPDATE tenders SET status = 'not_relevant' WHERE id = ${id}
+      `);
+      
+      // Add activity log with username
+      await db.execute(sql`
+        INSERT INTO activity_logs (id, tender_id, activity_type, description, created_by, created_at)
+        VALUES (gen_random_uuid(), ${id}, 'marked_not_relevant', ${'Tender marked as not relevant. Reason: ' + (reason || 'No reason provided')}, 'System User', NOW())
       `);
       
       res.json({ success: true, message: "Tender marked as not relevant" });
@@ -278,6 +290,13 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
       query = sql`${query} ORDER BY t.deadline`;
       
       const result = await db.execute(query);
+      console.log('Query result:', result);
+      
+      if (!result || !Array.isArray(result.rows)) {
+        console.error('Invalid query result structure:', result);
+        return res.json([]);
+      }
+      
       const tendersWithNames = result.rows.map(row => ({
         ...row,
         requirements: typeof row.requirements === 'string' ? JSON.parse(row.requirements) : row.requirements,
@@ -813,6 +832,14 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
         return res.status(404).json({ error: "Assignment not found" });
       }
       
+      // Add activity log for assignment update
+      await db.execute(sql`
+        INSERT INTO activity_logs (id, tender_id, activity_type, description, created_by, created_at)
+        VALUES (gen_random_uuid(), ${updatedAssignment.tenderId}, 'assignment_updated', 
+                ${'Assignment updated - Priority: ' + priority + ', Budget: ₹' + (budget || 'Not specified') + ', Status: ' + (status || 'assigned')}, 
+                'System User', NOW())
+      `);
+      
       res.json(updatedAssignment);
     } catch (error) {
       console.error("Error updating assignment:", error);
@@ -832,6 +859,14 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
         return res.status(404).json({ error: "Assignment not found" });
       }
 
+      // Add activity log before removing assignment
+      await db.execute(sql`
+        INSERT INTO activity_logs (id, tender_id, activity_type, description, created_by, created_at)
+        VALUES (gen_random_uuid(), ${assignment.tenderId}, 'assignment_removed', 
+                'Assignment removed and tender returned to active status', 
+                'System User', NOW())
+      `);
+      
       // Delete the assignment
       await db.delete(tenderAssignments).where(eq(tenderAssignments.id, id));
       
