@@ -48,8 +48,16 @@ export async function processSimpleExcelUpload(
         const refCol = headers.findIndex(h => h.toLowerCase().includes('reference'));
         const t247Col = headers.findIndex(h => h.toLowerCase().includes('t247'));
         
-        // Determine source based on sheet name
-        const source = sheetName.toLowerCase().includes('gem') ? 'gem' : 'non_gem';
+        // Determine source based on sheet name with better detection
+        const sheetLower = sheetName.toLowerCase();
+        let source = 'non_gem'; // Default to non_gem
+        
+        // More specific GeM detection
+        if (sheetLower.includes('gem') && !sheetLower.includes('non')) {
+          source = 'gem';
+        }
+        
+        console.log(`Sheet "${sheetName}" classified as: ${source}`);
         
         // Process data rows
         for (let i = 1; i < data.length; i++) {
