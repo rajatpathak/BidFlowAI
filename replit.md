@@ -274,6 +274,21 @@ Project Architecture: Separated frontend (React.js) and backend (Node.js) with M
   - Database operations: All CRUD operations functional ✅
 - **Architecture Status**: Full PostgreSQL database integration with separated frontend/backend architecture and comprehensive Excel processing
 
+### Data Extraction Accuracy & Upload History Fixes Complete (July 31, 2025) ✅
+- **Critical Data Extraction Issues Resolved**: Fixed incorrect column mapping for reference numbers (was extracting SR. NO. instead of REFERENCE NO)
+  - Reference numbers now correctly extracted: "GEM/2025/B/6452714" instead of "1"
+  - T247 ID extraction fixed to use proper column detection rather than hardcoded column index
+  - Date parsing enhanced to handle Excel serial numbers and various date formats
+- **Upload History Functionality Fixed**: 
+  - Corrected database query column names (uploaded_at vs created_at)
+  - Frontend properly displays file name, upload timestamp, imported count, skipped count, and status
+  - Upload history working in real-time with proper data transformation for display
+- **Table Display Enhanced**: 
+  - Added separate Reference No and Link columns to Active Tenders table
+  - Reference numbers displayed in dedicated column with proper formatting
+  - Links shown with external link icons and "View" text in separate column
+  - Table structure: Tender Details | Reference No | Organization | Value | Deadline | Link | AI Score | Status | Actions
+
 ### Excel Upload Functionality for Active Tenders Complete (July 30, 2025) ✅
 - **Multi-Sheet Excel Processing**: Enhanced system supporting Non-GeM and GeM subsheets
   - Successfully processes 1,235+ tenders from 2 subsheets simultaneously
