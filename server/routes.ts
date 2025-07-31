@@ -769,20 +769,22 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
       const assignerResult = await db.execute(sql`SELECT name FROM users WHERE id = ${assignedBy}`);
       const assignerName = assignerResult[0]?.name || 'Unknown User';
       
-      // Add detailed activity log
-      await db.execute(sql`
-        INSERT INTO activity_logs (id, tender_id, activity_type, description, created_by, created_at, details)
-        VALUES (gen_random_uuid(), ${id}, 'tender_assigned', 
-                ${'Tender assigned to ' + bidderName + ' with priority: ' + priority + ' and budget: ₹' + (budget || 'Not specified') + ' by ' + assignerName}, 
-                ${assignerName}, NOW(), ${JSON.stringify({
-                  assignedTo: bidderId,
-                  assignedToName: bidderName,
-                  priority: priority,
-                  budget: budget,
-                  assignedBy: assignedBy,
-                  assignedByName: assignerName
-                })})
-      `);
+      // Add detailed activity log using enhanced logging
+      const { ActivityLogger, ACTIVITY_TYPES } = await import('./activity-logging.js');
+      await ActivityLogger.logActivity(
+        id,
+        ACTIVITY_TYPES.TENDER_ASSIGNED,
+        'Tender assignment',
+        assignerName,
+        {
+          assignedTo: bidderId,
+          assignedToName: bidderName,
+          priority: priority,
+          budget: budget,
+          assignedBy: assignedBy,
+          assignedByName: assignerName
+        }
+      );
 
       res.json({
         success: true,

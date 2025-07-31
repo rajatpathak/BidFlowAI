@@ -262,7 +262,7 @@ export default function TenderDetailPage() {
                             </span>
                           </div>
                           <p className="text-sm font-medium text-gray-900 leading-relaxed">
-                            {log.description}
+                            {log.enhancedDescription || log.description}
                           </p>
                         </div>
                       </div>
