@@ -18,7 +18,7 @@ import {
   documents
 } from '../shared/schema.js';
 import path from 'path';
-import fs from 'fs/promises';
+import { promises as fs } from 'fs';
 import { v4 as uuidv4 } from 'uuid';
 import { eq, desc, sql, ne } from 'drizzle-orm';
 import { authenticateToken, optionalAuth, requireRole, generateToken, comparePassword, AuthenticatedRequest } from './auth.js';
@@ -579,7 +579,7 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
 
 
   // Delete document
-  app.delete("/api/documents/:id", authenticateToken, async (req, res) => {
+  app.delete("/api/documents/:id", authenticateToken, async (req: AuthenticatedRequest, res) => {
     try {
       const { id } = req.params;
       
