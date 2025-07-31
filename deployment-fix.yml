@@ -1,0 +1,115 @@
+# Updated GitHub Actions workflow to fix JSON API response issue
+# Replace your existing workflow with this configuration
+
+name: BidFlowAI Pipeline
+
+on:
+  push:
+    branches:
+      - production
+env:
+  KEY_NAME: "BidFlowAI" 
+  FILE_PATH: "BidFlowAI" 
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+ 
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+      - name: Use Node.js 20
+        uses: actions/setup-node@v3
+        with:
+          node-version: "20"
+ 
+      - name: Install Dependencies
+        run: |
+          npm install
+ 
+      - name: Build Project
+        run: |
+          npm run build
+          
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    needs: build
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Deploy and Fix API Routes
+        uses: appleboy/ssh-action@v0.1.0
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          password: ${{ secrets.SSH_PASS }}
+          port: ${{ secrets.SSH_PORT }}
+          script: |
+            cd /var/www/html/${{ env.FILE_PATH }}
+            
+            # Git operations
+            eval "$(ssh-agent -s)"
+            ssh-add ~/.ssh/${{ env.KEY_NAME }}  
+            git config --global --add safe.directory /var/www/html/${{ env.FILE_PATH }}
+            git fetch --all
+            git reset --hard origin/production
+            
+            # Clean install
+            rm -rf package-lock.json
+            rm -rf node_modules
+            rm -rf dist
+            
+            # Environment setup
+            cp .env.example .env
+            sed -i '/^DATABASE_URL=/d' .env
+            echo 'DATABASE_URL="'"${{ secrets.DATABASE_URL }}"'"' >> .env 
+            echo 'NODE_ENV=production' >> .env
+            echo 'PORT=3000' >> .env
+            
+            # Install and build
+            npm install
+            npm run build
+            
+            # Copy production server file
+            cp server/production.js dist/production.js
+            
+            # Update PM2 to use production server
+            pm2 delete BidFlowAI || true
+            pm2 start server/production.js --name BidFlowAI --env production
+            pm2 save
+            
+            # Verify deployment
+            sleep 5
+            echo "Testing API endpoint..."
+            curl -s -H "Content-Type: application/json" http://localhost:3000/api/health || echo "API test failed"
+
+  notify-teams:
+    runs-on: ubuntu-latest
+    needs: 
+      - build
+      - deploy
+    if: always() 
+    steps:
+      - name: Set Color and Message for Success
+        if: ${{ needs.build.result == 'success' && needs.deploy.result == 'success' }}
+        run: |
+          echo "COLOR=success" >> $GITHUB_ENV
+          echo "MESSAGE=✅ BidFlowAI deployed successfully with API fix!" >> $GITHUB_ENV
+
+      - name: Set Color and Message for Failure
+        if: ${{ needs.build.result != 'success' || needs.deploy.result != 'success' }}
+        run: |
+          echo "COLOR=failure" >> $GITHUB_ENV
+          echo "MESSAGE=❌ BidFlowAI deployment failed!" >> $GITHUB_ENV
+
+      - name: Send Notification to Teams
+        uses: mikesprague/teams-incoming-webhook-action@v1.13.5
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          webhook-url: ${{ secrets.TEAMS_WEBHOOK_URL }}
+          title: "BidFlowAI Deployment Status"
+          message: ${{ env.MESSAGE }}
+          deploy-card: true
+          color: ${{ env.COLOR }}
