@@ -83,7 +83,7 @@ function UploadTendersComponent() {
     } catch (error) {
       toast({
         title: "Upload Failed",
-        description: error.message || "Failed to upload file",
+        description: (error as Error).message || "Failed to upload file",
         variant: "destructive",
       });
     } finally {
@@ -473,7 +473,14 @@ export default function ActiveTendersPage() {
   // Upload state
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
-  const [uploadStats, setUploadStats] = useState({ processed: 0, duplicates: 0, total: 0 });
+  const [uploadStats, setUploadStats] = useState({ 
+    processed: 0, 
+    duplicates: 0, 
+    total: 0, 
+    gemAdded: 0, 
+    nonGemAdded: 0, 
+    errors: 0 
+  });
   
   // Delete progress state
   const [deleteProgress, setDeleteProgress] = useState({ current: 0, total: 0, isDeleting: false });
@@ -517,12 +524,15 @@ export default function ActiveTendersPage() {
       setUploadStats({ 
         processed: result.tendersProcessed || 0, 
         duplicates: result.duplicatesSkipped || 0, 
-        total: (result.tendersProcessed || 0) + (result.duplicatesSkipped || 0)
+        total: (result.tendersProcessed || 0) + (result.duplicatesSkipped || 0),
+        gemAdded: result.gemAdded || 0,
+        nonGemAdded: result.nonGemAdded || 0,
+        errors: result.errorsEncountered || 0
       });
       
       toast({
-        title: "Upload Successful",
-        description: `${result.tendersProcessed} entries added, ${result.duplicatesSkipped} duplicates skipped`,
+        title: "Upload Successful", 
+        description: `${result.gemAdded || 0} GeM + ${result.nonGemAdded || 0} Non-GeM entries added, ${result.duplicatesSkipped || 0} duplicates skipped${result.errorsEncountered ? `, ${result.errorsEncountered} errors` : ''}`,
       });
 
       // Refresh tender data
@@ -538,7 +548,7 @@ export default function ActiveTendersPage() {
       setIsUploading(false);
       setTimeout(() => {
         setUploadProgress(0);
-        setUploadStats({ processed: 0, duplicates: 0, total: 0 });
+        setUploadStats({ processed: 0, duplicates: 0, total: 0, gemAdded: 0, nonGemAdded: 0, errors: 0 });
       }, 3000);
     }
   };
@@ -762,9 +772,10 @@ export default function ActiveTendersPage() {
                         <Progress value={uploadProgress} className="w-full" />
                         {uploadStats.total > 0 && (
                           <div className="text-sm text-gray-600 space-y-1">
-                            <div>📊 {uploadStats.processed} entries added</div>
+                            <div>💎 {uploadStats.gemAdded} GeM entries added</div>
+                            <div>🔷 {uploadStats.nonGemAdded} Non-GeM entries added</div>
                             <div>🔄 {uploadStats.duplicates} duplicates skipped</div>
-                            <div>📝 {uploadStats.total} total processed</div>
+                            <div>❌ {uploadStats.errors} errors encountered</div>
                           </div>
                         )}
                       </div>

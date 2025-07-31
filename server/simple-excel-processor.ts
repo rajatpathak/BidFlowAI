@@ -7,7 +7,7 @@ export async function processSimpleExcelUpload(
   filePath: string, 
   fileName: string, 
   uploadedBy: string,
-  progressCallback?: (progress: { processed: number, duplicates: number, total: number, percentage: number }) => void
+  progressCallback?: (progress: { processed: number, duplicates: number, total: number, percentage: number, gemAdded: number, nonGemAdded: number, errors: number }) => void
 ) {
   try {
     console.log(`Processing Excel file: ${fileName}`);
@@ -18,9 +18,11 @@ export async function processSimpleExcelUpload(
     console.log(`Found sheets: ${sheetNames.join(', ')}`);
     
     let totalProcessed = 0;
-  let duplicates = 0;
+    let duplicates = 0;
     let totalErrors = 0;
     let sheetsProcessed = 0;
+    let gemAdded = 0;
+    let nonGemAdded = 0;
     
     for (const sheetName of sheetNames) {
       try {
@@ -148,17 +150,29 @@ export async function processSimpleExcelUpload(
             
             totalProcessed++;
             
+            // Track by sheet type
+            if (source === 'gem') {
+              gemAdded++;
+            } else {
+              nonGemAdded++;
+            }
+            
             if (totalProcessed % 50 === 0) {
               console.log(`Progress: ${totalProcessed} entries processed, ${duplicates} duplicates skipped...`);
               
               // Call progress callback if provided
               if (progressCallback) {
-                const percentage = Math.min(95, Math.floor((totalProcessed / Math.max(1, rowsLength)) * 100));
+                // Calculate based on estimated total rows (approximate)
+                const estimatedTotal = 2500; // Rough estimate for total rows across sheets
+                const percentage = Math.min(95, Math.floor((totalProcessed / estimatedTotal) * 100));
                 progressCallback({
                   processed: totalProcessed,
                   duplicates: duplicates,
                   total: totalProcessed + duplicates,
-                  percentage: percentage
+                  percentage: percentage,
+                  gemAdded: gemAdded,
+                  nonGemAdded: nonGemAdded,
+                  errors: totalErrors
                 });
               }
             }
@@ -190,12 +204,27 @@ export async function processSimpleExcelUpload(
     
     console.log(`Processing complete: ${totalProcessed} entries added, ${duplicates} duplicates skipped, ${totalErrors} errors, ${sheetsProcessed} sheets`);
     
+    // Final progress callback
+    if (progressCallback) {
+      progressCallback({
+        processed: totalProcessed,
+        duplicates: duplicates,
+        total: totalProcessed + duplicates,
+        percentage: 100,
+        gemAdded: gemAdded,
+        nonGemAdded: nonGemAdded,
+        errors: totalErrors
+      });
+    }
+
     return {
       success: true,
       tendersProcessed: totalProcessed,
       duplicatesSkipped: duplicates,
       errorsEncountered: totalErrors,
-      sheetsProcessed: sheetsProcessed
+      sheetsProcessed: sheetsProcessed,
+      gemAdded: gemAdded,
+      nonGemAdded: nonGemAdded
     };
     
   } catch (error) {
