@@ -254,10 +254,19 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
     }
   });
 
-  // Get all tenders
+  // Get all tenders with optional missed opportunities
   app.get("/api/tenders", async (req, res) => {
     try {
-      const allTenders = await db.select().from(tenders).orderBy(tenders.deadline);
+      const { includeMissedOpportunities } = req.query;
+      
+      // By default, exclude missed opportunities unless explicitly requested
+      let query = db.select().from(tenders);
+      
+      if (includeMissedOpportunities !== 'true') {
+        query = query.where(sql`status != 'missed_opportunity'`);
+      }
+      
+      const allTenders = await query.orderBy(tenders.deadline);
       res.json(allTenders);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch tenders" });

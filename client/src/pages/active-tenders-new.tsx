@@ -12,6 +12,8 @@ import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 
 // Upload Tenders Component
 function UploadTendersComponent() {
@@ -248,6 +250,7 @@ export default function ActiveTendersPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedTenders, setSelectedTenders] = useState<Set<string>>(new Set());
+  const [showMissedOpportunities, setShowMissedOpportunities] = useState(false);
   const itemsPerPage = 20;
 
   const { user } = useAuth();
@@ -255,7 +258,14 @@ export default function ActiveTendersPage() {
   const queryClient = useQueryClient();
 
   const { data: tenders = [], isLoading } = useQuery<Tender[]>({
-    queryKey: ["/api/tenders"],
+    queryKey: ["/api/tenders", showMissedOpportunities],
+    queryFn: () => {
+      const params = new URLSearchParams();
+      if (showMissedOpportunities) {
+        params.append('includeMissedOpportunities', 'true');
+      }
+      return fetch(`/api/tenders?${params}`).then(res => res.json());
+    }
   });
 
   // Filter tenders by source and search
@@ -664,16 +674,26 @@ export default function ActiveTendersPage() {
           </Card>
         </div>
 
-        {/* Search */}
+        {/* Search & Settings */}
         <Card>
           <CardContent className="p-4">
-            <div className="flex gap-4">
+            <div className="flex gap-4 items-center">
               <Input
                 placeholder="Search tenders by title, organization, location, or reference..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="flex-1"
               />
+              <div className="flex items-center space-x-2 whitespace-nowrap">
+                <Switch
+                  id="show-missed-opportunities"
+                  checked={showMissedOpportunities}
+                  onCheckedChange={setShowMissedOpportunities}
+                />
+                <Label htmlFor="show-missed-opportunities" className="text-sm font-medium">
+                  Show Missed Opportunities
+                </Label>
+              </div>
             </div>
           </CardContent>
         </Card>
