@@ -230,6 +230,14 @@ export const enhancedTenderResults = pgTable("enhanced_tender_results", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const activityLogs = pgTable("activity_logs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tender_id: text("tender_id"),
+  action: text("action").notNull(),
+  details: json("details").default({}),
+  created_at: timestamp("created_at").defaultNow(),
+});
+
 // Type exports
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
@@ -287,6 +295,9 @@ export type InsertTenderResultsImport = typeof tenderResultsImports.$inferInsert
 
 export type EnhancedTenderResult = typeof enhancedTenderResults.$inferSelect;
 export type InsertEnhancedTenderResult = typeof enhancedTenderResults.$inferInsert;
+
+export type ActivityLog = typeof activityLogs.$inferSelect;
+export type InsertActivityLog = typeof activityLogs.$inferInsert;
 
 // Zod schemas for validation
 export const insertUserSchema = createInsertSchema(users);

@@ -164,6 +164,28 @@ export async function processSimpleExcelUpload(
               
               if (hasChanges) {
                 try {
+                  // Log the update with before/after values
+                  const updateLog = {
+                    tenderId: existingTender.id,
+                    action: 'updated',
+                    before: {
+                      title: existingTender.title,
+                      organization: existingTender.organization,
+                      value: existingTender.value,
+                      deadline: existingTender.deadline,
+                      link: existingTender.link
+                    },
+                    after: {
+                      title: title,
+                      organization: organization,
+                      value: value,
+                      deadline: deadline.toISOString(),
+                      link: link
+                    },
+                    source: 'excel_upload',
+                    timestamp: new Date().toISOString()
+                  };
+
                   await db.execute(sql`
                     UPDATE tenders SET 
                       title = ${title},
@@ -179,7 +201,14 @@ export async function processSimpleExcelUpload(
                       }])}
                     WHERE id = ${existingTender.id}
                   `);
-                  console.log(`Updated existing tender: ${title.substring(0, 50)}...`);
+
+                  // Insert activity log
+                  await db.execute(sql`
+                    INSERT INTO activity_logs (tender_id, action, details, created_at)
+                    VALUES (${existingTender.id}, 'tender_updated', ${JSON.stringify(updateLog)}, NOW())
+                  `);
+
+                  console.log(`Updated existing tender: ${title.substring(0, 50)}... (logged changes)`);
                 } catch (updateError) {
                   console.error(`Error updating tender:`, updateError);
                   totalErrors++;

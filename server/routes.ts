@@ -363,4 +363,22 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
   app.post("/api/auth/logout", (req, res) => {
     res.json({ message: "Logged out successfully" });
   });
+
+  // Get activity logs for a specific tender
+  app.get('/api/tenders/:id/activity-logs', async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      const logs = await db.execute(sql`
+        SELECT * FROM activity_logs 
+        WHERE tender_id = ${id}
+        ORDER BY created_at DESC
+      `);
+      
+      res.json(logs);
+    } catch (error) {
+      console.error('Error fetching activity logs:', error);
+      res.status(500).json({ error: 'Failed to fetch activity logs' });
+    }
+  });
 }

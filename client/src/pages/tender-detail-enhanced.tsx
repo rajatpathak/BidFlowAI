@@ -340,7 +340,115 @@ export default function TenderDetailEnhancedPage() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Activity Logs */}
+        <ActivityLogsSection tenderId={tender.id} />
       </div>
     </div>
+  );
+}
+
+// Activity Logs Component
+interface ActivityLog {
+  id: string;
+  action: string;
+  details: any;
+  created_at: string;
+}
+
+function ActivityLogsSection({ tenderId }: { tenderId: string }) {
+  const { data: logs, isLoading } = useQuery<ActivityLog[]>({
+    queryKey: [`/api/tenders/${tenderId}/activity-logs`],
+    enabled: !!tenderId,
+  });
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <FileText className="h-5 w-5" />
+            Activity Log
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="animate-pulse space-y-3">
+            {[1,2,3].map(i => (
+              <div key={i} className="h-16 bg-gray-200 rounded"></div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <FileText className="h-5 w-5" />
+          Activity Log ({logs?.length || 0} entries)
+        </CardTitle>
+        <CardDescription>
+          Track of all changes and updates made to this tender
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {!logs || logs.length === 0 ? (
+          <div className="text-center py-8 text-gray-500">
+            <FileText className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+            <p>No activity logs found for this tender.</p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {logs.map((log) => (
+              <div key={log.id} className="border rounded-lg p-4 bg-gray-50">
+                <div className="flex justify-between items-start mb-2">
+                  <Badge variant="outline" className="capitalize">
+                    {log.action.replace('_', ' ')}
+                  </Badge>
+                  <span className="text-sm text-gray-500">
+                    {new Date(log.created_at).toLocaleString()}
+                  </span>
+                </div>
+                
+                {log.details && log.details.before && log.details.after && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
+                    <div>
+                      <h4 className="font-medium text-sm text-red-700 mb-2">Before (Previous)</h4>
+                      <div className="bg-red-50 p-3 rounded text-xs space-y-1">
+                        <p><strong>Title:</strong> {log.details.before.title}</p>
+                        <p><strong>Organization:</strong> {log.details.before.organization}</p>
+                        <p><strong>Value:</strong> ₹{(log.details.before.value / 100).toLocaleString('en-IN')}</p>
+                        <p><strong>Deadline:</strong> {new Date(log.details.before.deadline).toLocaleDateString()}</p>
+                        {log.details.before.link && (
+                          <p><strong>Link:</strong> <a href={log.details.before.link} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">View</a></p>
+                        )}
+                      </div>
+                    </div>
+                    <div>
+                      <h4 className="font-medium text-sm text-green-700 mb-2">After (Updated)</h4>
+                      <div className="bg-green-50 p-3 rounded text-xs space-y-1">
+                        <p><strong>Title:</strong> {log.details.after.title}</p>
+                        <p><strong>Organization:</strong> {log.details.after.organization}</p>
+                        <p><strong>Value:</strong> ₹{(log.details.after.value / 100).toLocaleString('en-IN')}</p>
+                        <p><strong>Deadline:</strong> {new Date(log.details.after.deadline).toLocaleDateString()}</p>
+                        {log.details.after.link && (
+                          <p><strong>Link:</strong> <a href={log.details.after.link} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">View</a></p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
+                <div className="mt-2 text-xs text-gray-600">
+                  Source: {log.details.source || 'System'}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
