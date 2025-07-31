@@ -115,7 +115,41 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
     }
   });
 
-  // Routes cleaned up - duplicate handlers removed
+  // Delete tender
+  app.delete("/api/tenders/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      await db.execute(sql`DELETE FROM tenders WHERE id = ${id}`);
+      res.json({ success: true, message: "Tender deleted successfully" });
+    } catch (error) {
+      console.error("Delete tender error:", error);
+      res.status(500).json({ error: "Failed to delete tender" });
+    }
+  });
+
+  // Mark tender as not relevant
+  app.post("/api/tenders/:id/mark-not-relevant", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { reason } = req.body;
+      
+      // Add activity log
+      await db.execute(sql`
+        INSERT INTO activity_logs (id, tender_id, activity_type, description, created_by, created_at)
+        VALUES (gen_random_uuid(), ${id}, 'marked_not_relevant', ${reason}, 'user', NOW())
+      `);
+      
+      // Update tender status
+      await db.execute(sql`
+        UPDATE tenders SET status = 'not_relevant' WHERE id = ${id}
+      `);
+      
+      res.json({ success: true, message: "Tender marked as not relevant" });
+    } catch (error) {
+      console.error("Mark not relevant error:", error);
+      res.status(500).json({ error: "Failed to mark tender as not relevant" });
+    }
+  });
 
   // Get enhanced tender results
   app.get("/api/enhanced-tender-results", async (req, res) => {

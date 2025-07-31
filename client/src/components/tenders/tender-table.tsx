@@ -17,6 +17,7 @@ import {
   UserPlus,
   Users,
   Eye,
+  Trash2,
 } from "lucide-react";
 
 interface Tender {
@@ -46,6 +47,8 @@ interface TenderTableProps {
   selectedTenders: Set<string>;
   setSelectedTenders: (tenders: Set<string>) => void;
   openAssignDialog: (tenderId: string) => void;
+  onMarkNotRelevant?: (tenderId: string) => void;
+  onDelete?: (tenderId: string) => void;
   user?: { role: string };
   source: 'gem' | 'non_gem';
 }
@@ -58,6 +61,8 @@ export function TenderTable({
   selectedTenders,
   setSelectedTenders,
   openAssignDialog,
+  onMarkNotRelevant,
+  onDelete,
   user,
   source
 }: TenderTableProps) {
@@ -268,6 +273,22 @@ export function TenderTable({
                         >
                           <Eye className="h-3 w-3 mr-1" />
                           Details
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          onClick={() => onMarkNotRelevant?.(tender.id)}
+                        >
+                          NR
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          variant="destructive"
+                          onClick={() => onDelete?.(tender.id)}
+                          disabled={!user || user.role !== 'admin'}
+                        >
+                          <Trash2 className="h-3 w-3 mr-1" />
+                          Delete
                         </Button>
                       </div>
                     </TableCell>

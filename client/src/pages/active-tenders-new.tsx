@@ -9,6 +9,8 @@ import { TenderTable } from "@/components/tenders/tender-table";
 import { FileSpreadsheet, FileText, Target, Building2, DollarSign } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 
 // Upload Tenders Component
 function UploadTendersComponent() {
@@ -46,10 +48,10 @@ function UploadTendersComponent() {
       setIsUploading(true);
       setUploadProgress(10);
 
-      // Progress simulation
+      // Real progress tracking
       const progressInterval = setInterval(() => {
-        setUploadProgress(prev => Math.min(prev + 8, 85));
-      }, 800);
+        setUploadProgress(prev => Math.min(prev + 2, 85));
+      }, 200);
 
       const response = await fetch('/api/upload-tenders', {
         method: 'POST',
@@ -301,6 +303,58 @@ export default function ActiveTendersPage() {
     });
   };
 
+  // State for Not Relevant dialog
+  const [selectedTenderId, setSelectedTenderId] = useState<string | null>(null);
+  const [notRelevantReason, setNotRelevantReason] = useState('');
+  const [showNotRelevantDialog, setShowNotRelevantDialog] = useState(false);
+
+  // Handle Delete
+  const handleDelete = async (tenderId: string) => {
+    try {
+      const response = await fetch(`/api/tenders/${tenderId}`, {
+        method: 'DELETE',
+      });
+      
+      if (response.ok) {
+        toast({ title: "Success", description: "Tender deleted successfully" });
+        queryClient.invalidateQueries({ queryKey: ["/api/tenders"] });
+      }
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to delete tender", variant: "destructive" });
+    }
+  };
+
+  // Handle Mark Not Relevant
+  const handleMarkNotRelevant = (tenderId: string) => {
+    setSelectedTenderId(tenderId);
+    setShowNotRelevantDialog(true);
+  };
+
+  const submitNotRelevant = async () => {
+    if (!selectedTenderId || !notRelevantReason.trim()) {
+      toast({ title: "Error", description: "Please provide a reason", variant: "destructive" });
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/tenders/${selectedTenderId}/mark-not-relevant`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: notRelevantReason }),
+      });
+      
+      if (response.ok) {
+        toast({ title: "Success", description: "Tender marked as not relevant" });
+        setShowNotRelevantDialog(false);
+        setNotRelevantReason('');
+        setSelectedTenderId(null);
+        queryClient.invalidateQueries({ queryKey: ["/api/tenders"] });
+      }
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to mark tender", variant: "destructive" });
+    }
+  };
+
   // File upload handler
   const handleFileUpload = async (file: File) => {
     const formData = new FormData();
@@ -455,6 +509,8 @@ export default function ActiveTendersPage() {
               selectedTenders={selectedTenders}
               setSelectedTenders={setSelectedTenders}
               openAssignDialog={openAssignDialog}
+              onMarkNotRelevant={handleMarkNotRelevant}
+              onDelete={handleDelete}
               user={user}
               source="gem"
             />
@@ -469,6 +525,8 @@ export default function ActiveTendersPage() {
               selectedTenders={selectedTenders}
               setSelectedTenders={setSelectedTenders}
               openAssignDialog={openAssignDialog}
+              onMarkNotRelevant={handleMarkNotRelevant}
+              onDelete={handleDelete}
               user={user}
               source="non_gem"
             />
@@ -536,6 +594,34 @@ export default function ActiveTendersPage() {
             <UploadHistoryComponent />
           </TabsContent>
         </Tabs>
+
+        {/* Not Relevant Dialog */}
+        <Dialog open={showNotRelevantDialog} onOpenChange={setShowNotRelevantDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Mark Tender as Not Relevant</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <p className="text-sm text-gray-600">
+                Please provide a reason for marking this tender as not relevant:
+              </p>
+              <Textarea
+                value={notRelevantReason}
+                onChange={(e) => setNotRelevantReason(e.target.value)}
+                placeholder="Enter reason for marking as not relevant..."
+                rows={4}
+              />
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowNotRelevantDialog(false)}>
+                Cancel
+              </Button>
+              <Button onClick={submitNotRelevant}>
+                Submit
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );

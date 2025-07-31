@@ -50,11 +50,11 @@ export async function processSimpleExcelUpload(filePath: string, fileName: strin
             if (!row || row.length === 0) continue;
             
             const title = titleCol >= 0 ? (row[titleCol] || '').toString().trim() : '';
-            if (!title || title.length < 5) continue;
+            if (!title || typeof title !== 'string' || title.length < 5) continue;
             
             const organization = orgCol >= 0 ? (row[orgCol] || '').toString().trim() : 'Unknown';
             const valueStr = valueCol >= 0 ? (row[valueCol] || '0').toString().trim() : '0';
-            const value = parseFloat(valueStr.replace(/[^\d.]/g, '')) * 100 || 0; // Convert to paisa
+            const value = Math.round(parseFloat(valueStr.replace(/[^\d.]/g, ''))) || 0; // Keep as rupees, not paisa
             
             // Handle deadline
             let deadline = new Date();
@@ -71,6 +71,19 @@ export async function processSimpleExcelUpload(filePath: string, fileName: strin
             const location = locationCol >= 0 ? (row[locationCol] || '').toString().trim() : '';
             const reference = refCol >= 0 ? (row[refCol] || '').toString().trim() : '';
             const t247Id = t247Col >= 0 ? (row[t247Col] || '').toString().trim() : '';
+            
+            // Check for duplicates using T247 ID
+            if (t247Id) {
+              const existingTender = await db.execute(sql`
+                SELECT id FROM tenders 
+                WHERE requirements::text LIKE ${'%"t247_id":"' + t247Id + '"%'}
+              `);
+              
+              if (existingTender.rows.length > 0) {
+                console.log(`Duplicate T247 ID found: ${t247Id}, skipping...`);
+                continue;
+              }
+            }
             
             // Simple AI score based on keywords
             const techKeywords = ['software', 'it', 'technology', 'digital', 'system', 'web', 'mobile'];
