@@ -23,7 +23,8 @@ import {
   Shield,
   History,
   Bell,
-  AlertTriangle
+  AlertTriangle,
+  Lightbulb
 } from "lucide-react";
 
 const navigation = [
@@ -36,6 +37,7 @@ const navigation = [
   { name: "Meetings", href: "/meetings", icon: Calendar },
   { name: "Finance", href: "/finance", icon: DollarSign },
   { name: "AI Insights", href: "/ai-insights", icon: Brain },
+  { name: "AI Recommendations", href: "/ai-recommendations", icon: Lightbulb },
   { name: "User Management", href: "/user-management", icon: UserCog },
   { name: "Admin Settings", href: "/admin-settings", icon: Cog },
   { name: "Analytics", href: "/analytics", icon: PieChart },

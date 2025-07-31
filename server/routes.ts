@@ -664,6 +664,54 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
     }
   });
 
+  // Generate AI recommendations
+  app.post("/api/ai/generate-recommendations", async (req, res) => {
+    try {
+      const { aiRecommendationEngine } = await import('./services/ai-recommendation-engine.js');
+      console.log('Generating AI recommendations...');
+      
+      const recommendations = await aiRecommendationEngine.generateTenderRecommendations();
+      console.log(`Generated ${recommendations.length} recommendations`);
+      
+      res.json({
+        success: true,
+        count: recommendations.length,
+        recommendations: recommendations
+      });
+    } catch (error) {
+      console.error('AI recommendation generation error:', error);
+      res.status(500).json({ 
+        error: "Failed to generate AI recommendations",
+        details: error.message 
+      });
+    }
+  });
+
+  // Get market intelligence
+  app.get("/api/ai/market-intelligence", async (req, res) => {
+    try {
+      const { aiRecommendationEngine } = await import('./services/ai-recommendation-engine.js');
+      const intelligence = await aiRecommendationEngine.getMarketIntelligence();
+      res.json(intelligence);
+    } catch (error) {
+      console.error('Market intelligence error:', error);
+      res.status(500).json({ error: "Failed to fetch market intelligence" });
+    }
+  });
+
+  // Generate bid content
+  app.post("/api/ai/generate-bid", async (req, res) => {
+    try {
+      const { tenderId } = req.body;
+      const { aiRecommendationEngine } = await import('./services/ai-recommendation-engine.js');
+      const bidContent = await aiRecommendationEngine.generateBidContent(tenderId);
+      res.json({ bidContent });
+    } catch (error) {
+      console.error('Bid generation error:', error);
+      res.status(500).json({ error: "Failed to generate bid content" });
+    }
+  });
+
   // Health check
   app.get("/api/health", (req, res) => {
     res.json({ 

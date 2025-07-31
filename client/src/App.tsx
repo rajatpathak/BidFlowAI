@@ -11,6 +11,7 @@ import Sidebar from "@/components/layout/sidebar";
 import Dashboard from "@/pages/dashboard";
 import CreateBid from "@/pages/create-bid";
 import AIInsights from "@/pages/ai-insights";
+import RecommendationDashboard from "@/components/ai/recommendation-dashboard";
 import Finance from "@/pages/finance";
 import Meetings from "@/pages/meetings";
 import UserManagement from "@/pages/user-management";
@@ -66,6 +67,7 @@ function Router() {
               <Route path="/missed-opportunities" component={() => <ProtectedRoute requiredPermission="view_tenders"><MissedOpportunities /></ProtectedRoute>} />
               <Route path="/create-bid" component={() => <ProtectedRoute requiredPermission="create_bids"><CreateBid /></ProtectedRoute>} />
               <Route path="/ai-insights" component={() => <ProtectedRoute requiredPermission="use_ai_insights"><AIInsights /></ProtectedRoute>} />
+              <Route path="/ai-recommendations" component={() => <ProtectedRoute requiredPermission="use_ai_insights"><RecommendationDashboard /></ProtectedRoute>} />
               <Route path="/finance" component={() => <ProtectedRoute requiredPermission="view_finance"><Finance /></ProtectedRoute>} />
               <Route path="/meetings" component={() => <ProtectedRoute><Meetings /></ProtectedRoute>} />
               <Route path="/user-management" component={() => <ProtectedRoute requiredRole="admin"><UserManagement /></ProtectedRoute>} />
