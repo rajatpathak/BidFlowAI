@@ -20,7 +20,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { insertCompanySettingsSchema } from "@shared/schema";
 import { z } from "zod";
-import { Settings, Upload, FileSpreadsheet, Building2, CheckCircle, XCircle, Clock } from "lucide-react";
+import { Settings, Upload, FileSpreadsheet, Building2, CheckCircle, XCircle, Clock, FileText, Plus, Edit, Trash2 } from "lucide-react";
 import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
@@ -49,15 +49,37 @@ type ExcelUpload = {
   errorLog: string | null;
 };
 
+type DocumentTemplate = {
+  id: string;
+  name: string;
+  description: string | null;
+  category: string;
+  mandatory: boolean;
+  format: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  createdBy: string | null;
+};
+
 const companySettingsFormSchema = insertCompanySettingsSchema.extend({
   certifications: z.string().optional(),
   businessSectors: z.string().optional(),
   projectTypes: z.string().optional(),
 });
 
+const documentTemplateFormSchema = z.object({
+  name: z.string().min(1, "Document name is required"),
+  description: z.string().optional(),
+  category: z.string().default("participation"),
+  mandatory: z.boolean().default(false),
+  format: z.string().optional(),
+});
+
 export default function AdminSettingsPage() {
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [editingTemplate, setEditingTemplate] = useState<DocumentTemplate | null>(null);
+  const [showTemplateForm, setShowTemplateForm] = useState(false);
   const { toast } = useToast();
 
   const { data: companySettings, isLoading: settingsLoading } = useQuery<CompanySettings>({
@@ -66,6 +88,10 @@ export default function AdminSettingsPage() {
 
   const { data: excelUploads = [], isLoading: uploadsLoading } = useQuery<ExcelUpload[]>({
     queryKey: ["/api/excel-uploads"],
+  });
+
+  const { data: documentTemplates = [], isLoading: templatesLoading } = useQuery<DocumentTemplate[]>({
+    queryKey: ["/api/document-templates"],
   });
 
   const settingsForm = useForm<z.infer<typeof companySettingsFormSchema>>({
@@ -78,6 +104,17 @@ export default function AdminSettingsPage() {
       certifications: companySettings?.certifications?.join(", ") || "",
       businessSectors: companySettings?.businessSectors?.join(", ") || "",
       projectTypes: companySettings?.projectTypes?.join(", ") || "",
+    },
+  });
+
+  const templateForm = useForm<z.infer<typeof documentTemplateFormSchema>>({
+    resolver: zodResolver(documentTemplateFormSchema),
+    defaultValues: {
+      name: "",
+      description: "",
+      category: "participation",
+      mandatory: false,
+      format: "",
     },
   });
 
@@ -119,6 +156,66 @@ export default function AdminSettingsPage() {
       toast({
         title: "Settings updated",
         description: "Company settings have been updated successfully.",
+      });
+    },
+  });
+
+  const createTemplateMutation = useMutation({
+    mutationFn: async (data: z.infer<typeof documentTemplateFormSchema>) => {
+      const response = await fetch("/api/document-templates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (!response.ok) throw new Error("Failed to create template");
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/document-templates"] });
+      templateForm.reset();
+      setShowTemplateForm(false);
+      toast({
+        title: "Template created",
+        description: "Document template has been created successfully.",
+      });
+    },
+  });
+
+  const updateTemplateMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: z.infer<typeof documentTemplateFormSchema> }) => {
+      const response = await fetch(`/api/document-templates/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (!response.ok) throw new Error("Failed to update template");
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/document-templates"] });
+      templateForm.reset();
+      setEditingTemplate(null);
+      setShowTemplateForm(false);
+      toast({
+        title: "Template updated",
+        description: "Document template has been updated successfully.",
+      });
+    },
+  });
+
+  const deleteTemplateMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const response = await fetch(`/api/document-templates/${id}`, {
+        method: "DELETE",
+      });
+      if (!response.ok) throw new Error("Failed to delete template");
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/document-templates"] });
+      toast({
+        title: "Template deleted",
+        description: "Document template has been deleted successfully.",
       });
     },
   });
@@ -166,6 +263,38 @@ export default function AdminSettingsPage() {
     updateSettingsMutation.mutate(data);
   };
 
+  const onTemplateSubmit = (data: z.infer<typeof documentTemplateFormSchema>) => {
+    if (editingTemplate) {
+      updateTemplateMutation.mutate({ id: editingTemplate.id, data });
+    } else {
+      createTemplateMutation.mutate(data);
+    }
+  };
+
+  const handleEditTemplate = (template: DocumentTemplate) => {
+    setEditingTemplate(template);
+    templateForm.reset({
+      name: template.name,
+      description: template.description || "",
+      category: template.category,
+      mandatory: template.mandatory,
+      format: template.format || "",
+    });
+    setShowTemplateForm(true);
+  };
+
+  const handleDeleteTemplate = (templateId: string) => {
+    if (confirm("Are you sure you want to delete this document template?")) {
+      deleteTemplateMutation.mutate(templateId);
+    }
+  };
+
+  const resetTemplateForm = () => {
+    setEditingTemplate(null);
+    setShowTemplateForm(false);
+    templateForm.reset();
+  };
+
   const getStatusIcon = (status: string) => {
     switch (status) {
       case "completed":
@@ -179,7 +308,7 @@ export default function AdminSettingsPage() {
     }
   };
 
-  if (settingsLoading || uploadsLoading) {
+  if (settingsLoading || uploadsLoading || templatesLoading) {
     return (
       <div className="p-6">
         <div className="animate-pulse space-y-4">
@@ -205,6 +334,7 @@ export default function AdminSettingsPage() {
         <TabsList>
           <TabsTrigger value="company">Company Settings</TabsTrigger>
           <TabsTrigger value="excel">Excel Uploads</TabsTrigger>
+          <TabsTrigger value="documents">Document Templates</TabsTrigger>
         </TabsList>
 
         <TabsContent value="company" className="space-y-4">
@@ -461,6 +591,194 @@ export default function AdminSettingsPage() {
                       </TableCell>
                     </TableRow>
                   ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="documents" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <FileText className="h-5 w-5" />
+                  <div>
+                    <CardTitle>Document Templates</CardTitle>
+                    <CardDescription>
+                      Manage document templates for participation requirements
+                    </CardDescription>
+                  </div>
+                </div>
+                <Button
+                  onClick={() => setShowTemplateForm(true)}
+                  className="flex items-center gap-2"
+                >
+                  <Plus className="h-4 w-4" />
+                  Add Template
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {showTemplateForm && (
+                <Card className="mb-6">
+                  <CardHeader>
+                    <CardTitle>
+                      {editingTemplate ? "Edit Document Template" : "Add New Document Template"}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <Form {...templateForm}>
+                      <form onSubmit={templateForm.handleSubmit(onTemplateSubmit)} className="space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <FormField
+                            control={templateForm.control}
+                            name="name"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Document Name</FormLabel>
+                                <FormControl>
+                                  <Input placeholder="e.g., Company Registration Certificate" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={templateForm.control}
+                            name="category"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Category</FormLabel>
+                                <FormControl>
+                                  <Input placeholder="e.g., participation, technical, financial" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+                        <FormField
+                          control={templateForm.control}
+                          name="description"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Description</FormLabel>
+                              <FormControl>
+                                <Textarea 
+                                  placeholder="Brief description of the document requirement" 
+                                  {...field} 
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <FormField
+                            control={templateForm.control}
+                            name="format"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Format</FormLabel>
+                                <FormControl>
+                                  <Input placeholder="e.g., PDF, Original, Notarized" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={templateForm.control}
+                            name="mandatory"
+                            render={({ field }) => (
+                              <FormItem className="flex items-center space-x-2">
+                                <FormControl>
+                                  <input
+                                    type="checkbox"
+                                    checked={field.value}
+                                    onChange={field.onChange}
+                                    className="h-4 w-4"
+                                  />
+                                </FormControl>
+                                <FormLabel>Mandatory Document</FormLabel>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            type="submit"
+                            disabled={createTemplateMutation.isPending || updateTemplateMutation.isPending}
+                          >
+                            {editingTemplate ? "Update Template" : "Create Template"}
+                          </Button>
+                          <Button type="button" variant="outline" onClick={resetTemplateForm}>
+                            Cancel
+                          </Button>
+                        </div>
+                      </form>
+                    </Form>
+                  </CardContent>
+                </Card>
+              )}
+
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Document Name</TableHead>
+                    <TableHead>Category</TableHead>
+                    <TableHead>Description</TableHead>
+                    <TableHead>Format</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {documentTemplates.map((template) => (
+                    <TableRow key={template.id}>
+                      <TableCell className="font-medium">{template.name}</TableCell>
+                      <TableCell>
+                        <Badge variant="secondary">{template.category}</Badge>
+                      </TableCell>
+                      <TableCell className="max-w-xs truncate">
+                        {template.description || "-"}
+                      </TableCell>
+                      <TableCell>{template.format || "-"}</TableCell>
+                      <TableCell>
+                        <Badge variant={template.mandatory ? "destructive" : "default"}>
+                          {template.mandatory ? "Mandatory" : "Optional"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleEditTemplate(template)}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleDeleteTemplate(template.id)}
+                            disabled={deleteTemplateMutation.isPending}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {documentTemplates.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-center py-8 text-gray-500">
+                        No document templates found. Add your first template to get started.
+                      </TableCell>
+                    </TableRow>
+                  )}
                 </TableBody>
               </Table>
             </CardContent>

@@ -15,7 +15,8 @@ import {
   roles,
   departments,
   userRoles,
-  documents
+  documents,
+  documentTemplates
 } from '../shared/schema.js';
 import path from 'path';
 import { promises as fs } from 'fs';
@@ -1850,6 +1851,82 @@ Provide detailed analysis focusing on extracting email addresses, phone numbers,
     } catch (error) {
       console.error("AI analysis fetch error:", error);
       res.status(500).json({ error: "Failed to fetch AI analysis" });
+    }
+  });
+
+  // Document Templates Management API
+  // Get all document templates
+  app.get("/api/document-templates", authenticateToken, async (req, res) => {
+    try {
+      const templates = await db.select().from(documentTemplates).orderBy(documentTemplates.createdAt);
+      res.json(templates);
+    } catch (error) {
+      console.error("Error fetching document templates:", error);
+      res.status(500).json({ error: "Failed to fetch document templates" });
+    }
+  });
+
+  // Create new document template
+  app.post("/api/document-templates", authenticateToken, requireRole(['admin']), async (req: AuthenticatedRequest, res) => {
+    try {
+      const { name, description, category, mandatory, format } = req.body;
+      
+      const [newTemplate] = await db.insert(documentTemplates).values({
+        name,
+        description,
+        category: category || 'participation',
+        mandatory: mandatory || false,
+        format,
+        createdBy: req.user?.id || 'system'
+      }).returning();
+      
+      res.status(201).json(newTemplate);
+    } catch (error) {
+      console.error("Error creating document template:", error);
+      res.status(500).json({ error: "Failed to create document template" });
+    }
+  });
+
+  // Update document template
+  app.put("/api/document-templates/:id", authenticateToken, requireRole(['admin']), async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { name, description, category, mandatory, format } = req.body;
+      
+      const [updatedTemplate] = await db.update(documentTemplates)
+        .set({ 
+          name, 
+          description, 
+          category, 
+          mandatory, 
+          format,
+          updatedAt: new Date()
+        })
+        .where(eq(documentTemplates.id, id))
+        .returning();
+      
+      if (!updatedTemplate) {
+        return res.status(404).json({ error: "Document template not found" });
+      }
+      
+      res.json(updatedTemplate);
+    } catch (error) {
+      console.error("Error updating document template:", error);
+      res.status(500).json({ error: "Failed to update document template" });
+    }
+  });
+
+  // Delete document template
+  app.delete("/api/document-templates/:id", authenticateToken, requireRole(['admin']), async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      await db.delete(documentTemplates).where(eq(documentTemplates.id, id));
+      
+      res.json({ success: true, message: "Document template deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting document template:", error);
+      res.status(500).json({ error: "Failed to delete document template" });
     }
   });
 

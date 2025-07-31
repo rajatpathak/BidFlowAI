@@ -244,6 +244,18 @@ export const activityLogs = pgTable("activity_logs", {
   created_at: timestamp("created_at").defaultNow(),
 });
 
+export const documentTemplates = pgTable("document_templates", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: text("name").notNull(),
+  description: text("description"),
+  category: text("category").notNull().default("participation"), // participation, technical, commercial, etc.
+  mandatory: boolean("mandatory").default(false),
+  format: text("format"), // PDF, DOC, XLS, etc.
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  createdBy: uuid("created_by").references(() => users.id),
+});
+
 // Type exports
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
@@ -305,6 +317,9 @@ export type InsertEnhancedTenderResult = typeof enhancedTenderResults.$inferInse
 export type ActivityLog = typeof activityLogs.$inferSelect;
 export type InsertActivityLog = typeof activityLogs.$inferInsert;
 
+export type DocumentTemplate = typeof documentTemplates.$inferSelect;
+export type InsertDocumentTemplate = typeof documentTemplates.$inferInsert;
+
 // Zod schemas for validation
 export const insertUserSchema = createInsertSchema(users);
 export const insertTenderSchema = createInsertSchema(tenders);
@@ -322,6 +337,7 @@ export const insertDepartmentSchema = createInsertSchema(departments);
 export const insertRoleSchema = createInsertSchema(roles);
 export const insertUserRoleSchema = createInsertSchema(userRoles);
 export const insertCompanySettingsSchema = createInsertSchema(companySettings);
+export const insertDocumentTemplateSchema = createInsertSchema(documentTemplates);
 
 // Extended types for dashboard analytics
 export interface DashboardStats {
