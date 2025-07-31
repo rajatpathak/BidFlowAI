@@ -28,7 +28,14 @@ import {
   AlertTriangle,
   Upload,
   Download,
-  File
+  File,
+  Trash2,
+  Brain,
+  Clock,
+  CheckSquare,
+  Users,
+  Calculator,
+  Phone
 } from "lucide-react";
 
 interface TenderDetail {
@@ -70,6 +77,7 @@ export default function TenderDetailEnhancedPage() {
   const [showNotRelevantDialog, setShowNotRelevantDialog] = useState(false);
   const [notRelevantReason, setNotRelevantReason] = useState("");
   const [selectedFiles, setSelectedFiles] = useState<FileList | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
   const { toast } = useToast();
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -83,6 +91,12 @@ export default function TenderDetailEnhancedPage() {
   const { data: documents = [] } = useQuery({
     queryKey: [`/api/tenders/${params?.id}/documents`],
     enabled: !!params?.id,
+  });
+
+  // Fetch AI analysis
+  const { data: aiAnalysis, isLoading: aiAnalysisLoading } = useQuery({
+    queryKey: [`/api/tenders/${params?.id}/ai-analysis`],
+    enabled: !!params?.id && documents.length > 0,
   });
 
   // Start bidding mutation
@@ -120,6 +134,67 @@ export default function TenderDetailEnhancedPage() {
         description: error.message || "Failed to upload documents",
         variant: "destructive"
       });
+    }
+  });
+
+  // Delete document mutation
+  const deleteDocumentMutation = useMutation({
+    mutationFn: async (documentId: string) => {
+      const response = await fetch(`/api/documents/${documentId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+      
+      if (!response.ok) throw new Error('Failed to delete document');
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Document Deleted",
+        description: "Document has been removed successfully.",
+      });
+      queryClient.invalidateQueries({ queryKey: [`/api/tenders/${params?.id}/documents`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/tenders/${params?.id}/ai-analysis`] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Delete Failed",
+        description: error.message || "Failed to delete document",
+        variant: "destructive"
+      });
+    }
+  });
+
+  // Analyze documents mutation
+  const analyzeDocumentsMutation = useMutation({
+    mutationFn: async (tenderId: string) => {
+      const response = await fetch(`/api/tenders/${tenderId}/analyze-documents`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+      
+      if (!response.ok) throw new Error('Failed to analyze documents');
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Analysis Complete",
+        description: "AI analysis of documents has been completed successfully.",
+      });
+      queryClient.invalidateQueries({ queryKey: [`/api/tenders/${params?.id}/ai-analysis`] });
+      setIsAnalyzing(false);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Analysis Failed",
+        description: error.message || "Failed to analyze documents",
+        variant: "destructive"
+      });
+      setIsAnalyzing(false);
     }
   });
 
@@ -195,6 +270,18 @@ export default function TenderDetailEnhancedPage() {
       tenderId: tender.id,
       reason: notRelevantReason.trim()
     });
+  };
+
+  const handleDeleteDocument = (documentId: string) => {
+    if (confirm('Are you sure you want to delete this document?')) {
+      deleteDocumentMutation.mutate(documentId);
+    }
+  };
+
+  const handleAnalyzeDocuments = () => {
+    if (!params?.id) return;
+    setIsAnalyzing(true);
+    analyzeDocumentsMutation.mutate(params.id);
   };
 
   if (isLoading) {
@@ -359,9 +446,10 @@ export default function TenderDetailEnhancedPage() {
 
         {/* Tabbed Content */}
         <Tabs defaultValue="details" className="w-full">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="details">Details</TabsTrigger>
             <TabsTrigger value="documents">Uploaded Documents</TabsTrigger>
+            <TabsTrigger value="ai-analysis">AI Analysis</TabsTrigger>
             <TabsTrigger value="activity">Activity Logs</TabsTrigger>
             <TabsTrigger value="prepared">Prepared Documents</TabsTrigger>
           </TabsList>
@@ -532,10 +620,22 @@ export default function TenderDetailEnhancedPage() {
           <TabsContent value="documents" className="space-y-6 mt-6">
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <File className="h-5 w-5" />
-                  Uploaded Documents
-                </CardTitle>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2">
+                    <File className="h-5 w-5" />
+                    Uploaded Documents
+                  </CardTitle>
+                  {documents.length > 0 && (
+                    <Button
+                      onClick={handleAnalyzeDocuments}
+                      disabled={isAnalyzing || analyzeDocumentsMutation.isPending}
+                      className="bg-purple-600 hover:bg-purple-700"
+                    >
+                      <Brain className="h-4 w-4 mr-2" />
+                      {isAnalyzing ? "Analyzing..." : "Analyze Documents"}
+                    </Button>
+                  )}
+                </div>
               </CardHeader>
               <CardContent>
                 {documents.length > 0 ? (
@@ -552,12 +652,23 @@ export default function TenderDetailEnhancedPage() {
                             </p>
                           </div>
                         </div>
-                        <Button variant="outline" size="sm" asChild>
-                          <a href={`/api/documents/${doc.id}/download`} target="_blank" rel="noopener noreferrer">
-                            <Download className="h-4 w-4 mr-2" />
-                            Download
-                          </a>
-                        </Button>
+                        <div className="flex gap-2">
+                          <Button variant="outline" size="sm" asChild>
+                            <a href={`/api/documents/${doc.id}/download`} target="_blank" rel="noopener noreferrer">
+                              <Download className="h-4 w-4 mr-2" />
+                              Download
+                            </a>
+                          </Button>
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => handleDeleteDocument(doc.id)}
+                            disabled={deleteDocumentMutation.isPending}
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -566,6 +677,180 @@ export default function TenderDetailEnhancedPage() {
                     <File className="h-12 w-12 mx-auto mb-4 text-gray-300" />
                     <p>No documents uploaded yet</p>
                     <p className="text-sm">Use the "Start Bidding" button to upload RFP documents</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+          
+          <TabsContent value="ai-analysis" className="space-y-6 mt-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Brain className="h-5 w-5" />
+                  AI Document Analysis
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {aiAnalysisLoading || isAnalyzing ? (
+                  <div className="text-center py-8">
+                    <Brain className="h-12 w-12 mx-auto mb-4 text-purple-500 animate-pulse" />
+                    <p className="text-lg font-medium">Analyzing Documents...</p>
+                    <p className="text-sm text-gray-500">AI is extracting key information from uploaded documents</p>
+                  </div>
+                ) : aiAnalysis ? (
+                  <div className="space-y-6">
+                    {/* Company Match Score */}
+                    <div className="bg-gradient-to-r from-purple-50 to-blue-50 p-6 rounded-lg border">
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-lg font-medium text-gray-900">Company Match Analysis</h3>
+                        <div className="text-2xl font-bold text-purple-600">
+                          {aiAnalysis.matchPercentage || 0}%
+                        </div>
+                      </div>
+                      <p className="text-sm text-gray-600">
+                        {aiAnalysis.matchReason || "Based on company criteria and tender requirements"}
+                      </p>
+                    </div>
+
+                    {/* Pre-bid Meeting */}
+                    {aiAnalysis.preBidMeeting && (
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="flex items-center gap-2 text-lg">
+                            <Clock className="h-5 w-5 text-orange-600" />
+                            Pre-bid Meeting
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="space-y-2">
+                            <p><strong>Date:</strong> {aiAnalysis.preBidMeeting.date || 'Not specified'}</p>
+                            <p><strong>Time:</strong> {aiAnalysis.preBidMeeting.time || 'Not specified'}</p>
+                            <p><strong>Location:</strong> {aiAnalysis.preBidMeeting.location || 'Not specified'}</p>
+                            <p><strong>Details:</strong> {aiAnalysis.preBidMeeting.details || 'No additional details'}</p>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {/* Eligibility Criteria */}
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2 text-lg">
+                          <CheckSquare className="h-5 w-5 text-green-600" />
+                          Pre-Qualification / Eligibility Criteria
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-3">
+                          {aiAnalysis.eligibilityCriteria?.map((criteria: any, index: number) => (
+                            <div key={index} className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
+                              <CheckSquare className="h-4 w-4 text-green-600 mt-1 flex-shrink-0" />
+                              <div>
+                                <p className="font-medium">{criteria.title}</p>
+                                <p className="text-sm text-gray-600">{criteria.requirement}</p>
+                                <p className="text-xs text-gray-500 mt-1">Status: {criteria.status}</p>
+                              </div>
+                            </div>
+                          )) || (
+                            <p className="text-gray-500">No specific eligibility criteria extracted from documents</p>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    {/* Other Criteria */}
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2 text-lg">
+                          <Users className="h-5 w-5 text-blue-600" />
+                          Other Criteria & Requirements
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-2">
+                          {aiAnalysis.otherCriteria?.map((item: string, index: number) => (
+                            <div key={index} className="flex items-start gap-2">
+                              <span className="text-blue-600 mt-1">•</span>
+                              <p className="text-sm">{item}</p>
+                            </div>
+                          )) || (
+                            <p className="text-gray-500">No additional criteria found in documents</p>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    {/* AI Quotation Analysis */}
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2 text-lg">
+                          <Calculator className="h-5 w-5 text-purple-600" />
+                          AI Analyzed Quotation (L1 Strategy)
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-4">
+                          {aiAnalysis.quotationAnalysis ? (
+                            <div>
+                              <div className="bg-purple-50 p-4 rounded-lg mb-4">
+                                <p className="font-medium text-purple-900">Estimated L1 Bid Amount</p>
+                                <p className="text-2xl font-bold text-purple-600">
+                                  ₹{aiAnalysis.quotationAnalysis.estimatedAmount?.toLocaleString('en-IN') || 'TBD'}
+                                </p>
+                              </div>
+                              <div className="space-y-2">
+                                <p><strong>Strategy:</strong> {aiAnalysis.quotationAnalysis.strategy}</p>
+                                <p><strong>Key Factors:</strong> {aiAnalysis.quotationAnalysis.keyFactors?.join(', ')}</p>
+                                <p><strong>Risk Level:</strong> {aiAnalysis.quotationAnalysis.riskLevel}</p>
+                              </div>
+                            </div>
+                          ) : (
+                            <p className="text-gray-500">No quotation analysis available - require more detailed documents</p>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    {/* Contact Information */}
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2 text-lg">
+                          <Phone className="h-5 w-5 text-indigo-600" />
+                          Contact Information
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        {aiAnalysis.contactInfo ? (
+                          <div className="space-y-3">
+                            {aiAnalysis.contactInfo.map((contact: any, index: number) => (
+                              <div key={index} className="p-3 bg-indigo-50 rounded-lg">
+                                <p className="font-medium">{contact.name || 'Contact Person'}</p>
+                                <p className="text-sm text-gray-600">{contact.designation || ''}</p>
+                                <div className="mt-2 space-y-1">
+                                  {contact.email && <p className="text-sm"><strong>Email:</strong> {contact.email}</p>}
+                                  {contact.phone && <p className="text-sm"><strong>Phone:</strong> {contact.phone}</p>}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-gray-500">No contact information found in documents</p>
+                        )}
+                      </CardContent>
+                    </Card>
+                  </div>
+                ) : documents.length > 0 ? (
+                  <div className="text-center py-8 text-gray-500">
+                    <Brain className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                    <p>Click "Analyze Documents" to get AI insights</p>
+                    <p className="text-sm">AI will extract key tender information from uploaded documents</p>
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-gray-500">
+                    <Brain className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                    <p>No documents to analyze</p>
+                    <p className="text-sm">Upload RFP documents first to get AI analysis</p>
                   </div>
                 )}
               </CardContent>

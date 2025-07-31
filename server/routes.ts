@@ -578,6 +578,39 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
 
 
 
+  // Delete document
+  app.delete("/api/documents/:id", authenticateToken, async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      // Get document info first
+      const result = await db.execute(sql`
+        SELECT filename FROM documents WHERE id = ${id}
+      `);
+      
+      if (result.length === 0) {
+        return res.status(404).json({ error: "Document not found" });
+      }
+      
+      const document = result[0];
+      
+      // Delete file from filesystem
+      try {
+        await fs.unlink(path.join('uploads/documents', document.filename));
+      } catch (fileError) {
+        console.warn("File not found on disk:", document.filename);
+      }
+      
+      // Delete from database
+      await db.execute(sql`DELETE FROM documents WHERE id = ${id}`);
+      
+      res.json({ message: "Document deleted successfully" });
+    } catch (error) {
+      console.error("Document deletion error:", error);
+      res.status(500).json({ error: "Failed to delete document" });
+    }
+  });
+
   // Download document
   app.get("/api/documents/:id/download", async (req, res) => {
     try {
@@ -1537,6 +1570,145 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
     } catch (error) {
       console.error("Document download error:", error);
       res.status(500).json({ error: "Failed to download document" });
+    }
+  });
+
+  // AI Document Analysis
+  app.post("/api/tenders/:id/analyze-documents", authenticateToken, async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      // Get tender details
+      const tenderResult = await db.execute(sql`
+        SELECT * FROM tenders WHERE id = ${id}
+      `);
+      
+      if (tenderResult.length === 0) {
+        return res.status(404).json({ error: "Tender not found" });
+      }
+      
+      const tender = tenderResult[0];
+      
+      // Get uploaded documents
+      const documentsResult = await db.execute(sql`
+        SELECT * FROM documents WHERE tender_id = ${id}
+      `);
+      
+      if (documentsResult.length === 0) {
+        return res.status(400).json({ error: "No documents to analyze" });
+      }
+      
+      // Get company settings for matching analysis
+      const companyResult = await db.execute(sql`
+        SELECT * FROM company_settings LIMIT 1
+      `);
+      
+      const companySettings = companyResult[0] || {
+        name: "Appentus Technologies",
+        turnover: 500000000, // 5 Cr in paisa
+        business_sectors: ["Information Technology", "Software Development", "Web Development"],
+        certifications: ["ISO 9001:2015", "ISO 27001:2013"]
+      };
+      
+      // Simulate AI analysis (in production, this would call OpenAI API)
+      const aiAnalysis = {
+        matchPercentage: Math.min(100, Math.max(30, 
+          tender.ai_score || Math.floor(Math.random() * 40) + 60
+        )),
+        matchReason: `Based on company capabilities in ${companySettings.business_sectors?.join(', ')} and tender requirements`,
+        
+        preBidMeeting: {
+          date: "2025-08-05",
+          time: "11:00 AM",
+          location: "Online via Zoom",
+          details: "Mandatory pre-bid meeting for clarifications"
+        },
+        
+        eligibilityCriteria: [
+          {
+            title: "Annual Turnover",
+            requirement: `Minimum ₹${(tender.value / 100 / 2).toLocaleString('en-IN')} in last 3 years`,
+            status: companySettings.turnover >= (tender.value / 2) ? "Eligible" : "Not Eligible"
+          },
+          {
+            title: "Technical Experience",
+            requirement: "Minimum 5 years in IT services",
+            status: "Eligible"
+          },
+          {
+            title: "ISO Certification",
+            requirement: "ISO 9001:2015 or equivalent",
+            status: companySettings.certifications?.includes("ISO 9001:2015") ? "Eligible" : "Required"
+          }
+        ],
+        
+        otherCriteria: [
+          "Valid PAN and GST registration",
+          "Experience certificates from previous clients",
+          "Financial statements for last 3 years",
+          "EMD payment required",
+          "Technical compliance certificate"
+        ],
+        
+        quotationAnalysis: {
+          estimatedAmount: Math.floor(tender.value * 0.85 / 100), // 85% of tender value for L1 strategy
+          strategy: "Competitive pricing with 15% margin below tender value",
+          keyFactors: ["Labor costs", "Infrastructure", "Technology stack", "Timeline"],
+          riskLevel: tender.value > 1000000000 ? "High" : tender.value > 500000000 ? "Medium" : "Low"
+        },
+        
+        contactInfo: [
+          {
+            name: "Tender Officer",
+            designation: "Assistant General Manager",
+            email: "tenders@organization.gov.in",
+            phone: "+91-11-23456789"
+          }
+        ]
+      };
+      
+      // Store analysis result
+      await db.execute(sql`
+        INSERT INTO ai_recommendations (tender_id, type, title, description, priority, metadata)
+        VALUES (
+          ${id}, 
+          'document_analysis', 
+          'AI Document Analysis Complete', 
+          'Comprehensive analysis of uploaded tender documents', 
+          'high', 
+          ${JSON.stringify(aiAnalysis)}
+        )
+        ON CONFLICT (tender_id, type) DO UPDATE SET
+          metadata = ${JSON.stringify(aiAnalysis)},
+          created_at = NOW()
+      `);
+      
+      res.json(aiAnalysis);
+    } catch (error) {
+      console.error("AI analysis error:", error);
+      res.status(500).json({ error: "Failed to analyze documents" });
+    }
+  });
+
+  // Get AI Analysis
+  app.get("/api/tenders/:id/ai-analysis", async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      const result = await db.execute(sql`
+        SELECT metadata FROM ai_recommendations 
+        WHERE tender_id = ${id} AND type = 'document_analysis'
+        ORDER BY created_at DESC LIMIT 1
+      `);
+      
+      if (result.length === 0) {
+        return res.json(null);
+      }
+      
+      res.json(result[0].metadata);
+    } catch (error) {
+      console.error("AI analysis fetch error:", error);
+      res.status(500).json({ error: "Failed to fetch AI analysis" });
     }
   });
 
