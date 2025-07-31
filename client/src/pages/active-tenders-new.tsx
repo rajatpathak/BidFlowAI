@@ -14,6 +14,7 @@ interface Tender {
   id: string;
   title: string;
   organization: string;
+  referenceNo?: string;
   value: number;
   deadline: string;
   location: string;
@@ -89,6 +90,40 @@ export default function ActiveTendersPage() {
       title: "Assignment Feature",
       description: "Assignment functionality will be implemented soon.",
     });
+  };
+
+  // File upload handler
+  const handleFileUpload = async (file: File) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("uploadedBy", user?.username || "admin");
+
+    try {
+      const response = await fetch("/api/upload-tenders", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error("Upload failed");
+      }
+
+      const result = await response.json();
+      
+      toast({
+        title: "Upload Successful",
+        description: `${result.tendersProcessed} tenders processed, ${result.duplicatesSkipped} duplicates skipped`,
+      });
+
+      // Refresh tender data
+      window.location.reload();
+    } catch (error) {
+      toast({
+        title: "Upload Failed",
+        description: "Failed to upload and process the Excel file",
+        variant: "destructive",
+      });
+    }
   };
 
   // Statistics
@@ -195,9 +230,11 @@ export default function ActiveTendersPage() {
 
         {/* Tabs for GeM and Non-GeM Tenders */}
         <Tabs defaultValue="gem-tenders" className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="gem-tenders">GeM Tenders ({gemTenders.length})</TabsTrigger>
             <TabsTrigger value="non-gem-tenders">Non-GeM Tenders ({nonGemTenders.length})</TabsTrigger>
+            <TabsTrigger value="upload-tenders">Upload Tenders</TabsTrigger>
+            <TabsTrigger value="upload-history">Upload History</TabsTrigger>
           </TabsList>
 
           <TabsContent value="gem-tenders" className="space-y-6">
@@ -226,6 +263,82 @@ export default function ActiveTendersPage() {
               user={user}
               source="non_gem"
             />
+          </TabsContent>
+
+          <TabsContent value="upload-tenders" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <FileSpreadsheet className="h-5 w-5" />
+                  <div>
+                    <CardTitle>Upload Active Tenders</CardTitle>
+                    <CardDescription>
+                      Upload Excel files containing active tender data with automatic AI scoring
+                    </CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="bg-blue-50 p-4 rounded-lg">
+                  <h4 className="font-medium text-blue-900 mb-2">Expected Excel Format:</h4>
+                  <div className="text-sm text-blue-800 space-y-1">
+                    <p>• <strong>Title</strong>: Tender title or work description</p>
+                    <p>• <strong>Organization</strong>: Department or organization name</p>
+                    <p>• <strong>Value</strong>: Tender value or EMD amount</p>
+                    <p>• <strong>Deadline</strong>: Last date for submission</p>
+                    <p>• <strong>Turnover</strong>: Eligibility turnover requirement</p>
+                    <p>• <strong>Location</strong>: Place or location of work</p>
+                    <p>• <strong>Reference No</strong>: Tender reference number</p>
+                    <p>• <strong>Link</strong>: URL to tender details (optional)</p>
+                  </div>
+                </div>
+
+                <div className="border-2 border-dashed border-gray-300 rounded-lg p-6">
+                  <div className="text-center">
+                    <FileSpreadsheet className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                    <div className="space-y-4">
+                      <div>
+                        <div className="text-lg font-medium">Choose Excel File</div>
+                        <div className="text-sm text-gray-500">Upload .xlsx files with tender data</div>
+                      </div>
+                      <input
+                        type="file"
+                        accept=".xlsx,.xls"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleFileUpload(file);
+                        }}
+                        className="hidden"
+                        id="tender-file-upload"
+                      />
+                      <label htmlFor="tender-file-upload">
+                        <Button asChild>
+                          <span>Select File</span>
+                        </Button>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="upload-history" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Upload History</CardTitle>
+                <CardDescription>
+                  Track your recent Excel uploads and processing status
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="text-center py-8">
+                  <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-gray-900">Upload History</h3>
+                  <p className="text-gray-500 mt-1">Upload history will be displayed here after processing files.</p>
+                </div>
+              </CardContent>
+            </Card>
           </TabsContent>
         </Tabs>
       </div>

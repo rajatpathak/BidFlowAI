@@ -177,7 +177,9 @@ export function TenderTable({
                     </TableCell>
                     <TableCell>
                       <div className="text-sm font-medium">
-                        {tender.requirements?.[0]?.reference || 'N/A'}
+                        {tender.referenceNo || 
+                         (tender.requirements && tender.requirements[0] && tender.requirements[0].reference) || 
+                         'N/A'}
                       </div>
                     </TableCell>
                     <TableCell>
