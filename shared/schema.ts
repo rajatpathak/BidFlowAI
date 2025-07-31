@@ -334,8 +334,25 @@ export interface PipelineData {
   awarded: number;
 }
 
-export interface TenderWithDetails extends Tender {
-  documents?: Document[];
+export interface TenderWithDetails {
+  id: string;
+  title: string;
+  organization: string;
+  description?: string | null;
+  value: number;
+  deadline: Date;
+  status: string;
+  source: string;
+  aiScore?: number | null;
+  requirements?: any;
+  documents?: any;
+  bidContent?: string | null;
+  assignedTo?: string | null;
+  link?: string | null;
+  submittedAt?: Date | null;
+  createdAt?: Date | null;
+  updatedAt?: Date | null;
+  additionalDocuments?: Document[];
   assignments?: TenderAssignment[];
   meetings?: Meeting[];
   financeRequests?: FinanceRequest[];

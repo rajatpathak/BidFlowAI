@@ -2,6 +2,7 @@ import express from "express";
 import * as XLSX from 'xlsx';
 import fs from "fs";
 import multer from "multer";
+import { createServer } from "http";
 import { IStorage } from "./storage.js";
 import { db } from './db.js';
 import { 
@@ -9,7 +10,11 @@ import {
   enhancedTenderResults, 
   tenderResultsImports, 
   tenderAssignments,
-  excelUploads
+  excelUploads,
+  users,
+  roles,
+  departments,
+  userRoles
 } from '../shared/schema.js';
 import { eq, desc, sql } from 'drizzle-orm';
 
@@ -424,4 +429,273 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
       res.status(500).json({ error: 'Failed to fetch missed opportunities' });
     }
   });
+
+  // User Management API Routes
+  
+  // Get all users
+  app.get("/api/users", async (req, res) => {
+    try {
+      const allUsers = await db.select().from(users);
+      res.json(allUsers);
+    } catch (error) {
+      console.error("Error fetching users:", error);
+      res.status(500).json({ error: "Failed to fetch users" });
+    }
+  });
+
+  // Create new user
+  app.post("/api/users", async (req, res) => {
+    try {
+      const { username, password, email, name, role } = req.body;
+      
+      const [newUser] = await db.insert(users).values({
+        username,
+        password,
+        email,
+        name,
+        role
+      }).returning();
+      
+      res.status(201).json(newUser);
+    } catch (error) {
+      console.error("Error creating user:", error);
+      res.status(500).json({ error: "Failed to create user" });
+    }
+  });
+
+  // Update user
+  app.put("/api/users/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { username, password, email, name, role } = req.body;
+      
+      const [updatedUser] = await db.update(users)
+        .set({ username, password, email, name, role })
+        .where(eq(users.id, id))
+        .returning();
+      
+      if (!updatedUser) {
+        return res.status(404).json({ error: "User not found" });
+      }
+      
+      res.json(updatedUser);
+    } catch (error) {
+      console.error("Error updating user:", error);
+      res.status(500).json({ error: "Failed to update user" });
+    }
+  });
+
+  // Delete user
+  app.delete("/api/users/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      await db.delete(users).where(eq(users.id, id));
+      
+      res.json({ success: true, message: "User deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting user:", error);
+      res.status(500).json({ error: "Failed to delete user" });
+    }
+  });
+
+  // Get all roles
+  app.get("/api/roles", async (req, res) => {
+    try {
+      const allRoles = await db.select().from(roles);
+      res.json(allRoles);
+    } catch (error) {
+      console.error("Error fetching roles:", error);
+      res.status(500).json({ error: "Failed to fetch roles" });
+    }
+  });
+
+  // Create new role
+  app.post("/api/roles", async (req, res) => {
+    try {
+      const { name, description, permissions } = req.body;
+      
+      const [newRole] = await db.insert(roles).values({
+        name,
+        description,
+        permissions
+      }).returning();
+      
+      res.status(201).json(newRole);
+    } catch (error) {
+      console.error("Error creating role:", error);
+      res.status(500).json({ error: "Failed to create role" });
+    }
+  });
+
+  // Update role
+  app.put("/api/roles/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { name, description, permissions } = req.body;
+      
+      const [updatedRole] = await db.update(roles)
+        .set({ name, description, permissions })
+        .where(eq(roles.id, id))
+        .returning();
+      
+      if (!updatedRole) {
+        return res.status(404).json({ error: "Role not found" });
+      }
+      
+      res.json(updatedRole);
+    } catch (error) {
+      console.error("Error updating role:", error);
+      res.status(500).json({ error: "Failed to update role" });
+    }
+  });
+
+  // Delete role
+  app.delete("/api/roles/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      await db.delete(roles).where(eq(roles.id, id));
+      
+      res.json({ success: true, message: "Role deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting role:", error);
+      res.status(500).json({ error: "Failed to delete role" });
+    }
+  });
+
+  // Get all departments
+  app.get("/api/departments", async (req, res) => {
+    try {
+      const allDepartments = await db.select().from(departments);
+      res.json(allDepartments);
+    } catch (error) {
+      console.error("Error fetching departments:", error);
+      res.status(500).json({ error: "Failed to fetch departments" });
+    }
+  });
+
+  // Create new department
+  app.post("/api/departments", async (req, res) => {
+    try {
+      const { name, description, managerId, budget } = req.body;
+      
+      const [newDepartment] = await db.insert(departments).values({
+        name,
+        description,
+        managerId,
+        budget
+      }).returning();
+      
+      res.status(201).json(newDepartment);
+    } catch (error) {
+      console.error("Error creating department:", error);
+      res.status(500).json({ error: "Failed to create department" });
+    }
+  });
+
+  // Update department
+  app.put("/api/departments/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { name, description, managerId, budget } = req.body;
+      
+      const [updatedDepartment] = await db.update(departments)
+        .set({ name, description, managerId, budget })
+        .where(eq(departments.id, id))
+        .returning();
+      
+      if (!updatedDepartment) {
+        return res.status(404).json({ error: "Department not found" });
+      }
+      
+      res.json(updatedDepartment);
+    } catch (error) {
+      console.error("Error updating department:", error);
+      res.status(500).json({ error: "Failed to update department" });
+    }
+  });
+
+  // Delete department
+  app.delete("/api/departments/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      await db.delete(departments).where(eq(departments.id, id));
+      
+      res.json({ success: true, message: "Department deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting department:", error);
+      res.status(500).json({ error: "Failed to delete department" });
+    }
+  });
+
+  // Get all user roles
+  app.get("/api/user-roles", async (req, res) => {
+    try {
+      const allUserRoles = await db.select().from(userRoles);
+      res.json(allUserRoles);
+    } catch (error) {
+      console.error("Error fetching user roles:", error);
+      res.status(500).json({ error: "Failed to fetch user roles" });
+    }
+  });
+
+  // Create new user role assignment
+  app.post("/api/user-roles", async (req, res) => {
+    try {
+      const { userId, roleId, departmentId, assignedBy } = req.body;
+      
+      const [newUserRole] = await db.insert(userRoles).values({
+        userId,
+        roleId,
+        departmentId,
+        assignedBy
+      }).returning();
+      
+      res.status(201).json(newUserRole);
+    } catch (error) {
+      console.error("Error creating user role:", error);
+      res.status(500).json({ error: "Failed to create user role" });
+    }
+  });
+
+  // Update user role
+  app.put("/api/user-roles/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { userId, roleId, departmentId, assignedBy } = req.body;
+      
+      const [updatedUserRole] = await db.update(userRoles)
+        .set({ userId, roleId, departmentId, assignedBy })
+        .where(eq(userRoles.id, id))
+        .returning();
+      
+      if (!updatedUserRole) {
+        return res.status(404).json({ error: "User role not found" });
+      }
+      
+      res.json(updatedUserRole);
+    } catch (error) {
+      console.error("Error updating user role:", error);
+      res.status(500).json({ error: "Failed to update user role" });
+    }
+  });
+
+  // Delete user role
+  app.delete("/api/user-roles/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      await db.delete(userRoles).where(eq(userRoles.id, id));
+      
+      res.json({ success: true, message: "User role deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting user role:", error);
+      res.status(500).json({ error: "Failed to delete user role" });
+    }
+  });
+
+  const httpServer = createServer(app);
+  return httpServer;
 }
