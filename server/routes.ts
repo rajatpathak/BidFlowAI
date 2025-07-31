@@ -704,32 +704,29 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
       const { id } = req.params;
       const { bidderId, priority, budget, assignedBy } = req.body;
 
-      // Create tender assignment record
-      const [assignment] = await db.insert(tenderAssignments).values({
-        tenderId: id,
-        userId: bidderId,
-        priority: priority || 'medium',
-        budget: budget || null, // Budget can be blank initially
-        assignedBy,
-        status: 'assigned'
-      }).returning();
+      // Create tender assignment record using raw SQL to match database structure
+      const assignment = await db.execute(sql`
+        INSERT INTO tender_assignments (id, tender_id, assigned_to, assigned_by, status, assigned_at, budget, notes)
+        VALUES (gen_random_uuid(), ${id}, ${bidderId}, ${assignedBy}, 'assigned', NOW(), ${budget}, ${'Priority: ' + priority})
+        RETURNING *
+      `);
 
-      // Update tender status and assigned_to field
-      await db.update(tenders)
-        .set({ 
-          status: 'assigned',
-          assignedTo: bidderId
-        })
-        .where(eq(tenders.id, id));
+      // Update tender status and assigned_to field using raw SQL
+      await db.execute(sql`
+        UPDATE tenders 
+        SET status = 'assigned', assigned_to = ${bidderId}, updated_at = NOW()
+        WHERE id = ${id}
+      `);
 
       // Get bidder details for response
-      const [bidder] = await db.select().from(users).where(eq(users.id, bidderId));
+      const bidderResult = await db.execute(sql`SELECT name FROM users WHERE id = ${bidderId}`);
+      const bidderName = bidderResult.rows[0]?.name || 'Unknown User';
 
       res.json({
         success: true,
-        message: `Tender assigned to ${bidder.name}`,
-        assignment,
-        bidderName: bidder.name
+        message: `Tender assigned to ${bidderName}`,
+        assignment: assignment.rows[0],
+        bidderName
       });
     } catch (error) {
       console.error("Error assigning tender:", error);
