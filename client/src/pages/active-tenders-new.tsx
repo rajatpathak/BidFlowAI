@@ -10,6 +10,132 @@ import { FileSpreadsheet, FileText, Target, Building2, DollarSign } from "lucide
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 
+// Upload Tenders Component
+function UploadTendersComponent() {
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      setSelectedFile(file);
+    }
+  };
+
+  const handleUpload = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    
+    if (!selectedFile) {
+      toast({
+        title: "Error",
+        description: "Please select a file to upload",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('file', selectedFile);
+    formData.append('uploadedBy', user?.username || 'admin');
+
+    try {
+      setIsUploading(true);
+      setUploadProgress(10);
+
+      // Progress simulation
+      const progressInterval = setInterval(() => {
+        setUploadProgress(prev => Math.min(prev + 8, 85));
+      }, 800);
+
+      const response = await fetch('/api/upload-tenders', {
+        method: 'POST',
+        body: formData,
+      });
+
+      clearInterval(progressInterval);
+      setUploadProgress(95);
+
+      if (!response.ok) {
+        throw new Error('Upload failed');
+      }
+
+      const result = await response.json();
+      setUploadProgress(100);
+      
+      toast({
+        title: "Upload Complete",
+        description: `${result.tendersProcessed || 0} tenders imported from ${result.sheetsProcessed || 0} sheets`,
+      });
+      
+      setSelectedFile(null);
+      
+      // Refresh data
+      queryClient.invalidateQueries({ queryKey: ["/api/tenders"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tender-imports"] });
+      
+    } catch (error) {
+      toast({
+        title: "Upload Failed",
+        description: error.message || "Failed to upload file",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUploading(false);
+      setTimeout(() => setUploadProgress(0), 3000);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Upload Excel File</CardTitle>
+        <CardDescription>
+          Upload Excel files with GeM and Non-GeM tender data
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={handleUpload} className="space-y-4">
+          <div>
+            <Input
+              type="file"
+              accept=".xlsx,.xls"
+              onChange={handleFileSelect}
+              disabled={isUploading}
+            />
+          </div>
+          
+          {uploadProgress > 0 && (
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm">
+                <span>Upload Progress</span>
+                <span>{uploadProgress}%</span>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-2">
+                <div 
+                  className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                  style={{ width: `${uploadProgress}%` }}
+                />
+              </div>
+            </div>
+          )}
+          
+          <Button 
+            type="submit" 
+            disabled={!selectedFile || isUploading}
+            className="w-full"
+          >
+            {isUploading ? "Processing..." : "Upload Excel File"}
+          </Button>
+        </form>
+      </CardContent>
+    </Card>
+  );
+}
+
 // Upload History Component
 function UploadHistoryComponent() {
   const { data: uploadHistory = [], isLoading } = useQuery<any[]>({

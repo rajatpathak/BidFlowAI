@@ -31,9 +31,9 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
       const uploadedBy = req.body.uploadedBy || "admin";
       console.log(`Processing tender upload: ${req.file.originalname}`);
 
-      // Use enhanced multi-sheet processor for active tenders
-      const { processActiveTendersWithSubsheets } = await import('./enhanced-active-tenders-processor.js');
-      const result = await processActiveTendersWithSubsheets(req.file.path, req.file.originalname, uploadedBy);
+      // Use simple Excel processor
+      const { processSimpleExcelUpload } = await import('./simple-excel-processor.js');
+      const result = await processSimpleExcelUpload(req.file.path, req.file.originalname, uploadedBy);
 
       if (!result.success) {
         return res.status(500).json({ error: result.error || "Failed to process Excel file" });
