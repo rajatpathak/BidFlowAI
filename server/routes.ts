@@ -115,33 +115,7 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
     }
   });
 
-  app.post("/api/tender-results-imports", upload.single('resultsFile'), async (req, res) => {
-    try {
-      if (!req.file) {
-        return res.status(400).json({ error: "No file uploaded" });
-      }
-
-      const uploadedBy = req.body.uploadedBy || "admin";
-      console.log(`Processing tender results upload: ${req.file.originalname}`);
-
-      // Use enhanced upload processor with proper column mapping
-      const { processTenderResultsExcel } = await import('./process-tender-excel.js');
-      const result = await processTenderResultsExcel(req.file.path, req.file.originalname, uploadedBy);
-
-      if (!result.success) {
-        return res.status(500).json({ error: result.error || "Failed to process Excel file" });
-      }
-
-      res.json({
-        message: "Tender results imported successfully",
-        resultsProcessed: result.resultsProcessed,
-        duplicatesSkipped: result.duplicatesSkipped,
-      });
-    } catch (error) {
-      console.error("Excel results upload error:", error);
-      res.status(500).json({ error: "Failed to process Excel file" });
-    }
-  });
+  // Routes cleaned up - duplicate handlers removed
 
   // Get enhanced tender results
   app.get("/api/enhanced-tender-results", async (req, res) => {

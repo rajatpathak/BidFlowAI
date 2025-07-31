@@ -16,6 +16,15 @@ function UploadHistoryComponent() {
     queryKey: ["/api/tender-imports"],
   });
 
+  // Transform the data to ensure proper field mapping
+  const transformedHistory = uploadHistory.map((upload: any) => ({
+    fileName: upload.file_name || upload.fileName,
+    tendersProcessed: upload.entries_added || upload.tendersProcessed || 0,
+    duplicatesSkipped: upload.entries_duplicate || upload.duplicatesSkipped || 0,
+    status: upload.status || 'completed',
+    uploadedAt: upload.uploaded_at || upload.uploadedAt
+  }));
+
   if (isLoading) {
     return (
       <Card>
@@ -59,7 +68,7 @@ function UploadHistoryComponent() {
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
-          {uploadHistory.map((upload, index) => (
+          {transformedHistory.map((upload, index) => (
             <div key={index} className="flex items-center justify-between p-4 border rounded-lg">
               <div className="flex items-center gap-4">
                 <FileSpreadsheet className="h-8 w-8 text-blue-500" />
@@ -69,7 +78,7 @@ function UploadHistoryComponent() {
                     {upload.tendersProcessed} processed, {upload.duplicatesSkipped} duplicates
                   </p>
                   <p className="text-xs text-gray-400">
-                    {new Date(upload.uploadedAt).toLocaleString()}
+                    {upload.uploadedAt ? new Date(upload.uploadedAt).toLocaleString() : 'Unknown time'}
                   </p>
                 </div>
               </div>
