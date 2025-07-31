@@ -431,6 +431,28 @@ Project Architecture: Separated frontend (React.js) and backend (Node.js) with M
   - Teams notification with deployment status updates
   - Compatible with existing VPS infrastructure at http://147.93.28.195:8080
 
+### Complete Tender Detail Action Buttons Implementation (July 31, 2025) ✅
+- **Action Buttons for Assigned Tenders**: Added missing "Start Bidding" and "Not Relevant" buttons to tender detail page
+  - Green "Start Bidding" button redirects to bid creation page with tender ID pre-filled
+  - Orange "Not Relevant" button opens dialog for admin approval workflow submission
+  - Buttons only appear for assigned tenders when user is the assignee (proper role checking)
+  - Complete assignment info display showing assigned bidder name
+- **Enhanced Tender Detail Page**: 
+  - Updated `tender-detail-enhanced.tsx` with proper authentication integration
+  - Added React Query mutations for not-relevant request submission
+  - Professional dialog interface with reason input and validation
+  - Real-time UI updates and success/error notifications
+- **Backend API Integration**: 
+  - Fixed JWT authentication issues and duplicate route conflicts
+  - Proper middleware integration with authenticateToken and requireRole functions
+  - Tested not-relevant workflow end-to-end with successful API responses
+  - Activity logging integration for all tender actions with username display
+- **Complete Documentation**: Updated README.md with comprehensive VPS deployment guide
+  - GitHub Actions workflow configuration and repository secrets setup
+  - Manual deployment steps and server configuration instructions
+  - PM2 process management, Nginx reverse proxy, and security considerations
+  - API documentation, troubleshooting guide, and monitoring commands
+
 The architecture prioritizes type safety, developer experience, and scalability while maintaining a clean separation between frontend, backend, and data layers. The AI integration is designed to enhance user decision-making without being intrusive to the core workflow. The system now supports complete tender lifecycle management from discovery through award with integrated financial tracking, team coordination, comprehensive activity tracking with proper username display, enhanced code quality with dynamic backend integration, and production-ready deployment with proper JSON API responses for VPS deployment via GitHub Actions.
 
 ### AI-Powered Tender Recommendation Engine (July 31, 2025) ✅
