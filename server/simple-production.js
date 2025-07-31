@@ -121,8 +121,8 @@ app.post('/api/auth/login', async (req, res) => {
     // Demo credentials check
     let isValidPassword = false;
     if ((username === 'admin' && password === 'admin123') ||
-        (username === 'rahul.kumar' && password === 'bidder123') ||
-        (username === 'priya.sharma' && password === 'finance123')) {
+        (username === 'senior_bidder' && password === 'bidder123') ||
+        (username === 'finance_manager' && password === 'finance123')) {
       isValidPassword = true;
     } else if (user.password === password) {
       isValidPassword = true;

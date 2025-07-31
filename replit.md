@@ -358,8 +358,9 @@ Project Architecture: Separated frontend (React.js) and backend (Node.js) with M
 ### Enhanced Code Quality & Dynamic Backend Integration (July 31, 2025) ✅
 - **Complete Authentication System**: JWT-based authentication with bcrypt password hashing and secure middleware
   - Authentication endpoints: /api/auth/login, /api/auth/logout, /api/auth/user
-  - Demo credentials: admin/admin123, rahul.kumar/bidder123, priya.sharma/finance123
+  - Demo credentials: admin/admin123, senior_bidder/bidder123, finance_manager/finance123
   - Token-based session management with automatic refresh and logout functionality
+  - **Fixed Login Issue**: Corrected username mapping to match database users (July 31, 2025)
 - **Enhanced Error Handling**: Comprehensive error boundaries and loading states throughout the application
   - ErrorBoundary component with development stack traces and user-friendly error messages
   - LoadingSpinner variants (PageLoader, CardLoader, TableLoader) for different contexts

@@ -75,8 +75,8 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
       // Demo credentials with logging
       const demoCredentials = {
         'admin': 'admin123',
-        'rahul.kumar': 'bidder123',  
-        'priya.sharma': 'finance123'
+        'senior_bidder': 'bidder123',  
+        'finance_manager': 'finance123'
       };
       
       console.log('Available demo users:', Object.keys(demoCredentials));
