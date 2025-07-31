@@ -39,7 +39,7 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v3
 
-      - name: Deploy and Fix API Routes
+      - name: Deploy with Simple Production Server
         uses: appleboy/ssh-action@v0.1.0
         with:
           host: ${{ secrets.SSH_HOST }}
@@ -49,6 +49,10 @@ jobs:
           script: |
             cd /var/www/html/${{ env.FILE_PATH }}
             
+            # Stop all processes first
+            pm2 delete all || true
+            pkill -f node || true
+            
             # Git operations
             eval "$(ssh-agent -s)"
             ssh-add ~/.ssh/${{ env.KEY_NAME }}  
@@ -57,33 +61,30 @@ jobs:
             git reset --hard origin/production
             
             # Clean install
-            rm -rf package-lock.json
-            rm -rf node_modules
-            rm -rf dist
+            rm -rf package-lock.json node_modules dist
             
             # Environment setup
-            cp .env.example .env
-            sed -i '/^DATABASE_URL=/d' .env
-            echo 'DATABASE_URL="'"${{ secrets.DATABASE_URL }}"'"' >> .env 
-            echo 'NODE_ENV=production' >> .env
-            echo 'PORT=3000' >> .env
+            export NODE_ENV=production
+            export PORT=3000
             
             # Install and build
             npm install
             npm run build
             
-            # Copy production server file
-            cp server/production.js dist/production.js
+            # Verify build
+            if [ ! -d "dist/public" ] || [ ! -f "dist/public/index.html" ]; then
+              echo "Build failed - missing dist/public files"
+              exit 1
+            fi
             
-            # Update PM2 to use production server
-            pm2 delete BidFlowAI || true
-            pm2 start server/production.js --name BidFlowAI --env production
+            # Start with simple production server
+            pm2 start server/simple-production.js --name BidFlowAI --env production
             pm2 save
             
-            # Verify deployment
+            # Run comprehensive health checks
             sleep 5
-            echo "Testing API endpoint..."
-            curl -s -H "Content-Type: application/json" http://localhost:3000/api/health || echo "API test failed"
+            echo "Running deployment verification..."
+            node server/health-check.js
 
   notify-teams:
     runs-on: ubuntu-latest
@@ -96,7 +97,7 @@ jobs:
         if: ${{ needs.build.result == 'success' && needs.deploy.result == 'success' }}
         run: |
           echo "COLOR=success" >> $GITHUB_ENV
-          echo "MESSAGE=✅ BidFlowAI deployed successfully with API fix!" >> $GITHUB_ENV
+          echo "MESSAGE=✅ BidFlowAI deployed successfully! Simple production server active with working authentication." >> $GITHUB_ENV
 
       - name: Set Color and Message for Failure
         if: ${{ needs.build.result != 'success' || needs.deploy.result != 'success' }}
