@@ -109,13 +109,13 @@ export async function processSimpleExcelUpload(
               try {
                 const existingByT247 = await db.execute(sql`
                   SELECT id, title, organization, value, deadline, link FROM tenders 
-                  WHERE requirements::text LIKE '%"t247_id":"' || ${t247Id} || '"%'
+                  WHERE requirements::text LIKE '%"t247_id": "' || ${t247Id} || '"%'
                   LIMIT 1
                 `);
                 
                 if (existingByT247.length > 0) {
                   existingTender = existingByT247[0];
-                  console.log(`Existing T247 ID found: ${t247Id}, will update if needed...`);
+                  console.log(`🔄 Existing T247 ID found: ${t247Id}, will UPDATE existing tender ID: ${existingTender.id}`);
                 }
               } catch (error) {
                 console.log(`Error checking T247 ID:`, error);
@@ -127,13 +127,13 @@ export async function processSimpleExcelUpload(
               try {
                 const existingByRef = await db.execute(sql`
                   SELECT id, title, organization, value, deadline, link FROM tenders 
-                  WHERE requirements::text LIKE '%"reference":"' || ${reference} || '"%'
+                  WHERE requirements::text LIKE '%"reference": "' || ${reference} || '"%'
                   LIMIT 1
                 `);
                 
                 if (existingByRef.length > 0) {
                   existingTender = existingByRef[0];
-                  console.log(`Existing Reference No found: ${reference}, will update if needed...`);
+                  console.log(`🔄 Existing Reference No found: ${reference}, will UPDATE existing tender ID: ${existingTender.id}`);
                 }
               } catch (error) {
                 console.log(`Error checking Reference No:`, error);
