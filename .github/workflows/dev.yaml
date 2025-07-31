@@ -61,8 +61,8 @@ jobs:
             # sed -i 's/^DEV_DB_PASSWORD\s*=\s*.*/DEV_DB_PASSWORD = "${{ secrets.DB_PASSWORD }}"/' .env
             npm install
             npm run build
-            #pm2 restart ecosystem.config.js
-            #pm2 save
+            pm2 restart BidFlowAI
+            pm2 save
 
 
   notify-teams:
