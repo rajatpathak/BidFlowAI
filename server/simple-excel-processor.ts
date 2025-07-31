@@ -59,6 +59,10 @@ export async function processSimpleExcelUpload(
         
         console.log(`Sheet "${sheetName}" classified as: ${source}`);
         
+        // Track previous counts for this sheet
+        const previousTotal = totalProcessed;
+        const previousDuplicates = duplicates;
+        
         // Process data rows
         for (let i = 1; i < data.length; i++) {
           try {
@@ -204,9 +208,7 @@ export async function processSimpleExcelUpload(
         }
         
         sheetsProcessed++;
-        const currentSheetAdded = totalProcessed - previousTotal;
-        const currentSheetDuplicates = duplicates - previousDuplicates;
-        console.log(`Completed sheet ${sheetName}: ${currentSheetAdded} entries added, ${currentSheetDuplicates} duplicates skipped`);
+        console.log(`Completed sheet ${sheetName}: ${totalProcessed} entries added, ${duplicates} duplicates skipped`);
         
         // Log hyperlink extraction for this sheet  
         try {
