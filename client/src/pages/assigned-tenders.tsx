@@ -1,9 +1,12 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
+import { useToast } from "@/hooks/use-toast";
+import { queryClient } from "@/lib/queryClient";
 import {
   Table,
   TableBody,
@@ -19,6 +22,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { TableSkeleton } from "@/components/loading/ImportSkeleton";
 import { 
@@ -32,7 +42,10 @@ import {
   Clock,
   CheckCircle,
   Bell,
-  User
+  User,
+  PlayCircle,
+  AlertTriangle,
+  Upload
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -62,9 +75,15 @@ interface AssignedTender {
 
 export default function AssignedTenders() {
   const { user } = useAuth();
+  const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
+  const [showBiddingDialog, setShowBiddingDialog] = useState(false);
+  const [showNotRelevantDialog, setShowNotRelevantDialog] = useState(false);
+  const [selectedTender, setSelectedTender] = useState<AssignedTender | null>(null);
+  const [notRelevantReason, setNotRelevantReason] = useState("");
+  const [selectedFiles, setSelectedFiles] = useState<FileList | null>(null);
   
   const itemsPerPage = 20;
 
@@ -133,6 +152,127 @@ export default function AssignedTenders() {
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
   );
+
+  // Start bidding mutation
+  const startBiddingMutation = useMutation({
+    mutationFn: async (data: { tenderId: string; files: FileList }) => {
+      const formData = new FormData();
+      Array.from(data.files).forEach((file) => {
+        formData.append('documents', file);
+      });
+      
+      const response = await fetch(`/api/tenders/${data.tenderId}/documents`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: formData
+      });
+      
+      if (!response.ok) throw new Error('Failed to upload documents');
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Bidding Started",
+        description: "RFP documents uploaded successfully. You can now start preparing your bid.",
+      });
+      setShowBiddingDialog(false);
+      setSelectedFiles(null);
+      queryClient.invalidateQueries({ queryKey: ["/api/users", user?.id, "assigned-tenders"] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Upload Failed",
+        description: error.message || "Failed to upload documents",
+        variant: "destructive"
+      });
+    }
+  });
+
+  // Mark not relevant mutation
+  const markNotRelevantMutation = useMutation({
+    mutationFn: async (data: { tenderId: string; reason: string }) => {
+      const response = await fetch(`/api/tenders/${data.tenderId}/not-relevant`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({ reason: data.reason })
+      });
+      
+      if (!response.ok) throw new Error('Failed to mark tender as not relevant');
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Success",
+        description: "Tender marked as not relevant successfully",
+      });
+      setShowNotRelevantDialog(false);
+      setNotRelevantReason("");
+      queryClient.invalidateQueries({ queryKey: ["/api/users", user?.id, "assigned-tenders"] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to mark tender as not relevant",
+        variant: "destructive"
+      });
+    }
+  });
+
+  // Action handlers
+  const handleStartBidding = (tender: AssignedTender) => {
+    setSelectedTender(tender);
+    setShowBiddingDialog(true);
+  };
+
+  const handleNotRelevant = (tender: AssignedTender) => {
+    setSelectedTender(tender);
+    setShowNotRelevantDialog(true);
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSelectedFiles(e.target.files);
+  };
+
+  const handleStartBiddingSubmit = () => {
+    if (!selectedFiles || selectedFiles.length === 0) {
+      toast({
+        title: "Error",
+        description: "Please select at least one RFP document to upload",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (!selectedTender) return;
+
+    startBiddingMutation.mutate({
+      tenderId: selectedTender.id,
+      files: selectedFiles
+    });
+  };
+
+  const handleNotRelevantSubmit = () => {
+    if (!notRelevantReason.trim()) {
+      toast({
+        title: "Error",
+        description: "Please provide a reason for marking this tender as not relevant",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (!selectedTender) return;
+
+    markNotRelevantMutation.mutate({
+      tenderId: selectedTender.id,
+      reason: notRelevantReason.trim()
+    });
+  };
 
   if (isLoading) {
     return (
@@ -345,7 +485,7 @@ export default function AssignedTenders() {
                         
                         {/* Actions */}
                         <TableCell>
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <Button
                               variant="outline"
                               size="sm"
@@ -354,6 +494,30 @@ export default function AssignedTenders() {
                               <ExternalLink className="h-4 w-4" />
                               View
                             </Button>
+                            
+                            {/* Bidder Actions for assigned tenders */}
+                            {user?.role === 'senior_bidder' && tender.status === 'assigned' && (
+                              <>
+                                <Button 
+                                  onClick={() => handleStartBidding(tender)} 
+                                  size="sm"
+                                  className="bg-green-600 hover:bg-green-700"
+                                >
+                                  <PlayCircle className="h-4 w-4 mr-1" />
+                                  Start Bidding
+                                </Button>
+                                <Button 
+                                  onClick={() => handleNotRelevant(tender)}
+                                  variant="outline"
+                                  size="sm"
+                                  className="border-red-300 text-red-600 hover:bg-red-50"
+                                >
+                                  <AlertTriangle className="h-4 w-4 mr-1" />
+                                  Not Relevant
+                                </Button>
+                              </>
+                            )}
+                            
                             {tender.link && (
                               <Button
                                 variant="outline"
@@ -400,6 +564,128 @@ export default function AssignedTenders() {
           )}
         </CardContent>
       </Card>
+
+      {/* Start Bidding Dialog */}
+      <Dialog open={showBiddingDialog} onOpenChange={setShowBiddingDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Upload className="h-5 w-5 text-green-600" />
+              Start Bidding Process
+            </DialogTitle>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div className="text-sm text-gray-600">
+              Upload RFP documents to begin the bidding process for this tender:
+              <div className="font-medium mt-2 text-gray-900">
+                {selectedTender?.title}
+              </div>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="documents">Select RFP Documents</Label>
+              <Input
+                id="documents"
+                type="file"
+                multiple
+                accept=".pdf,.doc,.docx,.xls,.xlsx"
+                onChange={handleFileSelect}
+                className="cursor-pointer"
+              />
+              <div className="text-xs text-gray-500">
+                Accepted formats: PDF, DOC, DOCX, XLS, XLSX
+              </div>
+            </div>
+
+            {selectedFiles && selectedFiles.length > 0 && (
+              <div className="space-y-2">
+                <Label>Selected Files:</Label>
+                <div className="space-y-1">
+                  {Array.from(selectedFiles).map((file, index) => (
+                    <div key={index} className="text-sm text-gray-600 bg-gray-50 p-2 rounded">
+                      📎 {file.name} ({(file.size / 1024 / 1024).toFixed(2)} MB)
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+          
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setShowBiddingDialog(false);
+                setSelectedFiles(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleStartBiddingSubmit}
+              disabled={startBiddingMutation.isPending}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              {startBiddingMutation.isPending ? "Uploading..." : "Start Bidding"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Not Relevant Dialog */}
+      <Dialog open={showNotRelevantDialog} onOpenChange={setShowNotRelevantDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-red-600" />
+              Mark as Not Relevant
+            </DialogTitle>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div className="text-sm text-gray-600">
+              Please provide a reason for marking this tender as not relevant:
+              <div className="font-medium mt-2 text-gray-900">
+                {selectedTender?.title}
+              </div>
+              <div className="text-xs mt-1 text-gray-500">
+                This will help improve future tender matching.
+              </div>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="reason">Reason for not relevant</Label>
+              <Textarea
+                id="reason"
+                placeholder="e.g., Outside our expertise area, Budget too low, Technical requirements don't match..."
+                value={notRelevantReason}
+                onChange={(e) => setNotRelevantReason(e.target.value)}
+                className="min-h-[100px]"
+              />
+            </div>
+          </div>
+          
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setShowNotRelevantDialog(false);
+                setNotRelevantReason("");
+              }}
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleNotRelevantSubmit}
+              disabled={markNotRelevantMutation.isPending}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {markNotRelevantMutation.isPending ? "Marking..." : "Mark Not Relevant"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
