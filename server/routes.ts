@@ -1388,6 +1388,7 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
           ? JSON.parse(tenderData.requirements) 
           : tenderData.requirements || [],
         assignedToName: tenderData.assigned_to_name,
+        assignedTo: tenderData.assigned_to, // Map frontend field
         aiScore: tenderData.ai_score // Add frontend-compatible field
       };
       

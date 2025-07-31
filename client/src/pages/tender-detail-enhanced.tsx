@@ -36,6 +36,7 @@ interface TenderDetail {
   source: string;
   aiScore: number;
   assignedTo?: string;
+  assigned_to?: string; // backend field name
   assignedToName?: string;
   requirements: Array<{
     location: string;
@@ -230,7 +231,7 @@ export default function TenderDetailEnhancedPage() {
             )}
 
             {/* Action Buttons for Assigned Tenders */}
-            {tender.status === 'assigned' && tender.assignedTo === user?.id && (
+            {user?.role === 'senior_bidder' && tender.status === 'assigned' && (tender.assignedTo === user?.id || tender.assigned_to === user?.id) && (
               <div className="mb-6 flex gap-4">
                 <Button 
                   size="lg" 
@@ -238,7 +239,7 @@ export default function TenderDetailEnhancedPage() {
                   className="bg-green-600 hover:bg-green-700"
                 >
                   <PlayCircle className="h-5 w-5 mr-2" />
-                  Start Bidding
+                  Start Preparing
                 </Button>
                 <Button 
                   size="lg" 
