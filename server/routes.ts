@@ -359,7 +359,7 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
     }
   });
 
-  // Mark tender as not relevant
+  // Mark tender as not relevant (multiple endpoints for compatibility)
   app.post("/api/tenders/:id/mark-not-relevant", async (req, res) => {
     try {
       const { id } = req.params;
@@ -380,6 +380,133 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
     } catch (error) {
       console.error("Mark not relevant error:", error);
       res.status(500).json({ error: "Failed to mark tender as not relevant" });
+    }
+  });
+
+  // Mark tender as not relevant (alternative endpoint)
+  app.post("/api/tenders/:id/not-relevant", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { reason } = req.body;
+      
+      // Update tender status
+      await db.execute(sql`
+        UPDATE tenders SET status = 'not_relevant' WHERE id = ${id}
+      `);
+      
+      // Add activity log with username
+      await db.execute(sql`
+        INSERT INTO activity_logs (id, tender_id, activity_type, description, created_by, created_at)
+        VALUES (gen_random_uuid(), ${id}, 'marked_not_relevant', ${'Tender marked as not relevant. Reason: ' + (reason || 'No reason provided')}, 'System User', NOW())
+      `);
+      
+      res.json({ success: true, message: "Tender marked as not relevant" });
+    } catch (error) {
+      console.error("Mark not relevant error:", error);
+      res.status(500).json({ error: "Failed to mark tender as not relevant" });
+    }
+  });
+
+  // Upload documents for tender (RFP documents)
+  app.post("/api/tenders/:id/documents", upload.array('documents', 10), async (req, res) => {
+    try {
+      const { id } = req.params;
+      const uploadedFiles = req.files as Express.Multer.File[];
+      
+      if (!uploadedFiles || uploadedFiles.length === 0) {
+        return res.status(400).json({ error: "No files uploaded" });
+      }
+
+      const documentRecords = [];
+      
+      for (const file of uploadedFiles) {
+        // Create document record in database
+        const [document] = await db.insert(documents).values({
+          tenderId: id,
+          filename: file.filename,
+          originalName: file.originalname,
+          mimeType: file.mimetype,
+          size: file.size,
+          uploadedBy: 'system-user' // Will be replaced with actual user when auth is fixed
+        }).returning();
+        
+        documentRecords.push(document);
+      }
+
+      // Log the activity
+      await db.execute(sql`
+        INSERT INTO activity_logs (id, tender_id, activity_type, description, created_by, created_at)
+        VALUES (gen_random_uuid(), ${id}, 'document_uploaded', ${`RFP documents uploaded: ${uploadedFiles.map(f => f.originalname).join(', ')}`}, 'System User', NOW())
+      `);
+
+      // Update tender status to 'assigned' if it was 'active'
+      await db.execute(sql`
+        UPDATE tenders 
+        SET status = CASE WHEN status = 'active' THEN 'assigned' ELSE status END,
+            updated_at = NOW()
+        WHERE id = ${id}
+      `);
+
+      res.json({ 
+        success: true, 
+        message: `${uploadedFiles.length} documents uploaded successfully`,
+        documents: documentRecords 
+      });
+    } catch (error) {
+      console.error("Document upload error:", error);
+      res.status(500).json({ error: "Failed to upload documents" });
+    }
+  });
+
+  // Get documents for tender
+  app.get("/api/tenders/:id/documents", async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      const result = await db.execute(sql`
+        SELECT id, tender_id as "tenderId", filename, original_name as "originalName", 
+               mime_type as "mimeType", size, uploaded_at as "uploadedAt", uploaded_by as "uploadedBy"
+        FROM documents 
+        WHERE tender_id = ${id}
+        ORDER BY uploaded_at DESC
+      `);
+      
+      res.json(result || []);
+    } catch (error) {
+      console.error("Documents fetch error:", error);
+      res.status(500).json({ error: "Failed to fetch documents" });
+    }
+  });
+
+  // Download document
+  app.get("/api/documents/:id/download", async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      const [document] = await db.execute(sql`
+        SELECT filename, original_name as "originalName", mime_type as "mimeType"
+        FROM documents 
+        WHERE id = ${id}
+        LIMIT 1
+      `);
+      
+      if (!document) {
+        return res.status(404).json({ error: "Document not found" });
+      }
+      
+      const filePath = path.join(process.cwd(), 'uploads', document.filename);
+      
+      try {
+        await fs.access(filePath);
+        res.setHeader('Content-Disposition', `attachment; filename="${document.originalName}"`);
+        res.setHeader('Content-Type', document.mimeType);
+        res.sendFile(filePath);
+      } catch (fileError) {
+        res.status(404).json({ error: "File not found on disk" });
+      }
+    } catch (error) {
+      console.error("Document download error:", error);
+      res.status(500).json({ error: "Failed to download document" });
     }
   });
 

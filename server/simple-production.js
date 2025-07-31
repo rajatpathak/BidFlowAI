@@ -270,6 +270,45 @@ app.get('/api/tenders', async (req, res) => {
   }
 });
 
+// Mark tender as not relevant
+app.post('/api/tenders/:id/not-relevant', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { reason } = req.body;
+    
+    await sql`
+      UPDATE tenders 
+      SET status = 'not_relevant', updated_at = NOW()
+      WHERE id = ${id}
+    `;
+    
+    res.json({ success: true, message: 'Tender marked as not relevant' });
+  } catch (error) {
+    console.error('Not relevant error:', error);
+    res.status(500).json({ error: 'Failed to mark tender as not relevant' });
+  }
+});
+
+// Get documents for tender
+app.get('/api/tenders/:id/documents', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const documents = await sql`
+      SELECT id, tender_id as "tenderId", filename, original_name as "originalName", 
+             mime_type as "mimeType", size, uploaded_at as "uploadedAt"
+      FROM documents 
+      WHERE tender_id = ${id}
+      ORDER BY uploaded_at DESC
+    `;
+    
+    res.json(documents || []);
+  } catch (error) {
+    console.error('Documents error:', error);
+    res.json([]);
+  }
+});
+
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({
