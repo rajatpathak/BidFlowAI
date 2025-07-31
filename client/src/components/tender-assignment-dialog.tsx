@@ -72,23 +72,33 @@ export function TenderAssignmentDialog({
     queryKey: ["/api/users"],
   });
 
-  const bidders = users.filter((user: any) => 
+  const bidders = (users as any[]).filter((user: any) => 
     user.role === 'senior_bidder' || user.role === 'admin'
   );
 
   const assignTenderMutation = useMutation({
     mutationFn: async (data: AssignmentFormData) => {
-      return apiRequest(`/api/tenders/${tenderId}/assign`, {
+      const response = await fetch(`/api/tenders/${tenderId}/assign`, {
         method: "POST",
-        body: {
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
           bidderId: data.bidderId,
           priority: data.priority,
           budget: data.budget ? parseFloat(data.budget) : null,
           assignedBy: "current-user-id", // This should come from auth context
-        },
+        }),
       });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to assign tender");
+      }
+
+      return await response.json();
     },
-    onSuccess: (response) => {
+    onSuccess: (response: any) => {
       toast({
         title: "Assignment Successful",
         description: `Tender assigned to ${response.bidderName}`,
