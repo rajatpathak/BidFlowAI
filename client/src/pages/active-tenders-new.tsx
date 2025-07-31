@@ -359,6 +359,7 @@ export default function ActiveTendersPage() {
   // Upload state
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadStats, setUploadStats] = useState({ processed: 0, duplicates: 0, total: 0 });
 
   // File upload handler
   const handleFileUpload = async (file: File) => {
@@ -370,16 +371,15 @@ export default function ActiveTendersPage() {
     formData.append("uploadedBy", user?.username || "admin");
 
     try {
-      // Simulate progress for visual feedback
+      // Simulate progress with better logic
+      let progressValue = 0;
       const progressInterval = setInterval(() => {
-        setUploadProgress((prev) => {
-          if (prev >= 90) {
-            clearInterval(progressInterval);
-            return prev;
-          }
-          return prev + 10;
-        });
-      }, 300);
+        progressValue += Math.random() * 15 + 5; // Increment by 5-20%
+        if (progressValue > 95) {
+          progressValue = 95; // Cap at 95% until completion
+        }
+        setUploadProgress(progressValue);
+      }, 500);
 
       const response = await fetch("/api/upload-tenders", {
         method: "POST",
@@ -396,9 +396,16 @@ export default function ActiveTendersPage() {
       
       const result = await response.json();
       
+      // Update final stats
+      setUploadStats({ 
+        processed: result.tendersProcessed || 0, 
+        duplicates: result.duplicatesSkipped || 0, 
+        total: (result.tendersProcessed || 0) + (result.duplicatesSkipped || 0)
+      });
+      
       toast({
         title: "Upload Successful",
-        description: `${result.tendersProcessed} tenders processed, ${result.duplicatesSkipped} duplicates skipped`,
+        description: `${result.tendersProcessed} entries added, ${result.duplicatesSkipped} duplicates skipped`,
       });
 
       // Refresh tender data
@@ -412,7 +419,10 @@ export default function ActiveTendersPage() {
       });
     } finally {
       setIsUploading(false);
-      setTimeout(() => setUploadProgress(0), 2000);
+      setTimeout(() => {
+        setUploadProgress(0);
+        setUploadStats({ processed: 0, duplicates: 0, total: 0 });
+      }, 3000);
     }
   };
 
@@ -615,12 +625,19 @@ export default function ActiveTendersPage() {
                     
                     {/* Progress Bar */}
                     {isUploading && (
-                      <div className="space-y-2">
+                      <div className="space-y-3">
                         <div className="flex justify-between text-sm">
                           <span>Processing Excel file...</span>
-                          <span>{uploadProgress}%</span>
+                          <span>{Math.round(uploadProgress)}%</span>
                         </div>
                         <Progress value={uploadProgress} className="w-full" />
+                        {uploadStats.total > 0 && (
+                          <div className="text-sm text-gray-600 space-y-1">
+                            <div>📊 {uploadStats.processed} entries added</div>
+                            <div>🔄 {uploadStats.duplicates} duplicates skipped</div>
+                            <div>📝 {uploadStats.total} total processed</div>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>

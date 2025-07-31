@@ -73,23 +73,48 @@ export async function processSimpleExcelUpload(filePath: string, fileName: strin
             const reference = refCol >= 0 ? (row[refCol] || '').toString().trim() : '';
             const t247Id = t247Col >= 0 ? (row[t247Col] || '').toString().trim() : '';
             
-            // Check for duplicates using T247 ID
+            // Check for duplicates using both T247 ID and Reference No
+            let isDuplicate = false;
+            
+            // Check T247 ID duplicate
             if (t247Id && t247Id.length > 3) {
               try {
-                const existingTenders = await db.execute(sql`
+                const existingByT247 = await db.execute(sql`
                   SELECT id FROM tenders 
                   WHERE requirements::text LIKE '%' || ${t247Id} || '%'
                   LIMIT 1
                 `);
                 
-                if (existingTenders.length > 0) {
+                if (existingByT247.length > 0) {
                   console.log(`Duplicate T247 ID found: ${t247Id}, skipping...`);
-                  duplicates++;
-                  continue;
+                  isDuplicate = true;
                 }
               } catch (error) {
-                console.log(`Error checking duplicate for ${t247Id}:`, error);
+                console.log(`Error checking T247 ID duplicate:`, error);
               }
+            }
+            
+            // Check Reference No duplicate if not already duplicate
+            if (!isDuplicate && reference && reference.length > 3) {
+              try {
+                const existingByRef = await db.execute(sql`
+                  SELECT id FROM tenders 
+                  WHERE reference_no = ${reference}
+                  LIMIT 1
+                `);
+                
+                if (existingByRef.length > 0) {
+                  console.log(`Duplicate Reference No found: ${reference}, skipping...`);
+                  isDuplicate = true;
+                }
+              } catch (error) {
+                console.log(`Error checking Reference No duplicate:`, error);
+              }
+            }
+            
+            if (isDuplicate) {
+              duplicates++;
+              continue;
             }
             
             // Simple AI score based on keywords
@@ -119,7 +144,7 @@ export async function processSimpleExcelUpload(filePath: string, fileName: strin
             totalProcessed++;
             
             if (totalProcessed % 50 === 0) {
-              console.log(`Processed ${totalProcessed} tenders...`);
+              console.log(`Progress: ${totalProcessed} entries processed, ${duplicates} duplicates skipped...`);
             }
             
           } catch (rowError) {
@@ -129,7 +154,7 @@ export async function processSimpleExcelUpload(filePath: string, fileName: strin
         }
         
         sheetsProcessed++;
-        console.log(`Completed sheet ${sheetName}: ${totalProcessed} total processed`);
+        console.log(`Completed sheet ${sheetName}: ${totalProcessed} entries added, ${duplicates} duplicates skipped`);
         
       } catch (sheetError) {
         console.error(`Error processing sheet ${sheetName}:`, sheetError);
@@ -141,18 +166,18 @@ export async function processSimpleExcelUpload(filePath: string, fileName: strin
     try {
       await db.execute(sql`
         INSERT INTO excel_uploads (id, file_name, file_path, uploaded_by, entries_added, entries_duplicate, total_entries, sheets_processed, status, uploaded_at)
-        VALUES (gen_random_uuid(), ${fileName}, ${filePath}, ${uploadedBy}, ${totalProcessed}, 0, ${totalProcessed}, ${sheetsProcessed}, 'completed', NOW())
+        VALUES (gen_random_uuid(), ${fileName}, ${filePath}, ${uploadedBy}, ${totalProcessed}, ${duplicates}, ${totalProcessed + duplicates}, ${sheetsProcessed}, 'completed', NOW())
       `);
     } catch (insertError) {
       console.error('Failed to record import:', insertError);
     }
     
-    console.log(`Processing complete: ${totalProcessed} processed, ${totalErrors} errors, ${sheetsProcessed} sheets`);
+    console.log(`Processing complete: ${totalProcessed} entries added, ${duplicates} duplicates skipped, ${totalErrors} errors, ${sheetsProcessed} sheets`);
     
     return {
       success: true,
       tendersProcessed: totalProcessed,
-      duplicatesSkipped: 0,
+      duplicatesSkipped: duplicates,
       errorsEncountered: totalErrors,
       sheetsProcessed: sheetsProcessed
     };
