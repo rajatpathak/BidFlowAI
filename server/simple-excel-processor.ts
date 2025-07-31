@@ -3,7 +3,12 @@ import * as fs from 'fs';
 import { db } from './db.js';
 import { sql } from 'drizzle-orm';
 
-export async function processSimpleExcelUpload(filePath: string, fileName: string, uploadedBy: string) {
+export async function processSimpleExcelUpload(
+  filePath: string, 
+  fileName: string, 
+  uploadedBy: string,
+  progressCallback?: (progress: { processed: number, duplicates: number, total: number, percentage: number }) => void
+) {
   try {
     console.log(`Processing Excel file: ${fileName}`);
     
@@ -145,6 +150,17 @@ export async function processSimpleExcelUpload(filePath: string, fileName: strin
             
             if (totalProcessed % 50 === 0) {
               console.log(`Progress: ${totalProcessed} entries processed, ${duplicates} duplicates skipped...`);
+              
+              // Call progress callback if provided
+              if (progressCallback) {
+                const percentage = Math.min(95, Math.floor((totalProcessed / Math.max(1, rowsLength)) * 100));
+                progressCallback({
+                  processed: totalProcessed,
+                  duplicates: duplicates,
+                  total: totalProcessed + duplicates,
+                  percentage: percentage
+                });
+              }
             }
             
           } catch (rowError) {

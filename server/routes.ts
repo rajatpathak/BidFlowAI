@@ -21,6 +21,16 @@ const upload = multer({
 
 export function registerRoutes(app: express.Application, storage: IStorage) {
   
+  // Upload progress tracking
+  const uploadProgress = new Map();
+
+  // Get upload progress
+  app.get("/api/upload-progress/:sessionId", (req, res) => {
+    const sessionId = req.params.sessionId;
+    const progress = uploadProgress.get(sessionId) || { processed: 0, duplicates: 0, total: 0, percentage: 0 };
+    res.json(progress);
+  });
+
   // Upload tenders via Excel file (Active Tenders)
   app.post("/api/upload-tenders", upload.single('file'), async (req, res) => {
     try {
@@ -29,11 +39,25 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
       }
 
       const uploadedBy = req.body.uploadedBy || "admin";
-      console.log(`Processing tender upload: ${req.file.originalname}`);
+      const sessionId = Date.now().toString();
+      console.log(`Processing tender upload: ${req.file.originalname} (Session: ${sessionId})`);
 
-      // Use simple Excel processor
+      // Initialize progress tracking
+      uploadProgress.set(sessionId, { processed: 0, duplicates: 0, total: 0, percentage: 0 });
+
+      // Use simple Excel processor with progress callback
       const { processSimpleExcelUpload } = await import('./simple-excel-processor.js');
-      const result = await processSimpleExcelUpload(req.file.path, req.file.originalname, uploadedBy);
+      const result = await processSimpleExcelUpload(
+        req.file.path, 
+        req.file.originalname, 
+        uploadedBy,
+        (progress) => {
+          uploadProgress.set(sessionId, progress);
+        }
+      );
+
+      // Clean up progress tracking
+      setTimeout(() => uploadProgress.delete(sessionId), 30000);
 
       if (!result.success) {
         return res.status(500).json({ error: result.error || "Failed to process Excel file" });
@@ -44,7 +68,8 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
         tendersProcessed: result.tendersProcessed || 0,
         duplicatesSkipped: result.duplicatesSkipped || 0,
         sheetsProcessed: result.sheetsProcessed || 0,
-        errorsEncountered: result.errorsEncountered || 0
+        errorsEncountered: result.errorsEncountered || 0,
+        sessionId: sessionId
       });
     } catch (error) {
       console.error("Excel upload error:", error);
