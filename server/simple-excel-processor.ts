@@ -101,46 +101,98 @@ export async function processSimpleExcelUpload(
               }
             }
             
-            // Strict duplicate detection: Reference No and T247 ID must be unique
-            let isDuplicate = false;
+            // Check for existing record to UPDATE instead of duplicating
+            let existingTender = null;
             
-            // Primary check: T247 ID (must be unique if present and valid)
+            // Primary check: T247 ID (check if exists for update)
             if (t247Id && t247Id.trim().length > 0) {
               try {
                 const existingByT247 = await db.execute(sql`
-                  SELECT id FROM tenders 
+                  SELECT id, title, organization, value, deadline, link FROM tenders 
                   WHERE requirements::text LIKE '%"t247_id":"' || ${t247Id} || '"%'
                   LIMIT 1
                 `);
                 
                 if (existingByT247.length > 0) {
-                  console.log(`Duplicate T247 ID found: ${t247Id}, skipping...`);
-                  isDuplicate = true;
+                  existingTender = existingByT247[0];
+                  console.log(`Existing T247 ID found: ${t247Id}, will update if needed...`);
                 }
               } catch (error) {
-                console.log(`Error checking T247 duplicate:`, error);
+                console.log(`Error checking T247 ID:`, error);
               }
             }
             
-            // Secondary check: Reference No (must be unique if present and valid)
-            if (!isDuplicate && reference && reference.trim().length > 0) {
+            // Secondary check: Reference No (only if T247 didn't find existing)
+            if (!existingTender && reference && reference.trim().length > 0) {
               try {
                 const existingByRef = await db.execute(sql`
-                  SELECT id FROM tenders 
+                  SELECT id, title, organization, value, deadline, link FROM tenders 
                   WHERE requirements::text LIKE '%"reference":"' || ${reference} || '"%'
                   LIMIT 1
                 `);
                 
                 if (existingByRef.length > 0) {
-                  console.log(`Duplicate Reference No found: ${reference}, skipping...`);
-                  isDuplicate = true;
+                  existingTender = existingByRef[0];
+                  console.log(`Existing Reference No found: ${reference}, will update if needed...`);
                 }
               } catch (error) {
-                console.log(`Error checking Reference No duplicate:`, error);
+                console.log(`Error checking Reference No:`, error);
               }
             }
             
-            if (isDuplicate) {
+            // If existing tender found, UPDATE instead of INSERT
+            if (existingTender) {
+              let hasChanges = false;
+              const updates = [];
+              
+              // Check each field for changes
+              if (existingTender.title !== title) {
+                updates.push(`title = ${title}`);
+                hasChanges = true;
+              }
+              if (existingTender.organization !== organization) {
+                updates.push(`organization = ${organization}`);
+                hasChanges = true;
+              }
+              if (existingTender.value !== value) {
+                updates.push(`value = ${value}`);
+                hasChanges = true;
+              }
+              if (new Date(existingTender.deadline).getTime() !== deadline.getTime()) {
+                updates.push(`deadline = '${deadline.toISOString()}'`);
+                hasChanges = true;
+              }
+              if (link && existingTender.link !== link) {
+                updates.push(`link = ${link}`);
+                hasChanges = true;
+              }
+              
+              if (hasChanges) {
+                try {
+                  await db.execute(sql`
+                    UPDATE tenders SET 
+                      title = ${title},
+                      organization = ${organization},
+                      value = ${value},
+                      deadline = ${deadline.toISOString()},
+                      link = ${link},
+                      requirements = ${JSON.stringify([{
+                        location: location,
+                        reference: reference,
+                        t247_id: t247Id,
+                        sheet: sheetName
+                      }])}
+                    WHERE id = ${existingTender.id}
+                  `);
+                  console.log(`Updated existing tender: ${title.substring(0, 50)}...`);
+                } catch (updateError) {
+                  console.error(`Error updating tender:`, updateError);
+                  totalErrors++;
+                }
+              } else {
+                console.log(`No changes detected for: ${title.substring(0, 50)}...`);
+              }
+              
               duplicates++;
               continue;
             }
@@ -180,7 +232,7 @@ export async function processSimpleExcelUpload(
             
             // More frequent progress updates
             if (totalProcessed % 10 === 0) {
-              console.log(`Progress: ${totalProcessed} entries processed, ${duplicates} duplicates skipped...`);
+              console.log(`Progress: ${totalProcessed} entries processed, ${duplicates} duplicates/updates...`);
               
               // Call progress callback if provided
               if (progressCallback) {
@@ -208,7 +260,7 @@ export async function processSimpleExcelUpload(
         }
         
         sheetsProcessed++;
-        console.log(`Completed sheet ${sheetName}: ${totalProcessed} entries added, ${duplicates} duplicates skipped`);
+        console.log(`Completed sheet ${sheetName}: ${totalProcessed} entries added, ${duplicates} duplicates/updates`);
         
         // Log hyperlink extraction for this sheet  
         try {
