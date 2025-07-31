@@ -88,6 +88,15 @@ export async function processSimpleExcelUpload(
             const reference = refCol >= 0 ? (row[refCol] || '').toString().trim() : '';
             const t247Id = t247Col >= 0 ? (row[t247Col] || '').toString().trim() : '';
             
+            // Extract hyperlink from the title column (TENDER BRIEF typically has links)
+            let link = null;
+            if (titleCol >= 0) {
+              const cell = worksheet[XLSX.utils.encode_cell({ r: i, c: titleCol })];
+              if (cell && cell.l && cell.l.Target) {
+                link = cell.l.Target;
+              }
+            }
+            
             // Check for duplicates using both T247 ID and Reference No
             let isDuplicate = false;
             
@@ -152,7 +161,7 @@ export async function processSimpleExcelUpload(
                   t247_id: t247Id,
                   sheet: sheetName
                 }])}, 
-                null
+                ${link}
               )
             `);
             
@@ -197,6 +206,18 @@ export async function processSimpleExcelUpload(
         sheetsProcessed++;
         console.log(`Completed sheet ${sheetName}: ${totalProcessed} entries added, ${duplicates} duplicates skipped`);
         
+        // Log hyperlink extraction for this sheet  
+        try {
+          const sheetLinksCount = await db.execute(sql`
+            SELECT COUNT(*) as count FROM tenders 
+            WHERE link IS NOT NULL AND link != '' 
+            AND requirements::text LIKE '%"sheet":"${sheetName}"%'
+          `);
+          console.log(`Hyperlinks extracted from ${sheetName}: ${sheetLinksCount[0]?.count || 0} links`);
+        } catch (linkError) {
+          console.log('Error checking hyperlinks:', linkError);
+        }
+        
       } catch (sheetError) {
         console.error(`Error processing sheet ${sheetName}:`, sheetError);
         totalErrors++;
@@ -214,6 +235,14 @@ export async function processSimpleExcelUpload(
     }
     
     console.log(`Processing complete: ${totalProcessed} entries added, ${duplicates} duplicates skipped, ${totalErrors} errors, ${sheetsProcessed} sheets`);
+    
+    // Final hyperlink extraction stats
+    try {
+      const totalLinksCount = await db.execute(sql`SELECT COUNT(*) as count FROM tenders WHERE link IS NOT NULL AND link != ''`);
+      console.log(`Total hyperlinks extracted: ${totalLinksCount[0]?.count || 0} links found`);
+    } catch (linkError) {
+      console.log('Error checking total hyperlinks:', linkError);
+    }
     
     // Final progress callback
     if (progressCallback) {
