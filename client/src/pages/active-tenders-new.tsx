@@ -495,7 +495,47 @@ export default function ActiveTendersPage() {
     formData.append("file", file);
     formData.append("uploadedBy", user?.username || "admin");
 
+    // Create session ID upfront
+    const sessionId = Date.now().toString();
+    formData.append("sessionId", sessionId);
+
+    let eventSource: EventSource | null = null;
+
     try {
+      // Connect to progress stream BEFORE starting upload
+      eventSource = new EventSource(`/api/upload-progress/${sessionId}`);
+      
+      eventSource.onmessage = (event) => {
+        try {
+          const progress = JSON.parse(event.data);
+          console.log('Progress update:', progress);
+          setUploadProgress(progress.percentage || 0);
+          setUploadStats({
+            processed: progress.processed || 0,
+            duplicates: progress.duplicates || 0,
+            total: progress.total || 0,
+            gemAdded: progress.gemAdded || 0,
+            nonGemAdded: progress.nonGemAdded || 0,
+            errors: progress.errors || 0
+          });
+
+          // Close connection when completed
+          if (progress.completed || progress.percentage >= 100) {
+            eventSource?.close();
+          }
+        } catch (e) {
+          console.error('Error parsing progress:', e);
+        }
+      };
+
+      eventSource.onerror = (error) => {
+        console.error('EventSource error:', error);
+        eventSource?.close();
+      };
+
+      // Small delay to ensure SSE connection is established
+      await new Promise(resolve => setTimeout(resolve, 100));
+
       // Start the upload request
       const response = await fetch("/api/upload-tenders", {
         method: "POST",
@@ -507,32 +547,6 @@ export default function ActiveTendersPage() {
       }
 
       const result = await response.json();
-      const sessionId = result.sessionId;
-
-      // Connect to real-time progress stream
-      const eventSource = new EventSource(`/api/upload-progress/${sessionId}`);
-      
-      eventSource.onmessage = (event) => {
-        const progress = JSON.parse(event.data);
-        setUploadProgress(progress.percentage || 0);
-        setUploadStats({
-          processed: progress.processed || 0,
-          duplicates: progress.duplicates || 0,
-          total: progress.total || 0,
-          gemAdded: progress.gemAdded || 0,
-          nonGemAdded: progress.nonGemAdded || 0,
-          errors: progress.errors || 0
-        });
-
-        // Close connection when completed
-        if (progress.completed || progress.percentage >= 100) {
-          eventSource.close();
-        }
-      };
-
-      eventSource.onerror = () => {
-        eventSource.close();
-      };
       
       // Final success notification
       toast({
@@ -546,10 +560,14 @@ export default function ActiveTendersPage() {
       setUploadProgress(0);
       toast({
         title: "Upload Failed",
-        description: "Failed to upload and process the Excel file",
+        description: (error as Error).message || "Failed to upload and process the Excel file",
         variant: "destructive",
       });
     } finally {
+      // Clean up event source
+      if (eventSource) {
+        eventSource.close();
+      }
       setIsUploading(false);
       setTimeout(() => {
         setUploadProgress(0);

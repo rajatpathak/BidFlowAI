@@ -61,7 +61,7 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
       }
 
       const uploadedBy = req.body.uploadedBy || "admin";
-      const sessionId = Date.now().toString();
+      const sessionId = req.body.sessionId || Date.now().toString();
       console.log(`Processing tender upload: ${req.file.originalname} (Session: ${sessionId})`);
 
       // Initialize progress tracking
@@ -88,7 +88,18 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
       );
 
       // Send final completion and clean up
-      const finalProgress = { ...uploadProgress.get(sessionId), percentage: 100, completed: true };
+      const finalProgress = { 
+        processed: result.tendersProcessed || 0,
+        duplicates: result.duplicatesSkipped || 0,
+        total: (result.tendersProcessed || 0) + (result.duplicatesSkipped || 0),
+        percentage: 100, 
+        completed: true,
+        gemAdded: result.gemAdded || 0,
+        nonGemAdded: result.nonGemAdded || 0,
+        errors: result.errorsEncountered || 0
+      };
+      
+      uploadProgress.set(sessionId, finalProgress);
       const client = uploadClients.get(sessionId);
       if (client) {
         client.write(`data: ${JSON.stringify(finalProgress)}\n\n`);
