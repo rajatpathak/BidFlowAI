@@ -1,10 +1,15 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import { corsMiddleware, apiMiddleware, apiErrorHandler } from "./middleware";
 
 const app = express();
-app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
+
+// Essential middleware
+app.use(corsMiddleware);
+app.use(apiMiddleware);
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: false, limit: '10mb' }));
 
 app.use((req, res, next) => {
   const start = Date.now();
@@ -45,9 +50,14 @@ app.use((req, res, next) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";
 
-    res.status(status).json({ message });
-    throw err;
+    // Ensure JSON response for API routes
+    res.setHeader('Content-Type', 'application/json');
+    res.status(status).json({ message, error: 'SERVER_ERROR' });
+    console.error('Server error:', err);
   });
+
+  // Add API error handler before static serving
+  app.use(apiErrorHandler);
 
   // Re-enable Vite integration for full frontend functionality
   if (app.get("env") === "development") {
