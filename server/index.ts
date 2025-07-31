@@ -42,9 +42,12 @@ app.use((req, res, next) => {
 });
 
 (async () => {
-  // Setup storage and routes
+  // Setup storage and routes FIRST - critical for production
   const { storage } = await import("./storage.js");
   const server = await registerRoutes(app, storage);
+  
+  console.log('✅ API routes registered successfully');
+  console.log('Environment:', process.env.NODE_ENV || 'development');
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
