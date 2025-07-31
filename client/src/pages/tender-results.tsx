@@ -1,610 +1,268 @@
 import { useState } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Label } from "@/components/ui/label";
-import { 
-  Upload, 
-  FileSpreadsheet, 
-  Trophy, 
-  TrendingDown, 
-  XCircle, 
-  AlertTriangle,
-  CheckCircle,
-  Clock,
-  Building2,
-  Calendar,
-  DollarSign,
-  ExternalLink
-} from "lucide-react";
-import { queryClient } from "@/lib/queryClient";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Upload, FileText, CheckCircle, XCircle, Clock, Users, Trophy, Building2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
 
-type EnhancedTenderResult = {
+interface TenderResult {
   id: string;
-  tenderTitle: string;
+  tender_title: string;
   organization: string;
-  referenceNo: string | null;
-  location: string | null;
-  department: string | null;
-  tenderValue: number | null; // estimated value
-  contractValue: number | null; // actual contract value
-  marginalDifference: number | null; // contractValue - tenderValue
-  tenderStage: string | null;
-  ourBidValue: number | null;
-  status: string; // won, lost, rejected, missed_opportunity
-  awardedTo: string | null; // winner bidder
-  awardedValue: number | null;
-  participatorBidders: string[] | null; // list of all participating bidders
-  resultDate: Date | null;
-  assignedTo: string | null;
-  reasonForLoss: string | null;
-  missedReason: string | null;
-  companyEligible: boolean | null;
-  aiMatchScore: number | null;
-  notes: string | null;
-  createdAt: Date | null;
-  link: string | null;
-};
+  reference_no?: string;
+  location?: string;
+  department?: string;
+  tender_value?: number;
+  contract_value?: number;
+  marginal_difference?: number;
+  tender_stage?: string;
+  awarded_to?: string;
+  awarded_value?: number;
+  participator_bidders?: string[];
+  company_eligible?: boolean;
+  ai_match_score?: number;
+  notes?: string;
+  created_at: string;
+}
 
-type TenderResultsImport = {
+interface TenderResultsImport {
   id: string;
-  fileName: string;
-  filePath: string;
-  uploadedAt: Date | null;
-  uploadedBy: string | null;
-  resultsProcessed: number | null;
+  filename: string;
+  original_name: string;
+  results_processed: number;
+  duplicates_skipped: number;
   status: string;
-  errorLog: string | null;
-};
+  uploaded_at: string;
+}
 
-export default function TenderResultsPage() {
-  const [uploadFile, setUploadFile] = useState<File | null>(null);
+export default function TenderResults() {
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 50;
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
-  const { data: results = [], isLoading: resultsLoading } = useQuery<EnhancedTenderResult[]>({
+  // Fetch tender results
+  const { data: tenderResults = [], isLoading: resultsLoading } = useQuery<TenderResult[]>({
     queryKey: ["/api/enhanced-tender-results"],
   });
 
-  const { data: imports = [], isLoading: importsLoading } = useQuery<TenderResultsImport[]>({
+  // Fetch import history
+  const { data: importHistory = [], isLoading: historyLoading } = useQuery<TenderResultsImport[]>({
     queryKey: ["/api/tender-results-imports"],
   });
 
-  const handleFileUpload = async () => {
-    if (!uploadFile) return;
-    
-    setIsUploading(true);
-    const formData = new FormData();
-    formData.append("resultsFile", uploadFile);
-    formData.append("uploadedBy", "admin"); // Should come from auth context
+  // Upload mutation
+  const uploadMutation = useMutation({
+    mutationFn: async (file: File) => {
+      setIsUploading(true);
+      setUploadProgress(0);
 
-    try {
-      const response = await fetch("/api/tender-results-imports", {
-        method: "POST",
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('uploadedBy', 'admin');
+
+      const response = await fetch('/api/tender-results-imports', {
+        method: 'POST',
         body: formData,
       });
 
       if (!response.ok) {
-        throw new Error("Upload failed");
+        throw new Error('Upload failed');
       }
 
-      const result = await response.json();
-      queryClient.invalidateQueries({ queryKey: ["/api/tender-results-imports"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/enhanced-tender-results"] });
-      
+      return response.json();
+    },
+    onSuccess: (data) => {
       toast({
-        title: "Upload successful",
-        description: `Processed ${result.resultsProcessed} tender results successfully.`,
+        title: "Upload Successful",
+        description: `Processed ${data.resultsProcessed} tender results, skipped ${data.duplicatesSkipped} duplicates`,
       });
-      
-      setUploadFile(null);
-    } catch (error) {
+      queryClient.invalidateQueries({ queryKey: ["/api/enhanced-tender-results"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tender-results-imports"] });
+      setSelectedFile(null);
+      setUploadProgress(100);
+      setTimeout(() => {
+        setIsUploading(false);
+        setUploadProgress(0);
+      }, 1000);
+    },
+    onError: (error) => {
       toast({
-        title: "Upload failed",
-        description: "Failed to process results file. Please check the format and try again.",
+        title: "Upload Failed",
+        description: error.message,
         variant: "destructive",
       });
-    } finally {
       setIsUploading(false);
+      setUploadProgress(0);
+    },
+  });
+
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      if (file.type.includes('spreadsheet') || file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
+        setSelectedFile(file);
+      } else {
+        toast({
+          title: "Invalid File Type",
+          description: "Please select an Excel file (.xlsx or .xls)",
+          variant: "destructive",
+        });
+      }
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "won":
-        return <Badge className="bg-green-500"><Trophy className="h-3 w-3 mr-1" />Won</Badge>;
-      case "lost":
-        return <Badge variant="destructive"><TrendingDown className="h-3 w-3 mr-1" />Lost</Badge>;
-      case "rejected":
-        return <Badge className="bg-red-600"><XCircle className="h-3 w-3 mr-1" />Rejected</Badge>;
-      case "missed_opportunity":
-        return <Badge className="bg-orange-500"><AlertTriangle className="h-3 w-3 mr-1" />Missed</Badge>;
-      default:
-        return <Badge variant="secondary">{status}</Badge>;
+  const handleUpload = () => {
+    if (selectedFile) {
+      uploadMutation.mutate(selectedFile);
     }
   };
 
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case "completed":
-        return <CheckCircle className="h-4 w-4 text-green-600" />;
-      case "failed":
-        return <XCircle className="h-4 w-4 text-red-600" />;
-      case "processing":
-        return <Clock className="h-4 w-4 text-yellow-600" />;
-      default:
-        return <Clock className="h-4 w-4 text-gray-600" />;
-    }
-  };
-
-  const formatCurrency = (amount: number | null) => {
-    if (!amount) return "-";
+  const formatCurrency = (amount?: number) => {
+    if (!amount) return 'N/A';
     return new Intl.NumberFormat('en-IN', {
       style: 'currency',
       currency: 'INR',
-      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
     }).format(amount / 100);
   };
 
-  const filteredResults = results
-    .filter(r => {
-      // Status filter
-      if (statusFilter !== "all" && r.status !== statusFilter) return false;
-      
-      // Search filter
-      if (searchQuery) {
-        const query = searchQuery.toLowerCase();
-        return (
-          r.tenderTitle.toLowerCase().includes(query) ||
-          r.organization.toLowerCase().includes(query) ||
-          (r.location && r.location.toLowerCase().includes(query)) ||
-          (r.referenceNo && r.referenceNo.toLowerCase().includes(query)) ||
-          (r.awardedTo && r.awardedTo.toLowerCase().includes(query))
-        );
-      }
-      
-      return true;
-    })
-    .sort((a, b) => {
-      // Check if Appentus won
-      const aIsAppentusWon = a.awardedTo?.toLowerCase().includes("appentus");
-      const bIsAppentusWon = b.awardedTo?.toLowerCase().includes("appentus");
-      
-      // Check if Appentus participated
-      const aIsAppentusParticipated = a.participatorBidders?.some(
-        bidder => bidder.toLowerCase().includes("appentus")
-      );
-      const bIsAppentusParticipated = b.participatorBidders?.some(
-        bidder => bidder.toLowerCase().includes("appentus")
-      );
-      
-      // Sort order: Won > Participated > Others
-      if (aIsAppentusWon && !bIsAppentusWon) return -1;
-      if (!aIsAppentusWon && bIsAppentusWon) return 1;
-      if (aIsAppentusParticipated && !bIsAppentusParticipated) return -1;
-      if (!aIsAppentusParticipated && bIsAppentusParticipated) return 1;
-      
-      // Sort by date for same category
-      return new Date(b.resultDate || 0).getTime() - new Date(a.resultDate || 0).getTime();
-    });
-  
-  // Pagination
-  const totalPages = Math.ceil(filteredResults.length / itemsPerPage);
-  const paginatedResults = filteredResults.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
-
-  // Calculate statistics - Focus on Appentus
-  const appentusResults = results.filter(r => {
-    const isWinner = r.awardedTo?.toLowerCase().includes("appentus");
-    const isParticipant = r.participatorBidders?.some(
-      bidder => bidder.toLowerCase().includes("appentus")
-    );
-    return isWinner || isParticipant;
-  });
-  
-  const appentusWon = appentusResults.filter(r => 
-    r.awardedTo?.toLowerCase().includes("appentus")
-  );
-  
-  const stats = {
-    total: results.length,
-    won: appentusWon.length,
-    participated: appentusResults.length,
-    lost: appentusResults.filter(r => r.status === "lost").length,
-    rejected: results.filter(r => r.status === "rejected").length,
-    missed: results.filter(r => r.status === "missed_opportunity").length,
-    winRate: appentusResults.length > 0 ? ((appentusWon.length / appentusResults.length) * 100).toFixed(1) : "0",
-    totalWonValue: appentusWon.reduce((sum, r) => sum + (r.awardedValue || r.contractValue || 0), 0),
+  const getStatusBadge = (status?: string) => {
+    switch (status?.toLowerCase()) {
+      case 'completed':
+        return <Badge variant="default" className="bg-green-100 text-green-800">Completed</Badge>;
+      case 'pending':
+        return <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">Pending</Badge>;
+      case 'cancelled':
+        return <Badge variant="destructive">Cancelled</Badge>;
+      default:
+        return <Badge variant="outline">{status || 'Unknown'}</Badge>;
+    }
   };
 
-  if (resultsLoading || importsLoading) {
-    return (
-      <div className="p-6">
-        <div className="animate-pulse space-y-4">
-          <div className="h-8 bg-gray-200 rounded w-1/4"></div>
-          <div className="grid grid-cols-1 gap-6">
-            <div className="h-96 bg-gray-200 rounded"></div>
-          </div>
-        </div>
-      </div>
+  const getAppentusHighlight = (result: TenderResult) => {
+    const isWinner = result.awarded_to?.toLowerCase().includes('appentus');
+    const isParticipant = result.participator_bidders?.some(bidder => 
+      bidder.toLowerCase().includes('appentus')
     );
-  }
+
+    if (isWinner) {
+      return <Badge className="bg-green-500 text-white">WON</Badge>;
+    } else if (isParticipant) {
+      return <Badge variant="secondary" className="bg-blue-100 text-blue-800">PARTICIPATED</Badge>;
+    }
+    return null;
+  };
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="container mx-auto p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">Tender Results</h1>
-          <p className="text-gray-600">Track tender outcomes, wins, losses, and missed opportunities</p>
+          <p className="text-muted-foreground">
+            Manage and analyze tender results with multi-sheet Excel import support
+          </p>
         </div>
-      </div>
-
-      {/* Statistics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Win Rate</p>
-                <p className="text-2xl font-bold text-green-600">{stats.winRate}%</p>
-              </div>
-              <Trophy className="h-8 w-8 text-green-600" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Total Participated</p>
-                <p className="text-2xl font-bold text-blue-600">{stats.participated}</p>
-              </div>
-              <FileSpreadsheet className="h-8 w-8 text-blue-600" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Total Won</p>
-                <p className="text-2xl font-bold text-green-600">{stats.won}</p>
-              </div>
-              <CheckCircle className="h-8 w-8 text-green-600" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Missed Opportunities</p>
-                <p className="text-2xl font-bold text-orange-600">{stats.missed}</p>
-              </div>
-              <AlertTriangle className="h-8 w-8 text-orange-600" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Won Value</p>
-                <p className="text-lg font-bold text-green-600">{formatCurrency(stats.totalWonValue)}</p>
-              </div>
-              <DollarSign className="h-8 w-8 text-green-600" />
-            </div>
-          </CardContent>
-        </Card>
       </div>
 
       <Tabs defaultValue="results" className="space-y-4">
         <TabsList>
-          <TabsTrigger value="results">Results Analysis</TabsTrigger>
+          <TabsTrigger value="results">Results ({tenderResults.length})</TabsTrigger>
           <TabsTrigger value="upload">Upload Results</TabsTrigger>
-          <TabsTrigger value="history">Upload History</TabsTrigger>
+          <TabsTrigger value="history">Import History</TabsTrigger>
         </TabsList>
 
         <TabsContent value="results" className="space-y-4">
-          {/* Filters */}
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex flex-col md:flex-row items-center gap-4">
-                <div className="flex items-center gap-4 flex-1">
-                  <Input
-                    placeholder="Search by title, organization, location..."
-                    value={searchQuery}
-                    onChange={(e) => {
-                      setSearchQuery(e.target.value);
-                      setCurrentPage(1);
-                    }}
-                    className="max-w-md"
-                  />
-                </div>
-                <div className="flex items-center gap-4">
-                  <Label htmlFor="status-filter">Filter by Status:</Label>
-                  <Select value={statusFilter} onValueChange={(value) => {
-                    setStatusFilter(value);
-                    setCurrentPage(1);
-                  }}>
-                    <SelectTrigger id="status-filter" className="w-48">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Results</SelectItem>
-                      <SelectItem value="won">Won</SelectItem>
-                      <SelectItem value="lost">Lost</SelectItem>
-                      <SelectItem value="rejected">Rejected</SelectItem>
-                      <SelectItem value="missed_opportunity">Missed Opportunities</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Results Table */}
           <Card>
             <CardHeader>
-              <CardTitle>Tender Results ({filteredResults.length})</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                <Trophy className="h-5 w-5" />
+                Tender Results Overview
+              </CardTitle>
               <CardDescription>
-                Complete tracking of tender outcomes with detailed analysis
+                Comprehensive view of all tender results with Appentus performance tracking
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Tender Reference No</TableHead>
-                      <TableHead>Location</TableHead>
-                      <TableHead>Department</TableHead>
-                      <TableHead>Contract Value</TableHead>
-                      <TableHead>Estimated Value</TableHead>
-                      <TableHead>Marginal Difference</TableHead>
-                      <TableHead>Tender Stage</TableHead>
-                      <TableHead>Winner Bidder</TableHead>
-                      <TableHead>Participator Bidders</TableHead>
-                      <TableHead>AI Analysis</TableHead>
-                      <TableHead>Link</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {paginatedResults.map((result) => (
-                      <TableRow key={result.id}>
-                        {/* Tender Reference No */}
-                        <TableCell>
-                          {result.referenceNo ? (
-                            <Badge variant="outline" className="text-xs font-mono">
-                              {result.referenceNo}
-                            </Badge>
-                          ) : (
-                            <span className="text-gray-400">-</span>
-                          )}
-                        </TableCell>
-                        
-                        {/* Location */}
-                        <TableCell>
-                          <div className="text-sm">
-                            {result.location || "-"}
-                          </div>
-                        </TableCell>
-                        
-                        {/* Department */}
-                        <TableCell>
-                          <div className="flex items-center gap-1 text-sm">
-                            <Building2 className="h-3 w-3 text-gray-400" />
-                            {result.department || result.organization || "-"}
-                          </div>
-                        </TableCell>
-                        
-                        {/* Contract Value */}
-                        <TableCell>
-                          <div className="text-sm font-medium text-green-600">
-                            {result.contractValue || result.awardedValue ? 
-                              formatCurrency(result.contractValue || result.awardedValue) : "-"}
-                          </div>
-                        </TableCell>
-                        
-                        {/* Estimated Value */}
-                        <TableCell>
-                          <div className="text-sm text-gray-600">
-                            {result.tenderValue ? formatCurrency(result.tenderValue) : "-"}
-                          </div>
-                        </TableCell>
-                        
-                        {/* Marginal Difference */}
-                        <TableCell>
-                          <div className="text-sm">
-                            {(() => {
-                              const contractVal = result.contractValue || result.awardedValue || 0;
-                              const estimatedVal = result.tenderValue || 0;
-                              const difference = result.marginalDifference || (contractVal - estimatedVal);
-                              
-                              if (!contractVal || !estimatedVal) return "-";
-                              
-                              const percentDiff = estimatedVal > 0 ? 
-                                ((difference / estimatedVal) * 100).toFixed(1) : 0;
-                              
-                              return (
-                                <div className={`font-medium ${difference > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                                  {formatCurrency(Math.abs(difference))}
-                                  <span className="text-xs ml-1">
-                                    ({difference > 0 ? '+' : ''}{percentDiff}%)
-                                  </span>
-                                </div>
-                              );
-                            })()}
-                          </div>
-                        </TableCell>
-                        
-                        {/* Tender Stage */}
-                        <TableCell>
-                          <div className="text-sm">
-                            {result.tenderStage ? (
-                              <Badge variant={
-                                result.tenderStage === "completed" ? "success" :
-                                result.tenderStage === "in_progress" ? "secondary" :
-                                "outline"
-                              }>
-                                {result.tenderStage}
-                              </Badge>
-                            ) : (
-                              getStatusBadge(result.status)
+              {resultsLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                </div>
+              ) : (
+                <div className="rounded-md border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Tender Title</TableHead>
+                        <TableHead>Organization</TableHead>
+                        <TableHead>Value</TableHead>
+                        <TableHead>Winner</TableHead>
+                        <TableHead>Participants</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Appentus</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {tenderResults.map((result) => (
+                        <TableRow key={result.id}>
+                          <TableCell className="max-w-xs">
+                            <div className="font-medium truncate">{result.tender_title}</div>
+                            {result.reference_no && (
+                              <div className="text-sm text-muted-foreground">{result.reference_no}</div>
                             )}
-                          </div>
-                        </TableCell>
-                        
-                        {/* Winner Bidder */}
-                        <TableCell>
-                          <div className="text-sm font-medium">
-                            {result.awardedTo ? (
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <Building2 className="h-4 w-4 text-muted-foreground" />
+                              <span className="truncate">{result.organization}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="text-sm">
+                              <div>Tender: {formatCurrency(result.tender_value)}</div>
+                              {result.contract_value && (
+                                <div className="text-muted-foreground">Contract: {formatCurrency(result.contract_value)}</div>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            {result.awarded_to ? (
                               <div className="flex items-center gap-2">
-                                {result.awardedTo}
-                                {result.awardedTo.toLowerCase().includes("appentus") && (
-                                  <Badge className="bg-green-600 text-white">WON</Badge>
-                                )}
+                                <Trophy className="h-4 w-4 text-yellow-500" />
+                                <span className="truncate max-w-32">{result.awarded_to}</span>
                               </div>
                             ) : (
-                              "-"
+                              <span className="text-muted-foreground">Not awarded</span>
                             )}
-                          </div>
-                        </TableCell>
-                        
-                        {/* Participator Bidders */}
-                        <TableCell>
-                          <div className="max-w-[200px]">
-                            {result.participatorBidders && result.participatorBidders.length > 0 ? (
-                              (() => {
-                                // Sort bidders to put Appentus first
-                                const sortedBidders = [...result.participatorBidders].sort((a, b) => {
-                                  const aIsAppentus = a.toLowerCase().includes("appentus");
-                                  const bIsAppentus = b.toLowerCase().includes("appentus");
-                                  if (aIsAppentus && !bIsAppentus) return -1;
-                                  if (!aIsAppentus && bIsAppentus) return 1;
-                                  return 0;
-                                });
-                                
-                                const displayCount = 2;
-                                const visibleBidders = sortedBidders.slice(0, displayCount);
-                                const remainingCount = sortedBidders.length - displayCount;
-                                
-                                return (
-                                  <div className="flex flex-col gap-1">
-                                    {visibleBidders.map((bidder, index) => {
-                                      const isAppentus = bidder.toLowerCase().includes("appentus");
-                                      return (
-                                        <div key={index} className={`text-xs ${isAppentus ? "font-semibold text-blue-600" : "text-gray-600"}`}>
-                                          {isAppentus && "• "}{bidder}
-                                        </div>
-                                      );
-                                    })}
-                                    {remainingCount > 0 && (
-                                      <span className="text-xs text-gray-400 cursor-pointer hover:text-gray-600" title={sortedBidders.join(", ")}>
-                                        ...+{remainingCount} more
-                                      </span>
-                                    )}
-                                  </div>
-                                );
-                              })()
+                          </TableCell>
+                          <TableCell>
+                            {result.participator_bidders && result.participator_bidders.length > 0 ? (
+                              <div className="flex items-center gap-2">
+                                <Users className="h-4 w-4 text-muted-foreground" />
+                                <span>{result.participator_bidders.length} bidders</span>
+                              </div>
                             ) : (
-                              <span className="text-gray-400 text-xs">No bidders info</span>
+                              <span className="text-muted-foreground">No data</span>
                             )}
-                          </div>
-                        </TableCell>
-                        
-                        {/* AI Analysis */}
-                        <TableCell>
-                          {result.notes && (result.notes.includes("APPENTUS") || result.awardedTo?.toLowerCase().includes("appentus") || 
-                            result.participatorBidders?.some(b => b.toLowerCase().includes("appentus"))) ? (
-                            <div className="max-w-[300px]">
-                              <p className="text-xs text-gray-700 line-clamp-3" title={result.notes || ""}>
-                                {result.notes}
-                              </p>
-                            </div>
-                          ) : (
-                            <span className="text-gray-400 text-xs">-</span>
-                          )}
-                        </TableCell>
-                        
-                        {/* Link */}
-                        <TableCell>
-                          {result.link ? (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="gap-2"
-                              onClick={() => window.open(result.link || '', '_blank')}
-                            >
-                              <ExternalLink className="h-4 w-4" />
-                              View
-                            </Button>
-                          ) : (
-                            <span className="text-gray-400 text-xs">-</span>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-              
-              {/* Pagination */}
-              {totalPages > 1 && (
-                <div className="flex items-center justify-between px-2 py-4">
-                  <div className="text-sm text-gray-600">
-                    Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, filteredResults.length)} of {filteredResults.length} results
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                      disabled={currentPage === 1}
-                    >
-                      Previous
-                    </Button>
-                    <span className="text-sm text-gray-600">
-                      Page {currentPage} of {totalPages}
-                    </span>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
-                      disabled={currentPage === totalPages}
-                    >
-                      Next
-                    </Button>
-                  </div>
+                          </TableCell>
+                          <TableCell>
+                            {getStatusBadge(result.tender_stage)}
+                          </TableCell>
+                          <TableCell>
+                            {getAppentusHighlight(result)}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
                 </div>
               )}
             </CardContent>
@@ -614,61 +272,67 @@ export default function TenderResultsPage() {
         <TabsContent value="upload" className="space-y-4">
           <Card>
             <CardHeader>
-              <div className="flex items-center gap-2">
+              <CardTitle className="flex items-center gap-2">
                 <Upload className="h-5 w-5" />
-                <div>
-                  <CardTitle>Upload Tender Results</CardTitle>
-                  <CardDescription>
-                    Upload Excel files containing tender results and awards
-                  </CardDescription>
-                </div>
-              </div>
+                Upload Tender Results
+              </CardTitle>
+              <CardDescription>
+                Import tender results from Excel files with multi-sheet support
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="border-2 border-dashed border-gray-300 rounded-lg p-6">
-                <div className="text-center">
-                  <FileSpreadsheet className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                  <div className="space-y-4">
-                    <div>
-                      <div className="text-lg font-medium">Choose Results File</div>
-                      <div className="text-sm text-gray-500">Upload .xlsx files with tender results</div>
-                    </div>
-                    <Input
-                      type="file"
-                      accept=".xlsx,.xls"
-                      onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
-                    />
-                  </div>
-                  {uploadFile && (
-                    <div className="mt-4">
-                      <Badge variant="secondary">{uploadFile.name}</Badge>
-                    </div>
-                  )}
-                </div>
+              <div className="space-y-2">
+                <Label htmlFor="resultsFile">Select Excel File</Label>
+                <Input
+                  id="resultsFile"
+                  type="file"
+                  accept=".xlsx,.xls"
+                  onChange={handleFileSelect}
+                  disabled={isUploading}
+                />
               </div>
 
-              <div className="bg-blue-50 p-4 rounded-lg">
+              {selectedFile && (
+                <div className="flex items-center gap-2 p-2 bg-muted rounded-md">
+                  <FileText className="h-4 w-4" />
+                  <span className="text-sm">{selectedFile.name}</span>
+                  <span className="text-xs text-muted-foreground">
+                    ({(selectedFile.size / 1024 / 1024).toFixed(2)} MB)
+                  </span>
+                </div>
+              )}
+
+              {isUploading && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-sm">
+                    <span>Processing...</span>
+                    <span>{uploadProgress}%</span>
+                  </div>
+                  <Progress value={uploadProgress} className="w-full" />
+                </div>
+              )}
+
+              <Button
+                onClick={handleUpload}
+                disabled={!selectedFile || isUploading}
+                className="w-full"
+              >
+                {isUploading ? "Processing..." : "Upload Results"}
+              </Button>
+
+              <div className="mt-4 p-4 bg-blue-50 rounded-lg">
                 <h4 className="font-medium text-blue-900 mb-2">Expected Excel Format:</h4>
                 <div className="text-sm text-blue-800 space-y-1">
-                  <p>• <strong>Title</strong>: Tender title or work description</p>
-                  <p>• <strong>Organization</strong>: Department or organization name</p>
-                  <p>• <strong>Reference No</strong>: Tender reference number</p>
-                  <p>• <strong>Awarded To</strong>: Company that won the tender</p>
-                  <p>• <strong>Awarded Value</strong>: Final awarded amount</p>
-                  <p>• <strong>Result Date</strong>: Date when result was announced</p>
-                  <p>• <strong>Our Bid</strong>: Our bid amount (optional)</p>
-                  <p>• <strong>Reason</strong>: Reason for loss/rejection (optional)</p>
+                  <p>• <strong>TENDER RESULT BRIEF</strong> - Tender title/description</p>
+                  <p>• <strong>TENDER REFERENCE NO</strong> - Reference number</p>
+                  <p>• <strong>LOCATION</strong> - Location information</p>
+                  <p>• <strong>Department</strong> - Department/organization</p>
+                  <p>• <strong>Estimated Value</strong> - Tender value</p>
+                  <p>• <strong>Contract Value</strong> - Final contract value</p>
+                  <p>• <strong>Winner bidder</strong> - Winning bidder name</p>
+                  <p>• <strong>Participator Bidders</strong> - All participating bidders</p>
+                  <p>• <strong>Tender Stage</strong> - Current status</p>
                 </div>
-              </div>
-
-              <div className="flex justify-center">
-                <Button
-                  onClick={handleFileUpload}
-                  disabled={!uploadFile || isUploading}
-                  className="w-full md:w-auto"
-                >
-                  {isUploading ? "Processing..." : "Upload and Process Results"}
-                </Button>
               </div>
             </CardContent>
           </Card>
@@ -677,47 +341,61 @@ export default function TenderResultsPage() {
         <TabsContent value="history" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Upload History</CardTitle>
-              <CardDescription>View previous results upload attempts</CardDescription>
+              <CardTitle className="flex items-center gap-2">
+                <Clock className="h-5 w-5" />
+                Import History
+              </CardTitle>
+              <CardDescription>
+                Track all tender results imports and their processing status
+              </CardDescription>
             </CardHeader>
             <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>File Name</TableHead>
-                    <TableHead>Upload Date</TableHead>
-                    <TableHead>Results Processed</TableHead>
-                    <TableHead>Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {imports.map((import_) => (
-                    <TableRow key={import_.id}>
-                      <TableCell className="font-medium">{import_.fileName}</TableCell>
-                      <TableCell>
-                        {import_.uploadedAt ? new Date(import_.uploadedAt).toLocaleDateString() : "-"}
-                      </TableCell>
-                      <TableCell>{import_.resultsProcessed || 0}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          {getStatusIcon(import_.status)}
-                          <Badge
-                            variant={
-                              import_.status === "completed"
-                                ? "default"
-                                : import_.status === "failed"
-                                ? "destructive"
-                                : "secondary"
-                            }
+              {historyLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {importHistory.map((importRecord) => (
+                    <div key={importRecord.id} className="flex items-center justify-between p-4 border rounded-lg">
+                      <div className="flex items-center gap-4">
+                        <FileText className="h-8 w-8 text-blue-500" />
+                        <div>
+                          <div className="font-medium">{importRecord.original_name}</div>
+                          <div className="text-sm text-muted-foreground">
+                            {new Date(importRecord.uploaded_at).toLocaleString()}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="flex items-center gap-2 mb-1">
+                          {importRecord.status === 'completed' ? (
+                            <CheckCircle className="h-4 w-4 text-green-500" />
+                          ) : importRecord.status === 'failed' ? (
+                            <XCircle className="h-4 w-4 text-red-500" />
+                          ) : (
+                            <Clock className="h-4 w-4 text-yellow-500" />
+                          )}
+                          <Badge 
+                            variant={importRecord.status === 'completed' ? 'default' : 
+                                   importRecord.status === 'failed' ? 'destructive' : 'secondary'}
                           >
-                            {import_.status}
+                            {importRecord.status}
                           </Badge>
                         </div>
-                      </TableCell>
-                    </TableRow>
+                        <div className="text-sm text-muted-foreground">
+                          {importRecord.results_processed} processed, {importRecord.duplicates_skipped} duplicates
+                        </div>
+                      </div>
+                    </div>
                   ))}
-                </TableBody>
-              </Table>
+                  {importHistory.length === 0 && (
+                    <div className="text-center py-8 text-muted-foreground">
+                      No import history found. Upload your first Excel file to get started.
+                    </div>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

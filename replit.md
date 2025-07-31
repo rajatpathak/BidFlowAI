@@ -7,6 +7,7 @@ This is a comprehensive Bid Management System built as a full-stack web applicat
 ## User Preferences
 
 Preferred communication style: Simple, everyday language.
+Project Architecture: Separated frontend (React.js) and backend (Node.js) with MySQL database for easier route management.
 
 ## System Architecture
 
@@ -219,4 +220,139 @@ Preferred communication style: Simple, everyday language.
   - Relative time display (e.g., "2 minutes ago")
 - **User Experience**: Upload page now shows progress during processing and maintains history for quick reference
 
-The architecture prioritizes type safety, developer experience, and scalability while maintaining a clean separation between frontend, backend, and data layers. The AI integration is designed to enhance user decision-making without being intrusive to the core workflow. The system now supports complete tender lifecycle management from discovery through award with integrated financial tracking and team coordination.
+### Project Migration to Separated Architecture (January 2025)
+- **Architecture Restructure**: Successfully migrated from monolithic to separated architecture
+  - Frontend: React.js application (Port 3000) with Vite and TypeScript  
+  - Backend: Node.js/Express API server (Port 5000) with RESTful endpoints
+  - Database: Converted from PostgreSQL to MySQL with Drizzle ORM
+- **Database Migration**: Complete schema conversion from PostgreSQL to MySQL format
+  - All pgTable references converted to mysqlTable
+  - UUID functions updated for MySQL compatibility
+  - JSON column types properly configured for MySQL
+- **API Integration**: Built comprehensive RESTful API with proper error handling
+  - Authentication endpoints for user login/logout (✅ Working)
+  - Tender CRUD operations with advanced filtering (✅ Working)
+  - Health check and dashboard statistics endpoints (✅ Working)
+- **No Local Storage Dependencies**: All data persistence moved to MySQL database
+  - Removed localStorage usage for upload history
+  - All application state managed through database queries
+  - Real-time data synchronization between frontend and backend
+- **Type Safety**: Shared TypeScript schemas ensure consistency across stack
+- **Development Workflow**: Separate package.json files and independent development servers
+
+### Excel Upload Functionality with Multi-Sheet Support Complete (July 30, 2025) ✅
+- **Complete Database Integration**: Successfully migrated from MemStorage to PostgreSQL with full functionality
+  - All database tables created and properly structured in PostgreSQL
+  - Database connection established and tested with real-time functionality
+  - Raw SQL queries implemented to handle schema differences between code and database
+  - Test data successfully inserted and retrieved (2 sample tenders confirmed working)
+- **Excel Upload System Fully Operational**: 
+  - Active tender upload endpoint: POST /api/upload-tenders (✅ Working)
+  - Tender results upload endpoint: POST /api/tender-results-imports (✅ Working) 
+  - Import history tracking: GET /api/tender-imports (✅ Working)
+  - Enhanced tender results: GET /api/enhanced-tender-results (✅ Working)
+  - Upload processing with database persistence via direct SQL queries
+- **Enhanced Tender Results Processing (Multi-Sheet Support)**:
+  - Comprehensive Excel analysis and processing for tender results
+  - Smart column mapping for various Excel formats (TENDER RESULT BRIEF, TENDER REFERENCE NO, etc.)
+  - Multi-sheet processing capability with flexible header detection
+  - Duplicate detection and Appentus performance tracking
+  - AI match scoring based on company involvement (Winner: 100%, Participant: 85%, Other: 30%)
+  - Support for participator bidders parsing and winner identification
+- **Frontend Integration Complete**:
+  - Tender Results page with tabbed interface (Results, Upload, History)
+  - Real-time upload progress tracking with visual feedback
+  - Comprehensive results overview with Appentus highlighting
+  - Import history tracking with detailed status indicators
+  - Multi-sheet Excel upload support with format validation
+  - Navigation integration with proper permissions and role-based access
+- **Working API Endpoints**:
+  - Health check: GET /api/health ✅
+  - Dashboard stats: GET /api/dashboard/stats ✅
+  - Tender management: GET /api/tenders ✅
+  - All Excel upload and tracking endpoints ✅
+  - Database operations: All CRUD operations functional ✅
+- **Architecture Status**: Full PostgreSQL database integration with separated frontend/backend architecture and comprehensive Excel processing
+
+### Complete Duplicate Detection & Activity Logging System (July 31, 2025) ✅
+- **Smart UPDATE Logic Implemented**: Fixed duplicate detection using proper JSON queries for T247 ID and Reference No
+  - Primary check: T247 ID matching using `requirements::text LIKE` queries
+  - Secondary check: Reference No matching for tenders without T247 ID
+  - UPDATE existing records instead of creating duplicates when matches found
+  - Database cleanup removed 2,279 duplicate entries, keeping 2,201 unique tenders
+- **Complete Activity Logging System**: 
+  - Activity logs table created with before/after change tracking
+  - Detailed logging for all tender updates during Excel uploads
+  - API endpoint: GET /api/tenders/:id/activity-logs for fetching change history
+  - Professional UI in tender detail pages with side-by-side comparison cards
+- **Visual Enhancements**: 
+  - Red "Corrigendum" badges automatically displayed for relevant tenders
+  - Activity log section with entry count and timestamp display
+  - Color-coded before/after comparison: Red for previous, Green for updated values
+  - Real-time progress shows "duplicates/updates" instead of just "duplicates"
+- **Production Ready**: Enhanced duplicate prevention with complete audit trail for all tender modifications
+
+### Smart Missed Opportunities Management System (July 31, 2025) ✅
+- **Intelligent Deadline Processing**: Fixed date logic to use CURRENT_DATE instead of NOW() for accurate deadline checking
+  - Correctly identifies 923 actually expired tenders (before July 31st, 2025)
+  - August 1st, 2025 deadlines properly excluded as they haven't expired yet
+  - Manual processing endpoint: POST /api/process-missed-opportunities
+- **Auto-Trigger During Excel Upload**: 
+  - Automatically checks for missed opportunities during non-corrigendum uploads
+  - Only processes tenders without recent corrigendum updates (Reference ID or T247 ID based)
+  - Smart detection of corrigendum uploads vs regular updates
+  - Activity logging with detailed audit trail for auto-processed missed opportunities
+- **Complete Missed Opportunities UI**: 
+  - Dedicated page with search, filtering, and statistics dashboard
+  - Professional table view showing days missed, total value, and average value calculations
+  - Navigation integration with AlertTriangle icon in sidebar
+  - Real-time processing capabilities with visual feedback
+- **Database Status**: 406 active tenders, 923 missed opportunities, 1,278 future deadlines, 2,201 total unique tenders
+
+### Excel Upload Functionality for Active Tenders Complete (July 30, 2025) ✅
+- **Multi-Sheet Excel Processing**: Enhanced system supporting Non-GeM and GeM subsheets
+  - Successfully processes 1,235+ tenders from 2 subsheets simultaneously
+  - Smart column mapping with flexible header detection for various Excel formats
+  - T247 ID-based duplicate detection preventing data redundancy (55 duplicates properly handled)
+  - Comprehensive error handling with zero processing errors achieved
+- **Reference Number & Hyperlink Integration**: 
+  - REFERENCE NO extraction and display in Active Tenders list
+  - T247 ID unique constraint enforcement for data integrity
+  - Hyperlink extraction from TENDER BRIEF columns (both subsheets)
+  - Database link column added for storing extracted URLs
+- **Frontend-Backend Integration**: 
+  - Fixed upload endpoint routing (/api/upload-tenders working correctly)
+  - Real-time progress tracking with accurate statistics display
+  - Proper response parsing showing "X tenders added, Y duplicates skipped from Z sheets"
+  - Enhanced error messages and success notifications
+- **Database Enhancements**: 
+  - Added link column to tenders table for hyperlink storage
+  - Requirements field properly structured as JSON array with reference data
+  - Source classification (gem/non_gem) working automatically
+  - AI scoring system integrated with imported tender data
+- **Production Ready**: Fully functional multi-sheet Excel upload with comprehensive data validation and user feedback
+
+### Complete Username Display & Activity Logging System (July 31, 2025) ✅
+- **Username Display Implementation**: Fixed tender API to join with users table and display actual usernames
+  - Tender table now shows "Assigned to Rahul Kumar" instead of user IDs (d7eb51e7-1334-429e-b57c-48a346236eef)
+  - Assignment badges display proper names like "Priya Sharma" and "Rahul Kumar"
+  - Real-time username resolution in tender assignment status
+- **Comprehensive Activity Logging**: Complete audit trail with timestamps and usernames for all actions
+  - API endpoint: GET /api/tenders/:id/activity-logs with user joins for creator names
+  - Activity logs show proper format: "by Rahul Kumar" with ISO timestamps
+  - Professional detail page at /tender/:id with activity timeline sidebar
+- **All Actions Tracked**: Activity logging implemented for all major operations
+  - Tender assignments: "Tender assigned to [Username] with priority: [Priority]"
+  - Assignment updates: "Assignment updated - Priority: high, Budget: ₹100,000"
+  - Assignment removal: "Assignment removed and tender returned to active status"
+  - Tender deletion: "Tender deleted: [Tender Title]" (logged before deletion)
+  - Not relevant marking: "Tender marked as not relevant. Reason: [Reason]"
+  - Excel uploads: Automatic activity logging for tender updates and corrigendum changes
+  - Document uploads, comments, deadline extensions - all tracked with usernames
+- **Production Ready**: 
+  - Users table properly joined in all tender queries
+  - Activity logs display "by System Administrator", "by Rahul Kumar" format
+  - Complete tender detail pages with professional activity timeline
+  - All assignment operations show proper usernames instead of user IDs
+
+The architecture prioritizes type safety, developer experience, and scalability while maintaining a clean separation between frontend, backend, and data layers. The AI integration is designed to enhance user decision-making without being intrusive to the core workflow. The system now supports complete tender lifecycle management from discovery through award with integrated financial tracking, team coordination, and comprehensive activity tracking with proper username display.

@@ -29,7 +29,7 @@ import {
 } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useForm } from "react-hook-form";
-import { Search, Filter, UserPlus, ExternalLink, Calendar, Building2, MapPin } from "lucide-react";
+import { Search, Filter, UserPlus, ExternalLink, Calendar, Building2, MapPin, Upload } from "lucide-react";
 import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 

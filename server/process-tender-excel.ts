@@ -1,148 +1,216 @@
 import * as XLSX from 'xlsx';
 import * as fs from 'fs';
-import { storage } from './storage';
+import { db } from './db.js';
+import { sql } from 'drizzle-orm';
 
-export async function processTenderExcelFile(filePath: string) {
+// Process tender results Excel with proper column mapping
+export async function processTenderResultsExcel(filePath: string, fileName: string, uploadedBy: string) {
   try {
-    console.log(`Processing tender Excel file: ${filePath}`);
+    console.log(`Processing tender results from: ${fileName}`);
     
-    // Read the Excel file
     const workbook = XLSX.read(fs.readFileSync(filePath), { type: 'buffer' });
     let totalProcessed = 0;
-    let totalSkipped = 0;
+    let totalDuplicates = 0;
+    let totalErrors = 0;
     
-    // Process each worksheet
+    console.log(`Found ${workbook.SheetNames.length} sheets:`, workbook.SheetNames);
+    
+    // Process each sheet
     for (const sheetName of workbook.SheetNames) {
+      console.log(`\nProcessing sheet: ${sheetName}`);
       const worksheet = workbook.Sheets[sheetName];
-      const data = XLSX.utils.sheet_to_json(worksheet);
       
-      if (!data || data.length === 0) continue;
+      // Convert to JSON with header row handling
+      const rawData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
       
-      console.log(`Processing sheet: ${sheetName} with ${data.length} rows`);
+      if (!rawData || rawData.length < 2) {
+        console.log(`Sheet ${sheetName} has insufficient data, skipping...`);
+        continue;
+      }
       
-      // Determine source based on sheet name
-      const isGemSheet = sheetName.toLowerCase().includes('gem') && 
-                        !sheetName.toLowerCase().includes('non');
-      const defaultSource = isGemSheet ? 'gem' : 'non_gem';
-      console.log(`Sheet type: ${defaultSource.toUpperCase()}`);
+      // Get headers from first row
+      const headers = rawData[0] as string[];
+      console.log('Headers found:', headers);
       
-      // Process each row
-      for (const row of data) {
+      // Create column mapping
+      const getColumnIndex = (possibleNames: string[]) => {
+        for (const name of possibleNames) {
+          const index = headers.findIndex(h => 
+            h && h.toString().toLowerCase().includes(name.toLowerCase())
+          );
+          if (index !== -1) return index;
+        }
+        return -1;
+      };
+      
+      const columnMap = {
+        srNo: getColumnIndex(['SR. NO', 'SR NO', 'Serial']),
+        tenderId: getColumnIndex(['TR247 ID', 'ID', 'Tender ID']),
+        referenceNo: getColumnIndex(['TENDER REFERENCE NO', 'Reference', 'Ref No']),
+        tenderTitle: getColumnIndex(['TENDER RESULT BRIEF', 'Title', 'Description', 'Brief']),
+        endDate: getColumnIndex(['End Submission date', 'Deadline', 'End Date']),
+        location: getColumnIndex(['LOCATION', 'Place', 'City']),
+        department: getColumnIndex(['Department', 'Dept', 'Ministry']),
+        ownership: getColumnIndex(['Ownership', 'Type']),
+        estimatedValue: getColumnIndex(['Estimated Value', 'Value', 'Amount']),
+        contractValue: getColumnIndex(['Contract Value', 'Awarded Value', 'Final Value']),
+        marginalDiff: getColumnIndex(['Marginal Difference', 'Difference']),
+        lastUpdated: getColumnIndex(['Last Updated on', 'Updated', 'Date']),
+        tenderStage: getColumnIndex(['Tender Stage', 'Stage', 'Status']),
+        winnerBidder: getColumnIndex(['Winner bidder', 'Winner', 'Awarded To']),
+        participatorBidders: getColumnIndex(['Participator Bidders', 'Bidders', 'Participants'])
+      };
+      
+      console.log('Column mapping:', columnMap);
+      
+      // Process data rows (skip header row)
+      for (let i = 1; i < rawData.length; i++) {
+        const row = rawData[i] as any[];
+        
         try {
-          const r = row as any;
+          // Extract tender title (required)
+          const tenderTitle = columnMap.tenderTitle >= 0 ? 
+            (row[columnMap.tenderTitle] || '').toString().trim() : '';
           
-          // Helper function to get field value
-          const getField = (fieldNames: string[]) => {
-            for (const name of fieldNames) {
-              if (r[name] !== undefined && r[name] !== null && r[name] !== '') {
-                return String(r[name]).trim();
-              }
-            }
-            return "";
-          };
+          if (!tenderTitle) {
+            console.log(`Row ${i}: Skipping - no tender title`);
+            continue;
+          }
           
-          // Extract tender data
-          const title = getField(['Title', 'Tender Title', 'Work Description', 'Work Name', 'Brief Description', 'TENDER BRIEF']);
-          if (!title) continue; // Skip rows without title
+          // Check for duplicates based on title
+          const existingResult = await db.execute(sql`
+            SELECT id FROM enhanced_tender_results 
+            WHERE tender_title = ${tenderTitle}
+            LIMIT 1
+          `);
           
-          const organization = getField(['Organization', 'Dept', 'Department', 'Ministry', 'Company', 'OWNERSHIP']);
-          const location = getField(['Location', 'City', 'State', 'Region', 'LOCATION']);
+          if (existingResult.rows && existingResult.rows.length > 0) {
+            totalDuplicates++;
+            continue;
+          }
           
-          // For Active Tenders, Reference No is specifically in column C
-          // First try the normal field names
-          let referenceNo = getField(['REFERENCE NO', 'Reference No', 'Ref No', 'ID', 'T247 ID', 'Tender ID', 'Reference', 'TENDER REFERENCE NO']);
+          // Extract other fields
+          const referenceNo = columnMap.referenceNo >= 0 ? 
+            (row[columnMap.referenceNo] || '').toString().trim() || null : null;
           
-          // If not found, check column C specifically (which might be __EMPTY_1 or other labels)
-          if (!referenceNo) {
-            // In Excel, columns without headers are often labeled as __EMPTY, __EMPTY_1, etc.
-            // Column A = no label or __EMPTY, Column B = __EMPTY or __EMPTY_1, Column C = __EMPTY_1 or __EMPTY_2
-            if (r['__EMPTY_1'] !== undefined && r['__EMPTY_1'] !== null && r['__EMPTY_1'] !== '') {
-              referenceNo = String(r['__EMPTY_1']).trim();
-            } else if (r['__EMPTY_2'] !== undefined && r['__EMPTY_2'] !== null && r['__EMPTY_2'] !== '') {
-              referenceNo = String(r['__EMPTY_2']).trim();
+          const location = columnMap.location >= 0 ? 
+            (row[columnMap.location] || '').toString().trim() || null : null;
+          
+          const department = columnMap.department >= 0 ? 
+            (row[columnMap.department] || '').toString().trim() || null : null;
+          
+          // Parse values
+          const estimatedValueStr = columnMap.estimatedValue >= 0 ? 
+            (row[columnMap.estimatedValue] || '0').toString() : '0';
+          const estimatedValue = Math.round(parseFloat(estimatedValueStr.replace(/[^0-9.-]/g, '') || '0') * 100);
+          
+          const contractValueStr = columnMap.contractValue >= 0 ? 
+            (row[columnMap.contractValue] || estimatedValueStr).toString() : estimatedValueStr;
+          const contractValue = Math.round(parseFloat(contractValueStr.replace(/[^0-9.-]/g, '') || '0') * 100);
+          
+          // Winner information
+          const winnerBidder = columnMap.winnerBidder >= 0 ? 
+            (row[columnMap.winnerBidder] || '').toString().trim() || null : null;
+          
+          // Parse participator bidders
+          let participatorBidders = [];
+          if (columnMap.participatorBidders >= 0) {
+            const biddersStr = (row[columnMap.participatorBidders] || '').toString().trim();
+            if (biddersStr) {
+              participatorBidders = biddersStr
+                .split(/[,;|\n]/)
+                .map(bidder => bidder.trim())
+                .filter(bidder => bidder.length > 0);
             }
           }
           
-          // Parse value
-          let value = 0;
-          const valueStr = getField(['Value', 'Amount', 'Tender Value', 'Estimated Value', 'VALUE']);
-          if (valueStr) {
-            const numStr = valueStr.replace(/[^0-9.-]/g, '');
-            value = parseFloat(numStr) || 0;
-            // Convert to cents
-            value = value * 100;
+          // Tender stage
+          const tenderStage = columnMap.tenderStage >= 0 ? 
+            (row[columnMap.tenderStage] || 'completed').toString().trim().toLowerCase() : 'completed';
+          
+          // Parse marginal difference
+          const marginalDiff = columnMap.marginalDiff >= 0 ? 
+            (row[columnMap.marginalDiff] || '0').toString() : '0';
+          const marginalDifference = Math.round(parseFloat(marginalDiff.replace(/[^0-9.-]/g, '') || '0') * 100);
+          
+          // Check Appentus involvement
+          const isAppentusWinner = winnerBidder && winnerBidder.toLowerCase().includes('appentus');
+          const isAppentusParticipant = participatorBidders.some(bidder => 
+            bidder.toLowerCase().includes('appentus')
+          );
+          
+          // Calculate AI match score
+          let aiMatchScore = 30;
+          if (isAppentusWinner) {
+            aiMatchScore = 100;
+          } else if (isAppentusParticipant) {
+            aiMatchScore = 85;
           }
           
-          // Parse deadline
-          let deadline = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // Default 30 days
-          const deadlineStr = getField(['Deadline', 'Due Date', 'Closing Date', 'Last Date', 'DEADLINE']);
-          if (deadlineStr) {
-            const parsedDate = new Date(deadlineStr);
-            if (!isNaN(parsedDate.getTime())) {
-              deadline = parsedDate;
-            }
-          }
-          
-          // Extract turnover requirement
-          const turnoverStr = getField(['Turnover', 'Eligibility', 'Annual Turnover', 'TURNOVER', 'Minimum Average Annual\nTurnover of the bidder']);
-          
-          // Determine source - use sheet type, not reference number
-          const source = defaultSource as 'gem' | 'non_gem';
-          
-          // Extract link
-          const link = getField(['Link', 'URL', 'Tender Link', 'Website', 'LINK']);
-          
-          // Create tender
-          const tender = await storage.createTender({
-            title,
-            organization,
-            description: null,
-            value,
-            deadline,
-            status: 'active',
-            source,
-            requirements: {
-              turnover: turnoverStr || "",
-              referenceNo: referenceNo || "",
-              location: location || ""
-            }
-          });
-          
-          // Calculate AI score if company settings exist
-          const companySettings = await storage.getCompanySettings();
-          if (companySettings) {
-            const aiScore = await storage.calculateAIMatch(tender, companySettings);
-            await storage.updateTender(tender.id, { aiScore });
-          }
+          // Insert into database
+          await db.execute(sql`
+            INSERT INTO enhanced_tender_results (
+              tender_title, organization, reference_no, location, department,
+              tender_value, contract_value, marginal_difference, tender_stage,
+              awarded_to, awarded_value, participator_bidders, 
+              company_eligible, ai_match_score, notes
+            )
+            VALUES (
+              ${tenderTitle}, ${department || 'Unknown'}, ${referenceNo}, ${location}, ${department},
+              ${estimatedValue}, ${contractValue}, ${marginalDifference}, ${tenderStage},
+              ${winnerBidder}, ${contractValue}, ${JSON.stringify(participatorBidders)},
+              ${isAppentusWinner || isAppentusParticipant}, ${aiMatchScore}, 
+              ${'Imported from ' + fileName + ' - Sheet: ' + sheetName}
+            )
+          `);
           
           totalProcessed++;
-          console.log(`Processed tender: ${title} (Ref: ${referenceNo || 'N/A'})`);
+          
+          if (totalProcessed % 500 === 0) {
+            console.log(`Processed ${totalProcessed} records...`);
+          }
           
         } catch (error) {
-          console.error(`Error processing row:`, error);
-          totalSkipped++;
+          console.error(`Error processing row ${i}:`, error);
+          totalErrors++;
         }
       }
     }
     
-    console.log(`Tender processing complete. Processed: ${totalProcessed}, Skipped: ${totalSkipped}`);
-    return { processed: totalProcessed, skipped: totalSkipped };
+    // Record the import
+    await db.execute(sql`
+      INSERT INTO tender_results_imports (filename, original_name, results_processed, duplicates_skipped, status)
+      VALUES (${fileName}, ${fileName}, ${totalProcessed}, ${totalDuplicates}, 'completed')
+    `);
+    
+    console.log(`\nProcessing complete:`);
+    console.log(`- Total processed: ${totalProcessed}`);
+    console.log(`- Duplicates skipped: ${totalDuplicates}`);
+    console.log(`- Errors: ${totalErrors}`);
+    
+    return {
+      success: true,
+      resultsProcessed: totalProcessed,
+      duplicatesSkipped: totalDuplicates,
+      errorsEncountered: totalErrors,
+      sheetsProcessed: workbook.SheetNames.length
+    };
     
   } catch (error) {
-    console.error('Error processing tender Excel file:', error);
-    throw error;
+    console.error('Error processing tender results Excel:', error);
+    return {
+      success: false,
+      error: error.message,
+      resultsProcessed: 0,
+      duplicatesSkipped: 0
+    };
   }
 }
 
-// Process specific file if provided as command line argument
-if (process.argv[2]) {
-  processTenderExcelFile(process.argv[2])
-    .then(result => {
-      console.log('Processing complete:', result);
-      process.exit(0);
-    })
-    .catch(error => {
-      console.error('Processing failed:', error);
-      process.exit(1);
-    });
+// Test with the provided file
+export async function testTenderResultsProcessing() {
+  const filePath = '../attached_assets/Results-(07-29-2025)_1753884230517.xlsx';
+  const result = await processTenderResultsExcel(filePath, 'test-results.xlsx', 'admin');
+  console.log('Test result:', result);
+  return result;
 }

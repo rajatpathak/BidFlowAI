@@ -18,6 +18,9 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { formatDistanceToNow } from "date-fns";
+import { useUpload } from "@/contexts/UploadContext";
+import { ImportSkeleton, TableSkeleton } from "@/components/loading/ImportSkeleton";
+import DataImportLoader from "@/components/loading/DataImportLoader";
 
 interface UploadHistory {
   id: string;
@@ -31,10 +34,9 @@ interface UploadHistory {
 export default function UploadDemoPage() {
   const [tenderFile, setTenderFile] = useState<File | null>(null);
   const [resultsFile, setResultsFile] = useState<File | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadHistory, setUploadHistory] = useState<UploadHistory[]>([]);
   const { toast } = useToast();
+  const { startUpload, activeTasks, clearCompletedTasks } = useUpload();
 
   // Load upload history from localStorage
   useEffect(() => {
@@ -59,133 +61,31 @@ export default function UploadDemoPage() {
   const handleTenderUpload = async () => {
     if (!tenderFile) return;
     
-    setIsUploading(true);
-    setUploadProgress(0);
-    const formData = new FormData();
-    formData.append("excelFile", tenderFile);
-    formData.append("uploadedBy", "admin");
-
-    // Simulate progress updates
-    const progressInterval = setInterval(() => {
-      setUploadProgress(prev => {
-        if (prev >= 90) return prev;
-        return prev + Math.random() * 15;
-      });
-    }, 500);
-
-    try {
-      const response = await fetch("/api/excel-uploads", {
-        method: "POST",
-        body: formData,
-      });
-
-      clearInterval(progressInterval);
-      setUploadProgress(100);
-
-      if (!response.ok) {
-        throw new Error("Upload failed");
-      }
-
-      const result = await response.json();
-      
-      // Add to history
-      const newHistoryItem: UploadHistory = {
-        id: Date.now().toString(),
-        fileName: tenderFile.name,
-        timestamp: new Date(),
-        tendersImported: result.tendersImported || 0,
-        duplicatesSkipped: result.duplicatesSkipped || 0,
-        status: 'success'
-      };
-      
-      const newHistory = [newHistoryItem, ...uploadHistory].slice(0, 10); // Keep last 10
-      saveHistory(newHistory);
-
-      toast({
-        title: "Success!",
-        description: result.message || `Imported ${result.tendersImported} tenders, skipped ${result.duplicatesSkipped} duplicates.`,
-      });
-      
-      setTenderFile(null);
-    } catch (error) {
-      clearInterval(progressInterval);
-      
-      // Add failed entry to history
-      const newHistoryItem: UploadHistory = {
-        id: Date.now().toString(),
-        fileName: tenderFile.name,
-        timestamp: new Date(),
-        tendersImported: 0,
-        duplicatesSkipped: 0,
-        status: 'failed'
-      };
-      
-      const newHistory = [newHistoryItem, ...uploadHistory].slice(0, 10);
-      saveHistory(newHistory);
-
-      toast({
-        title: "Upload failed",
-        description: "Failed to process tender file. Please check the format and try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsUploading(false);
-      setTimeout(() => setUploadProgress(0), 1000);
-    }
+    // Start background upload through context
+    const taskId = startUpload(tenderFile, 'tenders');
+    setTenderFile(null);
+    
+    // Show notification that file will process in background
+    toast({
+      title: "Processing Started",
+      description: `${tenderFile.name} is now processing in the background. You can navigate to other pages while it completes.`,
+      duration: 4000,
+    });
   };
 
   const handleResultsUpload = async () => {
     if (!resultsFile) return;
     
-    setIsUploading(true);
-    setUploadProgress(0);
-    const formData = new FormData();
-    formData.append("resultsFile", resultsFile);
-    formData.append("uploadedBy", "admin");
-
-    // Simulate progress updates
-    const progressInterval = setInterval(() => {
-      setUploadProgress(prev => {
-        if (prev >= 90) return prev;
-        return prev + Math.random() * 15;
-      });
-    }, 500);
-
-    try {
-      const response = await fetch("/api/tender-results-imports", {
-        method: "POST",
-        body: formData,
-      });
-
-      clearInterval(progressInterval);
-      setUploadProgress(100);
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Upload failed");
-      }
-
-      const result = await response.json();
-      toast({
-        title: "Success!",
-        description: `Processed ${result.resultsProcessed || 0} tender results successfully.`,
-      });
-      
-      setResultsFile(null);
-      // Refresh the page to show new results
-      setTimeout(() => window.location.href = '/tender-results', 1500);
-    } catch (error) {
-      clearInterval(progressInterval);
-      console.error('Results upload error:', error);
-      toast({
-        title: "Upload failed",
-        description: error instanceof Error ? error.message : "Failed to process results file. Please check the format and try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsUploading(false);
-      setTimeout(() => setUploadProgress(0), 1000);
-    }
+    // Start background upload through context
+    const taskId = startUpload(resultsFile, 'results');
+    setResultsFile(null);
+    
+    // Show notification that file will process in background
+    toast({
+      title: "Processing Started",
+      description: `${resultsFile.name} is now processing in the background. You can navigate to other pages while it completes.`,
+      duration: 4000,
+    });
   };
 
   return (
@@ -253,23 +153,63 @@ export default function UploadDemoPage() {
                 <div className="flex justify-center">
                   <Button
                     onClick={handleTenderUpload}
-                    disabled={!tenderFile || isUploading}
+                    disabled={!tenderFile}
                     className="px-8 py-2"
                     size="lg"
                   >
                     <Upload className="h-4 w-4 mr-2" />
-                    {isUploading ? "Processing..." : "Upload Active Tenders"}
+                    Upload Active Tenders
                   </Button>
                 </div>
                 
-                {/* Progress Bar */}
-                {isUploading && (
-                  <div className="space-y-2 max-w-md mx-auto">
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-gray-600">Uploading and processing...</span>
-                      <span className="font-medium">{Math.round(uploadProgress)}%</span>
+                {/* Background Processing Status */}
+                {activeTasks.length > 0 && (
+                  <div className="space-y-4 max-w-md mx-auto">
+                    <div className="text-sm text-gray-600 text-center">
+                      {activeTasks.length} file(s) processing in background
                     </div>
-                    <Progress value={uploadProgress} className="h-2" />
+                    {activeTasks.map((task) => (
+                      <div key={task.id} className="space-y-3">
+                        <div className="bg-blue-50 p-3 rounded-md space-y-2">
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="font-medium">{task.fileName}</span>
+                            <Badge variant={task.status === 'completed' ? 'default' : task.status === 'failed' ? 'destructive' : 'secondary'}>
+                              {task.status}
+                            </Badge>
+                          </div>
+                          {task.status === 'processing' && (
+                            <Progress value={task.progress} className="h-2" />
+                          )}
+                        </div>
+                        
+                        {/* Show detailed import loader when processing */}
+                        {(task.status === 'processing' || task.status === 'uploading') && (
+                          <DataImportLoader 
+                            stage={task.status === 'uploading' ? 'upload' : task.progress < 25 ? 'parse' : task.progress < 50 ? 'validate' : task.progress < 100 ? 'import' : 'complete'}
+                            fileName={task.fileName}
+                            progress={task.progress}
+                            message={task.status === 'uploading' ? 'Uploading file...' : `Processing ${task.type} data...`}
+                            stats={task.result ? {
+                              importedRecords: task.result.imported || task.result.tendersImported || task.result.resultsImported,
+                              duplicatesSkipped: task.result.duplicates || task.result.duplicatesSkipped,
+                            } : undefined}
+                          />
+                        )}
+                        
+                        {/* Show completion state */}
+                        {task.status === 'completed' && (
+                          <DataImportLoader 
+                            stage="complete"
+                            fileName={task.fileName}
+                            progress={100}
+                            stats={{
+                              importedRecords: task.result?.imported || task.result?.tendersImported || task.result?.resultsImported || 0,
+                              duplicatesSkipped: task.result?.duplicates || task.result?.duplicatesSkipped || 0,
+                            }}
+                          />
+                        )}
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
@@ -330,7 +270,7 @@ export default function UploadDemoPage() {
                         </TableCell>
                         <TableCell>
                           {item.status === 'success' ? (
-                            <Badge variant="success" className="gap-1">
+                            <Badge variant="default" className="gap-1 bg-green-500 text-white">
                               <CheckCircle className="h-3 w-3" />
                               Success
                             </Badge>
@@ -403,23 +343,34 @@ export default function UploadDemoPage() {
                 <div className="flex justify-center">
                   <Button
                     onClick={handleResultsUpload}
-                    disabled={!resultsFile || isUploading}
+                    disabled={!resultsFile}
                     className="px-8 py-2"
                     size="lg"
                   >
                     <Upload className="h-4 w-4 mr-2" />
-                    {isUploading ? "Processing..." : "Upload Tender Results"}
+                    Upload Tender Results
                   </Button>
                 </div>
                 
-                {/* Progress Bar */}
-                {isUploading && (
+                {/* Background Processing Status for Results */}
+                {activeTasks.filter(task => task.type === 'results').length > 0 && (
                   <div className="space-y-2 max-w-md mx-auto">
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-gray-600">Uploading and processing results...</span>
-                      <span className="font-medium">{Math.round(uploadProgress)}%</span>
+                    <div className="text-sm text-gray-600 text-center">
+                      Results files processing in background
                     </div>
-                    <Progress value={uploadProgress} className="h-2" />
+                    {activeTasks.filter(task => task.type === 'results').map((task) => (
+                      <div key={task.id} className="bg-green-50 p-3 rounded-md space-y-2">
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="font-medium">{task.fileName}</span>
+                          <Badge variant={task.status === 'completed' ? 'default' : task.status === 'failed' ? 'destructive' : 'secondary'}>
+                            {task.status}
+                          </Badge>
+                        </div>
+                        {task.status === 'processing' && (
+                          <Progress value={task.progress} className="h-2" />
+                        )}
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>

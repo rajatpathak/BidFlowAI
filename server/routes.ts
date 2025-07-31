@@ -1,321 +1,364 @@
-import type { Express } from "express";
-import { createServer, type Server } from "http";
-// Use DatabaseStorage for persistence instead of MemStorage
-import { DatabaseStorage } from "./database-storage";
-const storage = new DatabaseStorage();
-import { seedDatabase } from "./seed-database";
-import { openaiService } from "./services/openai";
-import { db } from "./db";
-import { tenderResults } from "@shared/schema";
-import {
-  insertTenderSchema,
-  insertRecommendationSchema,
-  insertMeetingSchema,
-  insertFinanceRequestSchema,
-  insertApprovalSchema,
-  insertTenderAssignmentSchema,
-  insertReminderSchema,
-  insertTenderResultSchema,
-  insertChecklistSchema,
-  insertDepartmentSchema,
-  insertRoleSchema,
-  insertUserRoleSchema,
-  insertCompanySettingsSchema,
-  insertExcelUploadSchema,
-  insertTenderResultsImportSchema,
-  insertEnhancedTenderResultSchema,
-  insertUserSchema,
-} from "@shared/schema";
-import * as XLSX from "xlsx";
-import multer from "multer";
-import path from "path";
+import express from "express";
+import * as XLSX from 'xlsx';
 import fs from "fs";
-import { randomUUID } from "crypto";
+import multer from "multer";
+import { createServer } from "http";
+import { IStorage } from "./storage.js";
+import { db } from './db.js';
+import { 
+  tenders, 
+  enhancedTenderResults, 
+  tenderResultsImports, 
+  tenderAssignments,
+  excelUploads,
+  users,
+  roles,
+  departments,
+  userRoles,
+  documents
+} from '../shared/schema.js';
+import path from 'path';
+import fs from 'fs/promises';
+import { v4 as uuidv4 } from 'uuid';
+import { eq, desc, sql, ne } from 'drizzle-orm';
 
-// Configure multer for file uploads
-const uploadStorage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, 'uploads/');
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
-  }
+// Setup multer for file uploads
+const upload = multer({
+  dest: 'uploads/',
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
 });
 
-const upload = multer({ 
-  storage: uploadStorage,
-  limits: {
-    fileSize: 50 * 1024 * 1024 // 50MB limit
-  }
-});
-
-// Helper function to process Excel data with flexible column mapping
-function processExcelData(worksheet: any, sheetName: string) {
-  const data = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-  if (data.length === 0) return [];
-
-  const headers = data[0] as string[];
-  const rows = data.slice(1);
+export function registerRoutes(app: express.Application, storage: IStorage) {
   
-  // Determine source type based on sheet name
-  const source = sheetName.toLowerCase().includes('gem') ? 'gem' : 'non_gem';
+  // Upload progress tracking with SSE
+  const uploadProgress = new Map();
+  const uploadClients = new Map();
 
-  // Flexible column mapping - matches various header names
-  const columnMap = new Map<string, number>();
-  headers.forEach((header, index) => {
-    const normalizedHeader = header.toString().toLowerCase().trim();
+  // Server-sent events for upload progress
+  app.get("/api/upload-progress/:sessionId", (req, res) => {
+    const sessionId = req.params.sessionId;
     
-    // Title/Name columns - includes 'tender brief'
-    if (normalizedHeader.includes('title') || normalizedHeader.includes('name') || 
-        normalizedHeader.includes('work') || normalizedHeader.includes('description') ||
-        normalizedHeader.includes('brief')) {
-      columnMap.set('title', index);
-    }
-    // Organization columns
-    if (normalizedHeader.includes('organization') || normalizedHeader.includes('dept') || 
-       normalizedHeader.includes('department') || normalizedHeader.includes('ministry')) {
-      columnMap.set('organization', index);
-    }
-    // Value columns - includes 'estimated cost'
-    if (normalizedHeader.includes('value') || normalizedHeader.includes('amount') || 
-       normalizedHeader.includes('cost') || normalizedHeader.includes('estimated')) {
-      columnMap.set('value', index);
-    }
-    // Deadline columns
-    if (normalizedHeader.includes('deadline') || normalizedHeader.includes('date') || 
-       normalizedHeader.includes('last') || normalizedHeader.includes('submission')) {
-      columnMap.set('deadline', index);
-    }
-    // Turnover columns - includes specific T247 turnover patterns
-    if (normalizedHeader.includes('turnover') || normalizedHeader.includes('eligibility') || 
-       normalizedHeader.includes('qualification') || normalizedHeader.includes('criteria') ||
-       normalizedHeader.includes('minimum average annual')) {
-      columnMap.set('turnover', index);
-    }
-    // Location columns
-    if (normalizedHeader.includes('location') || normalizedHeader.includes('place') || 
-       normalizedHeader.includes('site') || normalizedHeader.includes('address')) {
-      columnMap.set('location', index);
-    }
-    // Reference columns - includes T247 specific patterns
-    if (normalizedHeader.includes('reference') || normalizedHeader.includes('ref') || 
-       normalizedHeader.includes('t247 id')) {
-      columnMap.set('referenceNo', index);
-    }
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Headers': 'Cache-Control'
+    });
+
+    // Store the client connection
+    uploadClients.set(sessionId, res);
+    console.log(`SSE client connected for session: ${sessionId}`);
+
+    // Send initial progress
+    const progress = uploadProgress.get(sessionId) || { 
+      processed: 0, duplicates: 0, total: 0, percentage: 0,
+      gemAdded: 0, nonGemAdded: 0, errors: 0 
+    };
+    res.write(`data: ${JSON.stringify(progress)}\n\n`);
+
+    // Clean up on client disconnect
+    req.on('close', () => {
+      uploadClients.delete(sessionId);
+    });
   });
 
-  // Process rows
-  return rows.map((row: unknown, rowIndex: number) => {
-    try {
-      const rowArray = row as any[];
-      if (!rowArray || rowArray.length === 0) return null;
-
-      const title = columnMap.has('title') ? String(rowArray[columnMap.get('title')!] || '').trim() : '';
-      if (!title) return null; // Skip rows without title
-
-      const organization = columnMap.has('organization') ? String(rowArray[columnMap.get('organization')!] || '').trim() : '';
-      const location = columnMap.has('location') ? String(rowArray[columnMap.get('location')!] || '').trim() : '';
-      const referenceNo = columnMap.has('referenceNo') ? String(rowArray[columnMap.get('referenceNo')!] || '').trim() : '';
-
-      // Parse value
-      let value = 0;
-      if (columnMap.has('value')) {
-        const valueStr = String(rowArray[columnMap.get('value')!] || '0');
-        const numStr = valueStr.replace(/[^0-9.-]/g, '');
-        value = parseFloat(numStr) || 0;
-      }
-
-      // Parse turnover
-      let eligibilityTurnover = 0;
-      if (columnMap.has('turnover')) {
-        const turnoverStr = String(rowArray[columnMap.get('turnover')!] || '0');
-        const numStr = turnoverStr.replace(/[^0-9.-]/g, '');
-        eligibilityTurnover = parseFloat(numStr) || 0;
-      }
-
-      // Parse deadline
-      let deadline = null;
-      if (columnMap.has('deadline')) {
-        const deadlineValue = rowArray[columnMap.get('deadline')!];
-        if (deadlineValue) {
-          if (typeof deadlineValue === 'number') {
-            // Excel date serial number
-            const excelDate = new Date((deadlineValue - 25569) * 86400 * 1000);
-            deadline = excelDate.toISOString().split('T')[0];
-          } else {
-            // Try to parse as string
-            const dateStr = String(deadlineValue).trim();
-            const parsedDate = new Date(dateStr);
-            if (!isNaN(parsedDate.getTime())) {
-              deadline = parsedDate.toISOString().split('T')[0];
-            }
-          }
-        }
-      }
-
-      // Extract hyperlink if available (check both title and tender brief columns)
-      let link = '';
-      
-      // Check tender brief column first (where links usually are)
-      if (columnMap.has('tender brief')) {
-        const briefCol = columnMap.get('tender brief')!;
-        const briefCell = worksheet[XLSX.utils.encode_cell({r: rowIndex + 1, c: briefCol})];
-        
-        // Check for hyperlink in cell
-        if (briefCell && briefCell.l) {
-          link = briefCell.l.Target || '';
-          console.log(`Found hyperlink in tender brief: ${link}`);
-        }
-        
-        // Also check if worksheet has hyperlinks array
-        if (!link && worksheet['!links']) {
-          const cellAddress = XLSX.utils.encode_cell({r: rowIndex + 1, c: briefCol});
-          const hyperlink = worksheet['!links'].find((l: any) => l.ref === cellAddress);
-          if (hyperlink) {
-            link = hyperlink.target || '';
-            console.log(`Found hyperlink from links array: ${link}`);
-          }
-        }
-      }
-      
-      // If no link found in tender brief, check title column
-      if (!link && columnMap.has('title')) {
-        const titleCol = columnMap.get('title')!;
-        const titleCell = worksheet[XLSX.utils.encode_cell({r: rowIndex + 1, c: titleCol})];
-        
-        if (titleCell && titleCell.l) {
-          link = titleCell.l.Target || '';
-          console.log(`Found hyperlink in title: ${link}`);
-        }
-      }
-      
-      // Debug log to check what we're getting
-      if (!link) {
-        const briefCol = columnMap.get('tender brief');
-        if (briefCol !== undefined) {
-          const briefCell = worksheet[XLSX.utils.encode_cell({r: rowIndex + 1, c: briefCol})];
-          console.log(`Row ${rowIndex + 2} - Brief cell:`, briefCell);
-        }
-      }
-      
-      return {
-        title,
-        organization,
-        value,
-        deadline,
-        eligibilityTurnover,
-        location,
-        referenceNo,
-        link,
-        status: 'active',
-        source
-      };
-    } catch (error) {
-      console.error(`Error processing row ${rowIndex + 2}:`, error);
-      return null;
-    }
-  }).filter(Boolean);
-}
-
-export async function registerRoutes(app: Express): Promise<Server> {
-  // Dashboard stats
-  // Authentication endpoints
-  app.post("/api/auth/login", async (req, res) => {
-    try {
-      const { username, password } = req.body;
-      
-      if (!username || !password) {
-        return res.status(400).json({ error: "Username and password required" });
-      }
-
-      // Get user by username
-      const user = await storage.getUserByUsername(username);
-      if (!user) {
-        return res.status(401).json({ error: "Invalid credentials" });
-      }
-
-      // In production, this would verify hashed password
-      // For demo, we'll check against simple passwords
-      const validPasswords: Record<string, string> = {
-        admin: "admin123",
-        finance_manager: "finance123", 
-        senior_bidder: "bidder123"
-      };
-
-      if (password !== validPasswords[username]) {
-        return res.status(401).json({ error: "Invalid credentials" });
-      }
-
-      // Generate simple token (in production, use JWT)
-      const token = `token_${user.id}_${Date.now()}`;
-      
-      res.json({
-        token,
-        user: {
-          id: user.id,
-          username: user.username,
-          email: user.email,
-          name: user.name,
-          role: user.role,
-        }
-      });
-    } catch (error: any) {
-      res.status(500).json({ error: "Login failed", details: error.message });
-    }
-  });
-
-  app.get("/api/auth/verify", async (req, res) => {
-    try {
-      const token = req.headers.authorization?.replace('Bearer ', '');
-      if (!token) {
-        return res.status(401).json({ error: "No token provided" });
-      }
-
-      // Simple token validation (in production, verify JWT)
-      if (!token.startsWith('token_')) {
-        return res.status(401).json({ error: "Invalid token" });
-      }
-
-      res.json({ valid: true });
-    } catch (error) {
-      res.status(401).json({ error: "Token verification failed" });
-    }
-  });
-
-  app.post("/api/auth/logout", async (req, res) => {
-    res.json({ message: "Logged out successfully" });
-  });
-
-  // Seed database endpoint for initialization
-  app.post("/api/seed-database", async (req, res) => {
-    try {
-      await seedDatabase();
-      res.json({ message: "Database seeded successfully" });
-    } catch (error: any) {
-      res.status(500).json({ error: "Failed to seed database", details: error.message });
-    }
-  });
-
-  // Upload tenders from Excel
+  // Upload tenders via Excel file (Active Tenders)
   app.post("/api/upload-tenders", upload.single('file'), async (req, res) => {
     try {
       if (!req.file) {
         return res.status(400).json({ error: "No file uploaded" });
       }
 
-      const { processTenderExcelFile } = await import('./process-tender-excel');
-      const result = await processTenderExcelFile(req.file.path);
-      
-      res.json({
-        message: "Tenders uploaded successfully",
-        ...result
+      const uploadedBy = req.body.uploadedBy || "admin";
+      const sessionId = req.body.sessionId || Date.now().toString();
+      console.log(`Processing tender upload: ${req.file.originalname} (Session: ${sessionId})`);
+
+      // Initialize progress tracking
+      uploadProgress.set(sessionId, { 
+        processed: 0, duplicates: 0, total: 0, percentage: 0,
+        gemAdded: 0, nonGemAdded: 0, errors: 0 
       });
-    } catch (error: any) {
-      res.status(500).json({ error: "Failed to process tender file", details: error.message });
+
+      // Use simple Excel processor with progress callback
+      const { processSimpleExcelUpload } = await import('./simple-excel-processor.js');
+      
+      console.log(`SSE clients for session ${sessionId}:`, uploadClients.has(sessionId));
+      
+      const result = await processSimpleExcelUpload(
+        req.file.path, 
+        req.file.originalname, 
+        uploadedBy,
+        (progress) => {
+          console.log(`Sending progress update for session ${sessionId}:`, progress);
+          uploadProgress.set(sessionId, progress);
+          
+          // Send progress to connected clients via SSE
+          const client = uploadClients.get(sessionId);
+          if (client && !client.destroyed) {
+            try {
+              client.write(`data: ${JSON.stringify(progress)}\n\n`);
+            } catch (error) {
+              console.error('Error sending progress update:', error);
+            }
+          } else {
+            console.log('No active SSE client found for session:', sessionId);
+          }
+        }
+      );
+
+      // Send final completion and clean up
+      const finalProgress = { 
+        processed: result.tendersProcessed || 0,
+        duplicates: result.duplicatesSkipped || 0,
+        total: (result.tendersProcessed || 0) + (result.duplicatesSkipped || 0),
+        percentage: 100, 
+        completed: true,
+        gemAdded: result.gemAdded || 0,
+        nonGemAdded: result.nonGemAdded || 0,
+        errors: result.errorsEncountered || 0
+      };
+      
+      uploadProgress.set(sessionId, finalProgress);
+      const client = uploadClients.get(sessionId);
+      if (client) {
+        client.write(`data: ${JSON.stringify(finalProgress)}\n\n`);
+        client.end();
+      }
+      
+      // Clean up progress tracking
+      setTimeout(() => {
+        uploadProgress.delete(sessionId);
+        uploadClients.delete(sessionId);
+      }, 30000);
+
+      if (!result.success) {
+        return res.status(500).json({ error: result.error || "Failed to process Excel file" });
+      }
+
+      res.json({
+        message: "Tenders imported successfully",
+        tendersProcessed: result.tendersProcessed || 0,
+        duplicatesSkipped: result.duplicatesSkipped || 0,
+        sheetsProcessed: result.sheetsProcessed || 0,
+        errorsEncountered: result.errorsEncountered || 0,
+        gemAdded: result.gemAdded || 0,
+        nonGemAdded: result.nonGemAdded || 0,
+        sessionId: sessionId
+      });
+    } catch (error) {
+      console.error("Excel upload error:", error);
+      res.status(500).json({ error: "Failed to process Excel file" });
     }
   });
 
+  // Get tender imports history
+  app.get("/api/tender-imports", async (req, res) => {
+    try {
+      // Query the database directly using raw SQL with correct column names
+      const result = await db.execute(sql`
+        SELECT 
+          id, file_name, uploaded_by, entries_added, entries_duplicate, 
+          total_entries, sheets_processed, status, uploaded_at
+        FROM excel_uploads 
+        ORDER BY uploaded_at DESC 
+        LIMIT 20
+      `);
+      res.json(result || []);
+    } catch (error) {
+      console.error("Tender imports fetch error:", error);
+      // Return empty array instead of error to prevent frontend breaks
+      res.json([]);
+    }
+  });
+
+  // Upload tender results via Excel file  
+  app.post("/api/tender-results-imports", upload.single('file'), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+
+      const uploadedBy = req.body.uploadedBy || "admin"; 
+      console.log(`Processing tender results upload: ${req.file.originalname}`);
+
+      // Use enhanced results processor for multi-sheet support
+      const { processEnhancedTenderResults } = await import('./enhanced-results-processor.js');
+      const result = await processEnhancedTenderResults(req.file.path, req.file.originalname, uploadedBy);
+
+      if (!result.success) {
+        return res.status(500).json({ error: result.error || "Failed to process tender results Excel file" });
+      }
+
+      res.json({
+        message: "Tender results imported successfully",
+        resultsProcessed: result.resultsProcessed || 0,
+        duplicatesSkipped: result.duplicatesSkipped || 0,
+        sheetsProcessed: result.sheetsProcessed || 0,
+        errorsEncountered: result.errorsEncountered || 0
+      });
+    } catch (error) {
+      console.error("Tender results upload error:", error);
+      res.status(500).json({ error: "Failed to process tender results Excel file" });
+    }
+  });
+
+  // Get tender results imports history
+  app.get("/api/tender-results-imports", async (req, res) => {
+    try {
+      // Query the database directly using raw SQL
+      const result = await db.execute(sql`SELECT * FROM tender_results_imports ORDER BY uploaded_at DESC`);
+      res.json(result || []);
+    } catch (error) {
+      console.error("Tender results imports fetch error:", error);
+      res.status(500).json({ error: "Failed to fetch tender results imports" });
+    }
+  });
+
+  // Delete tender
+  app.delete("/api/tenders/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      // Get tender title for activity log
+      const tenderResult = await db.execute(sql`SELECT title FROM tenders WHERE id = ${id}`);
+      const tenderTitle = tenderResult.rows[0]?.title || 'Unknown Tender';
+      
+      // Add activity log before deletion
+      await db.execute(sql`
+        INSERT INTO activity_logs (id, tender_id, activity_type, description, created_by, created_at)
+        VALUES (gen_random_uuid(), ${id}, 'tender_deleted', ${'Tender deleted: ' + tenderTitle}, 'System User', NOW())
+      `);
+      
+      // Delete tender
+      await db.execute(sql`DELETE FROM tenders WHERE id = ${id}`);
+      res.json({ success: true, message: "Tender deleted successfully" });
+    } catch (error) {
+      console.error("Delete tender error:", error);
+      res.status(500).json({ error: "Failed to delete tender" });
+    }
+  });
+
+  // Mark tender as not relevant
+  app.post("/api/tenders/:id/mark-not-relevant", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { reason } = req.body;
+      
+      // Update tender status
+      await db.execute(sql`
+        UPDATE tenders SET status = 'not_relevant' WHERE id = ${id}
+      `);
+      
+      // Add activity log with username
+      await db.execute(sql`
+        INSERT INTO activity_logs (id, tender_id, activity_type, description, created_by, created_at)
+        VALUES (gen_random_uuid(), ${id}, 'marked_not_relevant', ${'Tender marked as not relevant. Reason: ' + (reason || 'No reason provided')}, 'System User', NOW())
+      `);
+      
+      res.json({ success: true, message: "Tender marked as not relevant" });
+    } catch (error) {
+      console.error("Mark not relevant error:", error);
+      res.status(500).json({ error: "Failed to mark tender as not relevant" });
+    }
+  });
+
+  // Get enhanced tender results
+  app.get("/api/enhanced-tender-results", async (req, res) => {
+    try {
+      // Query the database directly using raw SQL since table schema and code don't match
+      const result = await db.execute(sql`SELECT * FROM enhanced_tender_results ORDER BY created_at DESC`);
+      res.json(result || []);
+    } catch (error) {
+      console.error("Enhanced tender results fetch error:", error);
+      res.status(500).json({ error: "Failed to fetch tender results" });
+    }
+  });
+
+  // Get all tenders with optional missed opportunities and assigned user names
+  app.get("/api/tenders", async (req, res) => {
+    try {
+      const { includeMissedOpportunities } = req.query;
+      
+      // Use SQL execute method that works consistently
+      const whereClause = includeMissedOpportunities === 'true' ? '' : `WHERE t.status != 'missed_opportunity'`;
+      
+      const result = await db.execute(sql`
+        SELECT 
+          t.id, 
+          t.title, 
+          t.organization, 
+          t.description,
+          t.value, 
+          t.deadline, 
+          t.status, 
+          t.source, 
+          t.ai_score as "aiScore", 
+          t.assigned_to as "assignedTo",
+          t.requirements, 
+          t.link, 
+          t.created_at as "createdAt", 
+          t.updated_at as "updatedAt",
+          u.name as "assignedToName"
+        FROM tenders t 
+        LEFT JOIN users u ON t.assigned_to = u.id
+        ${includeMissedOpportunities === 'true' ? sql`` : sql`WHERE t.status != 'missed_opportunity'`}
+        ORDER BY t.deadline
+      `);
+      
+      console.log(`API tenders query result type:`, typeof result);
+      console.log(`Result is array:`, Array.isArray(result));
+      console.log(`Found ${result.length || (result.rows && result.rows.length) || 0} tenders`);
+      
+      // Handle result structure - it should be an array directly
+      const rows = Array.isArray(result) ? result : [];
+      
+      const tendersWithNames = rows.map(row => ({
+        ...row,
+        requirements: typeof row.requirements === 'string' ? JSON.parse(row.requirements) : row.requirements
+      }));
+      
+      res.json(tendersWithNames);
+    } catch (error) {
+      console.error("Tenders fetch error:", error);
+      res.status(500).json({ error: "Failed to fetch tenders", details: error.message });
+    }
+  });
+
+  // Get single tender
+  app.get("/api/tenders/:id", async (req, res) => {
+    try {
+      const [tender] = await db.select().from(tenders).where(eq(tenders.id, req.params.id)).limit(1);
+      if (!tender) {
+        return res.status(404).json({ error: "Tender not found" });
+      }
+      res.json(tender);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch tender" });
+    }
+  });
+
+  // Assign tender to bidder
+  app.post("/api/tenders/:id/assign", async (req, res) => {
+    try {
+      const { assignedTo, assignedBy, notes } = req.body;
+      
+      const [assignment] = await db.insert(tenderAssignments).values({
+        tenderId: req.params.id,
+        assignedTo,
+        assignedBy,
+        notes,
+        status: "assigned",
+        dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
+      }).returning();
+      
+      res.status(201).json(assignment);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to assign tender" });
+    }
+  });
+
+  // Get dashboard stats
   app.get("/api/dashboard/stats", async (req, res) => {
     try {
       const stats = await storage.getDashboardStats();
@@ -325,7 +368,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Pipeline data
+  // Get dashboard pipeline
   app.get("/api/dashboard/pipeline", async (req, res) => {
     try {
       const pipeline = await storage.getPipelineData();
@@ -335,1277 +378,745 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get all tenders
-  app.get("/api/tenders", async (req, res) => {
-    try {
-      const tenders = await storage.getTenders();
-      const companySettings = await storage.getCompanySettings();
-      
-      // Calculate AI score for each tender based on turnover requirements
-      const tendersWithAIScore = tenders.map(tender => {
-        let aiScore = 0;
-        
-        if (companySettings && tender.requirements) {
-          const requirements = typeof tender.requirements === 'object' ? tender.requirements : {};
-          const turnoverReq = parseFloat((requirements as any).turnover || '0');
-          
-          // Parse company turnover from string (e.g., "5 Crores" -> 50000000)
-          let companyTurnover = 0;
-          if (companySettings.turnoverCriteria) {
-            const turnoverStr = companySettings.turnoverCriteria.toLowerCase();
-            const match = turnoverStr.match(/(\d+\.?\d*)\s*(crore|cr|lakh|lac|million|m)/);
-            if (match) {
-              const value = parseFloat(match[1]);
-              const unit = match[2];
-              if (unit.includes('crore') || unit === 'cr') {
-                companyTurnover = value * 10000000; // 1 crore = 10 million
-              } else if (unit.includes('lakh') || unit === 'lac') {
-                companyTurnover = value * 100000; // 1 lakh = 100 thousand
-              } else if (unit.includes('million') || unit === 'm') {
-                companyTurnover = value * 1000000;
-              }
-            }
-          }
-          
-          // AI Scoring logic:
-          // 1. If turnover is exempted (0 or not specified), give 100% match
-          // 2. If company turnover meets or exceeds requirement, give 100% match
-          // 3. If company turnover is less but > 50%, give proportional score
-          // 4. If company turnover is < 50% of requirement, not eligible (0%)
-          // 5. If no clear requirement, give 85% (needs manual review)
-          
-          if (turnoverReq === 0) {
-            // Turnover exempted or not specified
-            aiScore = 100;
-          } else if (companyTurnover >= turnoverReq) {
-            // Company meets or exceeds requirement
-            aiScore = 100;
-          } else if (companyTurnover > 0 && turnoverReq > 0) {
-            // Calculate proportional score
-            const ratio = companyTurnover / turnoverReq;
-            if (ratio >= 0.8) {
-              aiScore = 90; // Very close match
-            } else if (ratio >= 0.5) {
-              aiScore = 70; // Moderate match
-            } else {
-              aiScore = 30; // Poor match
-            }
-          } else {
-            // No clear requirement, needs manual review
-            aiScore = 85;
-          }
-        }
-        
-        return {
-          ...tender,
-          aiScore
-        };
-      });
-      
-      res.json(tendersWithAIScore);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to fetch tenders" });
-    }
-  });
-
-  // Get tender by ID
-  app.get("/api/tenders/:id", async (req, res) => {
-    try {
-      const tender = await storage.getTender(req.params.id);
-      if (!tender) {
-        return res.status(404).json({ error: "Tender not found" });
-      }
-      res.json(tender);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to fetch tender" });
-    }
-  });
-  
-  // Get tender eligibility breakdown
-  app.get("/api/tenders/:id/eligibility", async (req, res) => {
-    try {
-      const tender = await storage.getTender(req.params.id);
-      if (!tender) {
-        return res.status(404).json({ error: "Tender not found" });
-      }
-      
-      const companySettings = await storage.getCompanySettings();
-      const breakdown = await storage.calculateAIMatchWithBreakdown(tender, companySettings);
-      
-      res.json(breakdown);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to calculate eligibility breakdown" });
-    }
-  });
-
-  // Create new tender
-  app.post("/api/tenders", async (req, res) => {
-    try {
-      const validatedData = insertTenderSchema.parse(req.body);
-      const tender = await storage.createTender(validatedData);
-      res.status(201).json(tender);
-    } catch (error) {
-      res.status(400).json({ error: "Invalid tender data" });
-    }
-  });
-
-  // Update tender
-  app.patch("/api/tenders/:id", async (req, res) => {
-    try {
-      const tender = await storage.updateTender(req.params.id, req.body);
-      if (!tender) {
-        return res.status(404).json({ error: "Tender not found" });
-      }
-      res.json(tender);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to update tender" });
-    }
-  });
-
-  // Delete tender
-  app.delete("/api/tenders/:id", async (req, res) => {
-    try {
-      const deleted = await storage.deleteTender(req.params.id);
-      if (!deleted) {
-        return res.status(404).json({ error: "Tender not found" });
-      }
-      res.status(204).send();
-    } catch (error) {
-      res.status(500).json({ error: "Failed to delete tender" });
-    }
-  });
-
-  // Get AI recommendations
+  // Get recommendations
   app.get("/api/recommendations", async (req, res) => {
     try {
-      const recommendations = await storage.getRecommendations();
+      const recommendations = await storage.getAIRecommendations();
       res.json(recommendations);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch recommendations" });
     }
   });
 
-  // AI tender analysis
-  app.post("/api/ai/analyze-tender", async (req, res) => {
+  // Health check
+  app.get("/api/health", (req, res) => {
+    res.json({ 
+      status: "healthy", 
+      timestamp: new Date().toISOString(),
+      message: "BMS API server is running in separated architecture mode"
+    });
+  });
+
+  // Auth routes
+  app.post("/api/auth/login", async (req, res) => {
     try {
-      const { tenderDescription, companyCapabilities } = req.body;
+      const { username, password } = req.body;
       
-      if (!tenderDescription || !companyCapabilities) {
-        return res.status(400).json({ error: "Missing required fields" });
+      // Simple demo authentication - in production this would be properly secured
+      const demoUsers = [
+        { id: "admin-uuid-001", username: "admin", password: "admin123", name: "System Administrator", role: "admin" },
+        { id: "finance-uuid-002", username: "finance_manager", password: "finance123", name: "Finance Manager", role: "finance_manager" },
+        { id: "bidder-uuid-003", username: "senior_bidder", password: "bidder123", name: "Senior Bidder", role: "senior_bidder" }
+      ];
+      
+      const user = demoUsers.find(u => u.username === username && u.password === password);
+      
+      if (!user) {
+        return res.status(401).json({ error: "Invalid credentials" });
       }
-
-      const analysis = await openaiService.analyzeTenderMatch(
-        tenderDescription,
-        companyCapabilities
-      );
-
-      res.json(analysis);
+      
+      res.json({ user, token: "dummy-jwt-token" });
     } catch (error) {
-      res.status(500).json({ error: "AI analysis failed: " + (error as Error).message });
+      res.status(500).json({ error: "Login failed" });
     }
   });
 
-  // AI bid optimization
-  app.post("/api/ai/optimize-bid", async (req, res) => {
+  app.post("/api/auth/logout", (req, res) => {
+    res.json({ message: "Logged out successfully" });
+  });
+
+  // Get activity logs for a specific tender
+  app.get('/api/tenders/:id/activity-logs', async (req, res) => {
     try {
-      const { currentContent, tenderRequirements } = req.body;
+      const { id } = req.params;
       
-      if (!currentContent || !tenderRequirements) {
-        return res.status(400).json({ error: "Missing required fields" });
-      }
-
-      const optimization = await openaiService.optimizeBidContent(
-        currentContent,
-        tenderRequirements
-      );
-
-      res.json(optimization);
+      const logs = await db.execute(sql`
+        SELECT * FROM activity_logs 
+        WHERE tender_id = ${id}
+        ORDER BY created_at DESC
+      `);
+      
+      res.json(logs);
     } catch (error) {
-      res.status(500).json({ error: "Bid optimization failed: " + (error as Error).message });
+      console.error('Error fetching activity logs:', error);
+      res.status(500).json({ error: 'Failed to fetch activity logs' });
     }
   });
 
-  // AI pricing suggestions
-  app.post("/api/ai/pricing-suggestion", async (req, res) => {
+  // Process missed opportunities manually
+  app.post('/api/process-missed-opportunities', async (req, res) => {
     try {
-      const { tenderDescription, estimatedCosts, marketData } = req.body;
+      const { processMissedOpportunities } = await import('./missed-opportunities-processor.js');
+      const result = await processMissedOpportunities();
       
-      if (!tenderDescription || !estimatedCosts) {
-        return res.status(400).json({ error: "Missing required fields" });
-      }
-
-      const suggestion = await openaiService.suggestPricing(
-        tenderDescription,
-        estimatedCosts,
-        marketData
-      );
-
-      res.json(suggestion);
-    } catch (error) {
-      res.status(500).json({ error: "Pricing suggestion failed: " + (error as Error).message });
-    }
-  });
-
-  // AI risk assessment
-  app.post("/api/ai/risk-assessment", async (req, res) => {
-    try {
-      const { tenderDescription, deadline, tenderValue } = req.body;
-      
-      if (!tenderDescription || !deadline || !tenderValue) {
-        return res.status(400).json({ error: "Missing required fields" });
-      }
-
-      const assessment = await openaiService.assessRisk(
-        tenderDescription,
-        new Date(deadline),
-        tenderValue
-      );
-
-      res.json(assessment);
-    } catch (error) {
-      res.status(500).json({ error: "Risk assessment failed: " + (error as Error).message });
-    }
-  });
-
-  // AI bid generation
-  app.post("/api/ai/generate-bid", async (req, res) => {
-    try {
-      const { tenderDescription, companyProfile, requirements } = req.body;
-      
-      if (!tenderDescription || !companyProfile || !requirements) {
-        return res.status(400).json({ error: "Missing required fields" });
-      }
-
-      const bidContent = await openaiService.generateBidContent(
-        tenderDescription,
-        companyProfile,
-        requirements
-      );
-
-      res.json({ content: bidContent });
-    } catch (error) {
-      res.status(500).json({ error: "Bid generation failed: " + (error as Error).message });
-    }
-  });
-
-  // File upload
-  app.post("/api/documents/upload", upload.single('file'), async (req, res) => {
-    try {
-      if (!req.file) {
-        return res.status(400).json({ error: "No file uploaded" });
-      }
-
-      const { tenderId } = req.body;
-      
-      const document = await storage.createDocument({
-        tenderId: tenderId || null,
-        filename: req.file.filename,
-        originalName: req.file.originalname,
-        mimeType: req.file.mimetype,
-        size: req.file.size,
+      res.json({
+        success: true,
+        message: `Processed ${result.processed} missed opportunities`,
+        data: result
       });
-
-      res.status(201).json(document);
     } catch (error) {
-      res.status(500).json({ error: "File upload failed" });
+      console.error('Error processing missed opportunities:', error);
+      res.status(500).json({ error: 'Failed to process missed opportunities' });
     }
   });
 
-  // Get documents
-  app.get("/api/documents", async (req, res) => {
+  // Get missed opportunities
+  app.get('/api/missed-opportunities', async (req, res) => {
     try {
-      const { tenderId } = req.query;
-      let documents;
+      const missedOps = await db.execute(sql`
+        SELECT id, title, organization, value, deadline, created_at
+        FROM tenders 
+        WHERE status = 'missed_opportunity'
+        ORDER BY deadline DESC
+      `);
       
-      if (tenderId) {
-        documents = await storage.getDocumentsByTender(tenderId as string);
-      } else {
-        documents = await storage.getDocuments();
-      }
-      
-      res.json(documents);
+      res.json(missedOps);
     } catch (error) {
-      res.status(500).json({ error: "Failed to fetch documents" });
+      console.error('Error fetching missed opportunities:', error);
+      res.status(500).json({ error: 'Failed to fetch missed opportunities' });
     }
   });
 
-  // Delete document
-  app.delete("/api/documents/:id", async (req, res) => {
-    try {
-      const deleted = await storage.deleteDocument(req.params.id);
-      if (!deleted) {
-        return res.status(404).json({ error: "Document not found" });
-      }
-      res.status(204).send();
-    } catch (error) {
-      res.status(500).json({ error: "Failed to delete document" });
-    }
-  });
-
-  // Generate AI recommendations for active tenders
-  app.post("/api/ai/generate-recommendations", async (req, res) => {
-    try {
-      const tenders = await storage.getTenders();
-      const recommendations = [];
-
-      for (const tender of tenders.slice(0, 3)) { // Limit to first 3 for demo
-        if (tender.status === 'draft' || tender.status === 'in_progress') {
-          // Generate different types of recommendations
-          const now = new Date();
-          const deadline = new Date(tender.deadline);
-          const daysLeft = Math.ceil((deadline.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-
-          if (daysLeft <= 3) {
-            const rec = await storage.createRecommendation({
-              tenderId: tender.id,
-              type: 'deadline',
-              title: 'Deadline Approaching',
-              description: `${tender.title} deadline is in ${daysLeft} days`,
-              priority: 'high',
-              actionable: true,
-              metadata: { daysLeft, action: 'review' },
-            });
-            recommendations.push(rec);
-          }
-
-          if (tender.aiScore && tender.aiScore > 90) {
-            const rec = await storage.createRecommendation({
-              tenderId: tender.id,
-              type: 'match',
-              title: 'High-Match Tender Found',
-              description: `${tender.title} - ${tender.aiScore}% compatibility match`,
-              priority: 'medium',
-              actionable: true,
-              metadata: { score: tender.aiScore, action: 'view' },
-            });
-            recommendations.push(rec);
-          }
-        }
-      }
-
-      res.json(recommendations);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to generate recommendations" });
-    }
-  });
-
-  // Enhanced BMS Routes
-
-  // Meetings
-  app.get("/api/meetings", async (req, res) => {
-    try {
-      const meetings = await storage.getMeetings();
-      res.json(meetings);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to fetch meetings" });
-    }
-  });
-
-  app.get("/api/tenders/:id/meetings", async (req, res) => {
-    try {
-      const meetings = await storage.getMeetingsByTender(req.params.id);
-      res.json(meetings);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to fetch tender meetings" });
-    }
-  });
-
-  app.post("/api/meetings", async (req, res) => {
-    try {
-      const data = insertMeetingSchema.parse(req.body);
-      const meeting = await storage.createMeeting(data);
-      res.status(201).json(meeting);
-    } catch (error) {
-      res.status(400).json({ error: "Invalid meeting data" });
-    }
-  });
-
-  app.patch("/api/meetings/:id", async (req, res) => {
-    try {
-      const meeting = await storage.updateMeeting(req.params.id, req.body);
-      if (!meeting) {
-        return res.status(404).json({ error: "Meeting not found" });
-      }
-      res.json(meeting);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to update meeting" });
-    }
-  });
-
-  // Finance Requests
-  app.get("/api/finance-requests", async (req, res) => {
-    try {
-      const requests = await storage.getFinanceRequests();
-      res.json(requests);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to fetch finance requests" });
-    }
-  });
-
-  app.get("/api/finance-requests/status/:status", async (req, res) => {
-    try {
-      const requests = await storage.getFinanceRequestsByStatus(req.params.status);
-      res.json(requests);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to fetch finance requests by status" });
-    }
-  });
-
-  app.get("/api/finance-overview", async (req, res) => {
-    try {
-      const overview = await storage.getFinanceOverview();
-      res.json(overview);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to fetch finance overview" });
-    }
-  });
-
-  app.post("/api/finance-requests", async (req, res) => {
-    try {
-      const data = insertFinanceRequestSchema.parse(req.body);
-      const request = await storage.createFinanceRequest(data);
-      res.status(201).json(request);
-    } catch (error) {
-      res.status(400).json({ error: "Invalid finance request data" });
-    }
-  });
-
-  app.patch("/api/finance-requests/:id", async (req, res) => {
-    try {
-      const request = await storage.updateFinanceRequest(req.params.id, req.body);
-      if (!request) {
-        return res.status(404).json({ error: "Finance request not found" });
-      }
-      res.json(request);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to update finance request" });
-    }
-  });
-
-  // Approvals
-  app.get("/api/approvals", async (req, res) => {
-    try {
-      const approvals = await storage.getApprovals();
-      res.json(approvals);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to fetch approvals" });
-    }
-  });
-
-  app.post("/api/approvals", async (req, res) => {
-    try {
-      const data = insertApprovalSchema.parse(req.body);
-      const approval = await storage.createApproval(data);
-      res.status(201).json(approval);
-    } catch (error) {
-      res.status(400).json({ error: "Invalid approval data" });
-    }
-  });
-
-  // Tender Assignments
-  app.get("/api/assignments", async (req, res) => {
-    try {
-      const assignments = await storage.getTenderAssignments();
-      res.json(assignments);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to fetch assignments" });
-    }
-  });
-
-  app.get("/api/users/:id/assignments", async (req, res) => {
-    try {
-      const assignments = await storage.getAssignmentsByUser(req.params.id);
-      res.json(assignments);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to fetch user assignments" });
-    }
-  });
-
-  app.post("/api/assignments", async (req, res) => {
-    try {
-      const data = insertTenderAssignmentSchema.parse(req.body);
-      const assignment = await storage.createTenderAssignment(data);
-      res.status(201).json(assignment);
-    } catch (error) {
-      res.status(400).json({ error: "Invalid assignment data" });
-    }
-  });
-
-  // Reminders
-  app.get("/api/reminders", async (req, res) => {
-    try {
-      const { days } = req.query;
-      const reminders = days 
-        ? await storage.getUpcomingReminders(parseInt(days as string))
-        : await storage.getReminders();
-      res.json(reminders);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to fetch reminders" });
-    }
-  });
-
-  app.get("/api/users/:id/reminders", async (req, res) => {
-    try {
-      const reminders = await storage.getRemindersByUser(req.params.id);
-      res.json(reminders);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to fetch user reminders" });
-    }
-  });
-
-  app.post("/api/reminders", async (req, res) => {
-    try {
-      const data = insertReminderSchema.parse(req.body);
-      const reminder = await storage.createReminder(data);
-      res.status(201).json(reminder);
-    } catch (error) {
-      res.status(400).json({ error: "Invalid reminder data" });
-    }
-  });
-
-  // Tender Results
-  app.get("/api/tender-results", async (req, res) => {
-    try {
-      const results = await storage.getTenderResults();
-      res.json(results);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to fetch tender results" });
-    }
-  });
-
-  app.post("/api/tender-results", async (req, res) => {
-    try {
-      const data = insertTenderResultSchema.parse(req.body);
-      const result = await storage.createTenderResult(data);
-      res.status(201).json(result);
-    } catch (error) {
-      res.status(400).json({ error: "Invalid tender result data" });
-    }
-  });
-
-  // Checklists
-  app.get("/api/checklists", async (req, res) => {
-    try {
-      const checklists = await storage.getChecklists();
-      res.json(checklists);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to fetch checklists" });
-    }
-  });
-
-  app.get("/api/tenders/:id/checklists", async (req, res) => {
-    try {
-      const checklists = await storage.getChecklistsByTender(req.params.id);
-      res.json(checklists);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to fetch tender checklists" });
-    }
-  });
-
-  app.post("/api/checklists", async (req, res) => {
-    try {
-      const data = insertChecklistSchema.parse(req.body);
-      const checklist = await storage.createChecklist(data);
-      res.status(201).json(checklist);
-    } catch (error) {
-      res.status(400).json({ error: "Invalid checklist data" });
-    }
-  });
-
-  app.patch("/api/checklists/:id", async (req, res) => {
-    try {
-      const checklist = await storage.updateChecklist(req.params.id, req.body);
-      if (!checklist) {
-        return res.status(404).json({ error: "Checklist not found" });
-      }
-      res.json(checklist);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to update checklist" });
-    }
-  });
-
-  // Departments
-  app.get("/api/departments", async (req, res) => {
-    try {
-      const departments = await storage.getDepartments();
-      res.json(departments);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to fetch departments" });
-    }
-  });
-
-  app.post("/api/departments", async (req, res) => {
-    try {
-      const data = insertDepartmentSchema.parse(req.body);
-      const department = await storage.createDepartment(data);
-      res.status(201).json(department);
-    } catch (error) {
-      res.status(400).json({ error: "Invalid department data" });
-    }
-  });
-
-  // Roles
-  app.get("/api/roles", async (req, res) => {
-    try {
-      const roles = await storage.getRoles();
-      res.json(roles);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to fetch roles" });
-    }
-  });
-
-  app.post("/api/roles", async (req, res) => {
-    try {
-      const data = insertRoleSchema.parse(req.body);
-      const role = await storage.createRole(data);
-      res.status(201).json(role);
-    } catch (error) {
-      res.status(400).json({ error: "Invalid role data" });
-    }
-  });
-
-  // User Roles Management
-  app.get("/api/user-roles", async (req, res) => {
-    try {
-      const userRoles = await storage.getUserRoles();
-      res.json(userRoles);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to fetch user roles" });
-    }
-  });
-
-  app.get("/api/users/:userId/roles", async (req, res) => {
-    try {
-      const userRoles = await storage.getUserRolesByUser(req.params.userId);
-      res.json(userRoles);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to fetch user roles" });
-    }
-  });
-
-  app.get("/api/roles/:roleId/users", async (req, res) => {
-    try {
-      const userRoles = await storage.getUserRolesByRole(req.params.roleId);
-      res.json(userRoles);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to fetch role users" });
-    }
-  });
-
-  app.post("/api/user-roles", async (req, res) => {
-    try {
-      const data = insertUserRoleSchema.parse(req.body);
-      const userRole = await storage.createUserRole(data);
-      res.status(201).json(userRole);
-    } catch (error) {
-      res.status(400).json({ error: "Invalid user role data" });
-    }
-  });
-
-  app.delete("/api/user-roles/:id", async (req, res) => {
-    try {
-      const deleted = await storage.deleteUserRole(req.params.id);
-      if (!deleted) {
-        return res.status(404).json({ error: "User role not found" });
-      }
-      res.status(204).send();
-    } catch (error) {
-      res.status(500).json({ error: "Failed to delete user role" });
-    }
-  });
-
-  // Users API
+  // User Management API Routes
+  
+  // Get all users
   app.get("/api/users", async (req, res) => {
     try {
-      const users = await storage.getUsers();
-      res.json(users);
+      const allUsers = await db.select().from(users);
+      res.json(allUsers);
     } catch (error) {
+      console.error("Error fetching users:", error);
       res.status(500).json({ error: "Failed to fetch users" });
     }
   });
 
+  // Create new user
   app.post("/api/users", async (req, res) => {
     try {
-      const data = insertUserSchema.parse(req.body);
-      const user = await storage.createUser(data);
-      res.status(201).json(user);
-    } catch (error: any) {
-      console.error("User creation error:", error);
-      res.status(400).json({ error: "Invalid user data", details: error.message });
-    }
-  });
-
-  // Company Settings
-  app.get("/api/company-settings", async (req, res) => {
-    try {
-      const settings = await storage.getCompanySettings();
-      res.json(settings);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to fetch company settings" });
-    }
-  });
-
-  app.put("/api/company-settings", async (req, res) => {
-    try {
-      const data = insertCompanySettingsSchema.parse(req.body);
-      const settings = await storage.updateCompanySettings(data);
-      res.json(settings);
-    } catch (error) {
-      res.status(400).json({ error: "Invalid company settings data" });
-    }
-  });
-
-  // Simple Excel Upload
-  app.post("/api/excel-uploads", upload.single('excelFile'), async (req, res) => {
-    try {
-      if (!req.file) {
-        return res.status(400).json({ error: "No file uploaded" });
-      }
-
-      const workbook = XLSX.read(fs.readFileSync(req.file.path), { 
-        type: 'buffer',
-        cellHTML: true,
-        cellNF: true,
-        cellStyles: true
-      });
+      const { username, password, email, name, role } = req.body;
       
-      const companySettings = await storage.getCompanySettings();
-      let totalImported = 0;
-      let duplicates = 0;
-      const errors: string[] = [];
+      const [newUser] = await db.insert(users).values({
+        username,
+        password,
+        email,
+        name,
+        role
+      }).returning();
       
-      // Get existing tenders for duplicate check
-      const existingTenders = await storage.getTenders();
-
-      // Process each worksheet
-      for (const sheetName of workbook.SheetNames) {
-        const worksheet = workbook.Sheets[sheetName];
-        const processedData = processExcelData(worksheet, sheetName);
-        
-        if (processedData.length === 0) {
-          continue;
-        }
-
-        // Process each tender (filter out null values)
-        const validData = processedData.filter(data => data !== null);
-        for (const tenderData of validData) {
-          try {
-            // Check for duplicates
-            const isDuplicate = existingTenders.some(et => 
-              et.title.toLowerCase() === tenderData.title.toLowerCase() &&
-              et.organization.toLowerCase() === (tenderData.organization || '').toLowerCase()
-            );
-            
-            if (isDuplicate) {
-              duplicates++;
-              continue;
-            }
-            
-            const tender = await storage.createTender({
-              title: tenderData.title,
-              organization: tenderData.organization || 'Unknown Organization',
-              description: `Imported from Excel`,
-              value: Math.round((tenderData.value || 0) * 100),
-              deadline: tenderData.deadline ? new Date(tenderData.deadline) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-              status: 'active',
-              requirements: {
-                turnover: (tenderData.eligibilityTurnover || 0).toString(),
-                location: tenderData.location || '',
-                refId: tenderData.referenceNo || '',
-                link: tenderData.link || '',
-                source: tenderData.source || 'non_gem'
-              },
-              documents: [],
-              bidContent: null,
-              submittedAt: null,
-              source: tenderData.source || 'non_gem'
-            });
-
-            // Calculate AI score if settings exist
-            if (companySettings) {
-              try {
-                const aiScore = await storage.calculateAIMatch(tender, companySettings);
-                await storage.updateTender(tender.id, { aiScore });
-              } catch (aiError) {
-                // Ignore AI scoring errors
-              }
-            }
-
-            totalImported++;
-            existingTenders.push(tender);
-          } catch (error: any) {
-            errors.push(`Error: ${error.message}`);
-          }
-        }
-      }
-
-      res.json({
-        success: true,
-        tendersImported: totalImported,
-        duplicatesSkipped: duplicates,
-        message: `Imported ${totalImported} tenders, skipped ${duplicates} duplicates`
-      });
-
-    } catch (error: any) {
-      console.error("Excel upload error:", error);
-      res.status(500).json({ error: "Failed to process Excel file", details: error.message });
-    }
-  });
-
-  // Enhanced Tenders API with filtering
-  app.get("/api/tenders/filtered", async (req, res) => {
-    try {
-      const { status, search, minMatch, location, organization } = req.query;
-      let tenders = await storage.getTenders();
-
-      // Apply filters
-      if (status && status !== 'all') {
-        tenders = tenders.filter(t => t.status === status);
-      }
-
-      if (search) {
-        const searchLower = (search as string).toLowerCase();
-        tenders = tenders.filter(t => 
-          t.title.toLowerCase().includes(searchLower) ||
-          t.organization.toLowerCase().includes(searchLower) ||
-          (t.description && t.description.toLowerCase().includes(searchLower))
-        );
-      }
-
-      if (minMatch) {
-        const minScore = parseInt(minMatch as string);
-        tenders = tenders.filter(t => (t.aiScore || 0) >= minScore);
-      }
-
-      if (location) {
-        tenders = tenders.filter(t => {
-          const requirements = t.requirements as any;
-          return requirements?.location?.toLowerCase().includes((location as string).toLowerCase());
-        });
-      }
-
-      if (organization) {
-        tenders = tenders.filter(t => 
-          t.organization.toLowerCase().includes((organization as string).toLowerCase())
-        );
-      }
-
-      res.json(tenders);
+      res.status(201).json(newUser);
     } catch (error) {
-      res.status(500).json({ error: "Failed to fetch filtered tenders" });
+      console.error("Error creating user:", error);
+      res.status(500).json({ error: "Failed to create user" });
     }
   });
+
+  // Update user
+  app.put("/api/users/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { username, password, email, name, role } = req.body;
+      
+      const [updatedUser] = await db.update(users)
+        .set({ username, password, email, name, role })
+        .where(eq(users.id, id))
+        .returning();
+      
+      if (!updatedUser) {
+        return res.status(404).json({ error: "User not found" });
+      }
+      
+      res.json(updatedUser);
+    } catch (error) {
+      console.error("Error updating user:", error);
+      res.status(500).json({ error: "Failed to update user" });
+    }
+  });
+
+  // Delete user
+  app.delete("/api/users/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      await db.delete(users).where(eq(users.id, id));
+      
+      res.json({ success: true, message: "User deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting user:", error);
+      res.status(500).json({ error: "Failed to delete user" });
+    }
+  });
+
+  // Get all roles
+  app.get("/api/roles", async (req, res) => {
+    try {
+      const allRoles = await db.select().from(roles);
+      res.json(allRoles);
+    } catch (error) {
+      console.error("Error fetching roles:", error);
+      res.status(500).json({ error: "Failed to fetch roles" });
+    }
+  });
+
+  // Create new role
+  app.post("/api/roles", async (req, res) => {
+    try {
+      const { name, description, permissions } = req.body;
+      
+      const [newRole] = await db.insert(roles).values({
+        name,
+        description,
+        permissions
+      }).returning();
+      
+      res.status(201).json(newRole);
+    } catch (error) {
+      console.error("Error creating role:", error);
+      res.status(500).json({ error: "Failed to create role" });
+    }
+  });
+
+  // Update role
+  app.put("/api/roles/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { name, description, permissions } = req.body;
+      
+      const [updatedRole] = await db.update(roles)
+        .set({ name, description, permissions })
+        .where(eq(roles.id, id))
+        .returning();
+      
+      if (!updatedRole) {
+        return res.status(404).json({ error: "Role not found" });
+      }
+      
+      res.json(updatedRole);
+    } catch (error) {
+      console.error("Error updating role:", error);
+      res.status(500).json({ error: "Failed to update role" });
+    }
+  });
+
+  // Delete role
+  app.delete("/api/roles/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      await db.delete(roles).where(eq(roles.id, id));
+      
+      res.json({ success: true, message: "Role deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting role:", error);
+      res.status(500).json({ error: "Failed to delete role" });
+    }
+  });
+
+  // Get all departments
+  app.get("/api/departments", async (req, res) => {
+    try {
+      const allDepartments = await db.select().from(departments);
+      res.json(allDepartments);
+    } catch (error) {
+      console.error("Error fetching departments:", error);
+      res.status(500).json({ error: "Failed to fetch departments" });
+    }
+  });
+
+  // Create new department
+  app.post("/api/departments", async (req, res) => {
+    try {
+      const { name, description, managerId, budget } = req.body;
+      
+      const [newDepartment] = await db.insert(departments).values({
+        name,
+        description,
+        managerId,
+        budget
+      }).returning();
+      
+      res.status(201).json(newDepartment);
+    } catch (error) {
+      console.error("Error creating department:", error);
+      res.status(500).json({ error: "Failed to create department" });
+    }
+  });
+
+  // Update department
+  app.put("/api/departments/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { name, description, managerId, budget } = req.body;
+      
+      const [updatedDepartment] = await db.update(departments)
+        .set({ name, description, managerId, budget })
+        .where(eq(departments.id, id))
+        .returning();
+      
+      if (!updatedDepartment) {
+        return res.status(404).json({ error: "Department not found" });
+      }
+      
+      res.json(updatedDepartment);
+    } catch (error) {
+      console.error("Error updating department:", error);
+      res.status(500).json({ error: "Failed to update department" });
+    }
+  });
+
+  // Delete department
+  app.delete("/api/departments/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      await db.delete(departments).where(eq(departments.id, id));
+      
+      res.json({ success: true, message: "Department deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting department:", error);
+      res.status(500).json({ error: "Failed to delete department" });
+    }
+  });
+
+  // Get all user roles
+  app.get("/api/user-roles", async (req, res) => {
+    try {
+      const allUserRoles = await db.select().from(userRoles);
+      res.json(allUserRoles);
+    } catch (error) {
+      console.error("Error fetching user roles:", error);
+      res.status(500).json({ error: "Failed to fetch user roles" });
+    }
+  });
+
+  // Create new user role assignment
+  app.post("/api/user-roles", async (req, res) => {
+    try {
+      const { userId, roleId, departmentId, assignedBy } = req.body;
+      
+      const [newUserRole] = await db.insert(userRoles).values({
+        userId,
+        roleId,
+        departmentId,
+        assignedBy
+      }).returning();
+      
+      res.status(201).json(newUserRole);
+    } catch (error) {
+      console.error("Error creating user role:", error);
+      res.status(500).json({ error: "Failed to create user role" });
+    }
+  });
+
+  // Update user role
+  app.put("/api/user-roles/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { userId, roleId, departmentId, assignedBy } = req.body;
+      
+      const [updatedUserRole] = await db.update(userRoles)
+        .set({ userId, roleId, departmentId, assignedBy })
+        .where(eq(userRoles.id, id))
+        .returning();
+      
+      if (!updatedUserRole) {
+        return res.status(404).json({ error: "User role not found" });
+      }
+      
+      res.json(updatedUserRole);
+    } catch (error) {
+      console.error("Error updating user role:", error);
+      res.status(500).json({ error: "Failed to update user role" });
+    }
+  });
+
+  // Delete user role
+  app.delete("/api/user-roles/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      await db.delete(userRoles).where(eq(userRoles.id, id));
+      
+      res.json({ success: true, message: "User role deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting user role:", error);
+      res.status(500).json({ error: "Failed to delete user role" });
+    }
+  });
+
+  // Tender Assignment API Routes
 
   // Assign tender to bidder
   app.post("/api/tenders/:id/assign", async (req, res) => {
     try {
-      const { assignedTo, assignedBy, notes } = req.body;
+      const { id } = req.params;
+      const { bidderId, priority, budget, assignedBy } = req.body;
+
+      // Create tender assignment record using raw SQL to match database structure
+      const assignment = await db.execute(sql`
+        INSERT INTO tender_assignments (id, tender_id, assigned_to, assigned_by, status, assigned_at, budget, notes)
+        VALUES (gen_random_uuid(), ${id}, ${bidderId}, ${assignedBy}, 'assigned', NOW(), ${budget}, ${'Priority: ' + priority})
+        RETURNING *
+      `);
+
+      // Update tender status and assigned_to field using raw SQL
+      await db.execute(sql`
+        UPDATE tenders 
+        SET status = 'assigned', assigned_to = ${bidderId}, updated_at = NOW()
+        WHERE id = ${id}
+      `);
+
+      // Get bidder details first
+      const bidderResult = await db.execute(sql`SELECT name FROM users WHERE id = ${bidderId}`);
+      const bidderName = bidderResult[0]?.name || 'Unknown User';
+
+      // Get assigner details
+      const assignerResult = await db.execute(sql`SELECT name FROM users WHERE id = ${assignedBy}`);
+      const assignerName = assignerResult[0]?.name || 'Unknown User';
       
-      const assignment = await storage.createTenderAssignment({
-        tenderId: req.params.id,
-        assignedTo,
-        assignedBy,
-        notes,
-        status: "assigned",
-        dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
+      // Add detailed activity log using enhanced logging
+      const { ActivityLogger, ACTIVITY_TYPES } = await import('./activity-logging.js');
+      await ActivityLogger.logActivity(
+        id,
+        ACTIVITY_TYPES.TENDER_ASSIGNED,
+        'Tender assignment',
+        assignerName,
+        {
+          assignedTo: bidderId,
+          assignedToName: bidderName,
+          priority: priority,
+          budget: budget,
+          assignedBy: assignedBy,
+          assignedByName: assignerName
+        }
+      );
+
+      res.json({
+        success: true,
+        message: `Tender assigned to ${bidderName}`,
+        assignment: assignment[0],
+        bidderName
       });
-      
-      res.status(201).json(assignment);
     } catch (error) {
+      console.error("Error assigning tender:", error);
       res.status(500).json({ error: "Failed to assign tender" });
     }
   });
 
-  // Tender Results Import Routes
-  app.get("/api/tender-results-imports", async (req, res) => {
+  // Get assignments for a specific tender
+  app.get("/api/tenders/:id/assignments", async (req, res) => {
     try {
-      const imports = await storage.getTenderResultsImports();
-      res.json(imports);
+      const { id } = req.params;
+      
+      const assignments = await db.execute(sql`
+        SELECT ta.*, u.name as bidder_name, u.email as bidder_email
+        FROM tender_assignments ta
+        LEFT JOIN users u ON ta.user_id = u.id
+        WHERE ta.tender_id = ${id}
+        ORDER BY ta.created_at DESC
+      `);
+      
+      res.json(assignments);
     } catch (error) {
-      res.status(500).json({ error: "Failed to fetch tender results imports" });
+      console.error("Error fetching tender assignments:", error);
+      res.status(500).json({ error: "Failed to fetch assignments" });
     }
   });
 
-  app.post("/api/tender-results-imports", upload.single('resultsFile'), async (req, res) => {
+  // Get assigned tenders for a specific bidder
+  app.get("/api/users/:userId/assigned-tenders", async (req, res) => {
     try {
-      if (!req.file) {
-        return res.status(400).json({ error: "No file uploaded" });
+      const { userId } = req.params;
+      
+      const assignedTenders = await db.execute(sql`
+        SELECT t.*, u.name as assigned_to_name
+        FROM tenders t
+        LEFT JOIN users u ON t.assigned_to = u.id
+        WHERE t.assigned_to = ${userId} AND t.status = 'assigned'
+        ORDER BY t.updated_at DESC
+      `);
+      
+      res.json(assignedTenders);
+    } catch (error) {
+      console.error("Error fetching assigned tenders:", error);
+      res.status(500).json({ error: "Failed to fetch assigned tenders" });
+    }
+  });
+
+  // Update assignment priority and budget
+  app.put("/api/assignments/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { priority, budget, status } = req.body;
+      
+      const [updatedAssignment] = await db.update(tenderAssignments)
+        .set({ priority, budget, status })
+        .where(eq(tenderAssignments.id, id))
+        .returning();
+      
+      if (!updatedAssignment) {
+        return res.status(404).json({ error: "Assignment not found" });
+      }
+      
+      // Add activity log for assignment update
+      await db.execute(sql`
+        INSERT INTO activity_logs (id, tender_id, activity_type, description, created_by, created_at)
+        VALUES (gen_random_uuid(), ${updatedAssignment.tenderId}, 'assignment_updated', 
+                ${'Assignment updated - Priority: ' + priority + ', Budget: ₹' + (budget || 'Not specified') + ', Status: ' + (status || 'assigned')}, 
+                'System User', NOW())
+      `);
+      
+      res.json(updatedAssignment);
+    } catch (error) {
+      console.error("Error updating assignment:", error);
+      res.status(500).json({ error: "Failed to update assignment" });
+    }
+  });
+
+  // Remove tender assignment
+  app.delete("/api/assignments/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      // Get assignment details before deleting
+      const [assignment] = await db.select().from(tenderAssignments).where(eq(tenderAssignments.id, id));
+      
+      if (!assignment) {
+        return res.status(404).json({ error: "Assignment not found" });
       }
 
-      // Create import record
-      const importRecord = await storage.createTenderResultsImport({
-        fileName: req.file.originalname,
-        filePath: req.file.path,
-        uploadedBy: req.body.uploadedBy || "admin",
-        status: "processing",
-      });
-
-      // Process Excel file for results
-      try {
-        const workbook = XLSX.read(fs.readFileSync(req.file.path), { type: 'buffer' });
-        const companySettings = await storage.getCompanySettings();
-        const assignments = await storage.getTenderAssignments();
-        
-        let totalResultsProcessed = 0;
-
-        // Process each worksheet
-        for (const sheetName of workbook.SheetNames) {
-          const worksheet = workbook.Sheets[sheetName];
-          const data = XLSX.utils.sheet_to_json(worksheet);
-          
-          // Skip if no data
-          if (!data || data.length === 0) continue;
-          
-          // Handle special format where headers are in first row
-          let actualData = data;
-          let columnMapping: any = {};
-          
-          // Check if first row contains header names
-          const firstRow = data[0] as any;
-          const firstRowValues = Object.values(firstRow);
-          if (firstRowValues.some((val: any) => 
-            typeof val === 'string' && 
-            (val.includes('ID') || val.includes('REFERENCE') || val.includes('Winner') || val.includes('Contract'))
-          )) {
-            // First row contains headers, create mapping
-            const headers = Object.keys(firstRow);
-            headers.forEach((key) => {
-              columnMapping[key] = firstRow[key];
-            });
-            // Skip first row for actual data
-            actualData = data.slice(1);
-          }
-          
-          // Process each row as a tender result
-          for (const row of actualData) {
-            try {
-              const r = row as any; // Type assertion for Excel data
-              
-              // Be more flexible with column names
-              const getField = (fieldNames: string[]) => {
-                // First try direct field names
-                for (const name of fieldNames) {
-                  if (r[name] !== undefined && r[name] !== null && r[name] !== '') {
-                    return r[name];
-                  }
-                }
-                
-                // Then try mapped columns (__EMPTY, __EMPTY_1, etc)
-                if (Object.keys(columnMapping).length > 0) {
-                  for (const [key, mappedName] of Object.entries(columnMapping)) {
-                    if (typeof mappedName === 'string') {
-                      for (const name of fieldNames) {
-                        if (mappedName.toLowerCase().includes(name.toLowerCase()) && 
-                            r[key] !== undefined && r[key] !== null && r[key] !== '') {
-                          return r[key];
-                        }
-                      }
-                    }
-                  }
-                }
-                
-                return "";
-              };
-              
-              const tenderTitle = getField(['Title', 'Tender Title', 'Work Description', 'Work Name', 'Brief Description', 'TENDER RESULT BRIEF', 'Result Brief']);
-              
-              // First try to get link from dedicated Link column
-              let extractedLink = getField(['Link', 'URL', 'Tender Link', 'Website', 'LINK']);
-              
-              // If no dedicated link column, extract link from tender title if it contains a URL
-              if (!extractedLink) {
-                const urlRegex = /(https?:\/\/[^\s]+)/g;
-                const urlMatch = tenderTitle.match(urlRegex);
-                if (urlMatch && urlMatch.length > 0) {
-                  extractedLink = urlMatch[0];
-                }
-              }
-              
-              if (extractedLink) {
-                console.log(`Found link for tender: ${extractedLink}`);
-              }
-              const organization = getField(['Organization', 'Dept', 'Department', 'Ministry', 'Company', 'Ownership']);
-              // Get reference number from column C specifically
-              // In Excel data, column C might be labeled as __EMPTY_1 (since A=__EMPTY, B=__EMPTY_1, C=__EMPTY_2)
-              let referenceNo = "";
-              
-              // Try all possible keys for column C
-              const possibleKeys = Object.keys(r);
-              
-              // First check if we have direct column access
-              if (r['TENDER REFERENCE NO'] !== undefined && r['TENDER REFERENCE NO'] !== null) {
-                referenceNo = String(r['TENDER REFERENCE NO']).trim();
-              } else if (r['__EMPTY_1'] !== undefined && r['__EMPTY_1'] !== null && r['__EMPTY_1'] !== '') {
-                // Column C is often __EMPTY_1 (A=no label, B=__EMPTY, C=__EMPTY_1)
-                referenceNo = String(r['__EMPTY_1']).trim();
-              } else if (r['C'] !== undefined && r['C'] !== null && r['C'] !== '') {
-                referenceNo = String(r['C']).trim();
-              } else {
-                // Try other field names as fallback
-                referenceNo = getField(['Reference No', 'Ref No', 'ID', 'TR247 ID', 'T247 ID', 'Tender ID', 'Reference']);
-              }
-              
-              console.log(`Processing row - Reference No: ${referenceNo}`);
-              const location = getField(['Location', 'City', 'State', 'Region', 'LOCATION']);
-              const department = getField(['Department', 'Dept', 'Division', 'Unit', 'Department']);
-              const awardedTo = getField(['Awarded To', 'Winner', 'Selected Company', 'L1 Bidder', 'Contract Awarded To', 'Winner bidder']);
-              const contractValueStr = getField(['Contract Value', 'Awarded Value', 'Winning Amount', 'Final Value', 'L1 Amount']);
-              const contractValue = parseFloat(contractValueStr.toString().replace(/[^0-9.-]/g, '') || "0") * 100; // Convert to cents
-              const awardedValue = contractValue; // same as contract value
-              const estimatedValueStr = getField(['Estimated Value', 'Tender Value', 'EMD', 'Budget']);
-              const estimatedValue = parseFloat(estimatedValueStr.toString().replace(/[^0-9.-]/g, '') || "0") * 100; // Convert to cents
-              const marginalDifference = contractValue && estimatedValue ? contractValue - estimatedValue : null;
-              const tenderStage = getField(['Tender Stage', 'Stage', 'Status', 'Phase']);
-              const participatorBiddersStr = getField(['Participator Bidders', 'Bidders', 'Participants', 'Companies', 'Participator Bidders']);
-              const participatorBidders = participatorBiddersStr ? 
-                participatorBiddersStr.split(/[,;]/).map((b: string) => b.trim()).filter((b: string) => b) : [];
-              const resultDateStr = getField(['Result Date', 'Award Date', 'Date of Award', 'Contract Date', 'Last Updated on', 'End Submission date']);
-              const resultDate = resultDateStr ? new Date(resultDateStr) : new Date();
-              
-              // Find if this tender was assigned to any of our bidders
-              const assignment = assignments.find(a => 
-                a.notes?.toLowerCase().includes(tenderTitle.toLowerCase()) ||
-                a.notes?.toLowerCase().includes(referenceNo.toLowerCase())
-              );
-
-              let status = "missed_opportunity";
-              let assignedTo = null;
-              let missedReason = "Not assigned to any bidder";
-              let companyEligible = true;
-
-              // Check company eligibility if we have settings
-              if (companySettings) {
-                const mockTender = {
-                  requirements: {
-                    turnover: r['Turnover Requirement'] || r['Eligibility'] || "",
-                  }
-                };
-                const aiScore = await storage.calculateAIMatch(mockTender as any, companySettings);
-                companyEligible = aiScore >= 60; // Eligible if 60%+ match
-                
-                if (!companyEligible) {
-                  missedReason = "Did not meet company eligibility criteria";
-                }
-              }
-
-              // Check for Appentus wins and participation
-              const isAppentusWinner = awardedTo.toLowerCase().includes("appentus");
-              const isAppentusParticipant = participatorBidders.some(
-                b => b.toLowerCase().includes("appentus")
-              );
-              
-              if (isAppentusWinner) {
-                status = "won";
-                assignedTo = "Appentus";
-              } else if (isAppentusParticipant) {
-                status = "lost";
-                assignedTo = "Appentus";
-              } else if (assignment) {
-                assignedTo = assignment.assignedTo;
-                const ourCompanyName = companySettings?.companyName || "Appentus";
-                
-                if (awardedTo.toLowerCase().includes(ourCompanyName.toLowerCase())) {
-                  status = "won";
-                } else if (r['Status']?.toLowerCase().includes('reject')) {
-                  status = "rejected";
-                } else {
-                  status = "lost";
-                }
-              }
-
-              // Skip if no title (empty row)
-              if (!tenderTitle) {
-                continue;
-              }
-              
-              const tenderValueStr = getField(['Tender Value', 'EMD', 'Estimated Value', 'Tender Amount']);
-              const ourBidValueStr = getField(['Our Bid', 'Our Amount', 'Our Quote', 'Bid Value']);
-              
-              // Generate AI analysis for Appentus tenders
-              let aiNotes = "";
-              if (isAppentusWinner) {
-                aiNotes = "✅ APPENTUS WON: Successfully secured this tender. ";
-                if (contractValue && estimatedValue) {
-                  const savingsPercent = ((estimatedValue - contractValue) / estimatedValue * 100).toFixed(1);
-                  aiNotes += `Winning bid was ${savingsPercent}% below estimated value. `;
-                }
-                aiNotes += "Key success factors: competitive pricing, strong technical proposal, established reputation.";
-              } else if (isAppentusParticipant) {
-                aiNotes = "⚠️ APPENTUS PARTICIPATED BUT LOST: ";
-                if (awardedTo) {
-                  aiNotes += `Lost to ${awardedTo}. `;
-                }
-                aiNotes += "Recommendations: Review pricing strategy, enhance technical proposal, strengthen relationships with client.";
-              } else {
-                aiNotes = "❌ APPENTUS DID NOT PARTICIPATE: ";
-                if (!companyEligible) {
-                  aiNotes += "Did not meet eligibility criteria. ";
-                } else {
-                  aiNotes += "Potential opportunity missed. ";
-                }
-                aiNotes += "Consider for future similar tenders.";
-              }
-              
-              await storage.createEnhancedTenderResult({
-                tenderTitle,
-                organization,
-                referenceNo,
-                location: location || null,
-                department: department || null,
-                tenderValue: estimatedValue,
-                contractValue: contractValue,
-                marginalDifference: marginalDifference,
-                tenderStage: tenderStage || null,
-                ourBidValue: isAppentusParticipant ? (parseFloat(ourBidValueStr.toString().replace(/[^0-9.-]/g, '') || "0") * 100 || estimatedValue) : null,
-                status,
-                awardedTo,
-                awardedValue,
-                participatorBidders: participatorBidders.length > 0 ? participatorBidders : null,
-                resultDate: resultDate instanceof Date && !isNaN(resultDate.getTime()) ? resultDate : new Date(),
-                assignedTo: isAppentusWinner || isAppentusParticipant ? "Appentus" : assignedTo,
-                reasonForLoss: isAppentusParticipant && !isAppentusWinner ? "Lost to competitor" : getField(['Reason', 'Comments', 'Remarks', 'Loss Reason']) || null,
-                missedReason: status === "missed_opportunity" ? missedReason : null,
-                companyEligible,
-                aiMatchScore: isAppentusWinner ? 100 : (isAppentusParticipant ? 85 : (companyEligible ? 70 : 30)),
-                notes: aiNotes || getField(['Notes', 'Remarks', 'Comments']) || null,
-                link: extractedLink,
-              });
-
-              totalResultsProcessed++;
-            } catch (error: any) {
-              console.log(`Error processing result row in ${sheetName}:`, error.message);
-            }
-          }
-        }
-
-        // Update import record
-        await storage.updateTenderResultsImport(importRecord.id, {
-          status: "completed",
-          resultsProcessed: totalResultsProcessed,
-        });
-
-        // Send response immediately to avoid timeout
-        res.json({
-          ...importRecord,
-          resultsProcessed: totalResultsProcessed,
-          status: "completed",
-          message: `Successfully imported ${totalResultsProcessed} tender results`
-        });
-
-      } catch (error: any) {
-        await storage.updateTenderResultsImport(importRecord.id, {
-          status: "failed",
-          errorLog: error.message,
-        });
-        
-        res.status(500).json({ error: "Failed to process results file", details: error.message });
-      }
-
-    } catch (error) {
-      res.status(500).json({ error: "Failed to upload results file" });
-    }
-  });
-
-  // Enhanced Tender Results Routes - Now reading from tender_results with reference numbers
-  app.get("/api/enhanced-tender-results", async (req, res) => {
-    try {
-      // Get actual tender results from database  
-      const results = await db.select().from(tenderResults).limit(500);
+      // Add activity log before removing assignment
+      await db.execute(sql`
+        INSERT INTO activity_logs (id, tender_id, activity_type, description, created_by, created_at)
+        VALUES (gen_random_uuid(), ${assignment.tenderId}, 'assignment_removed', 
+                'Assignment removed and tender returned to active status', 
+                'System User', NOW())
+      `);
       
-      // Transform to match frontend expected format
-      const enhancedResults = results.map(result => {
-        // Parse notes to get reference number and other data
-        let parsedNotes: any = {};
-        try {
-          parsedNotes = JSON.parse(result.notes || '{}');
-        } catch (e) {
-          // If notes aren't JSON, treat as plain text
-        }
-        
-        // Extract reference number from parsed notes
-        const referenceNo = parsedNotes.referenceNo || null;
-        const tenderBrief = parsedNotes.tenderBrief || 'Historical tender result';
-        
-        // Transform competitors array to participator bidders
-        const participatorBidders = result.competitors?.map((c: any) => c.name) || [];
-        
-        // Determine status based on Appentus involvement
-        let status = 'lost';
-        const isAppentusWinner = result.winner.toLowerCase().includes('appentus');
-        const hasAppentusParticipant = result.competitors?.some((c: any) => c.isAppentus);
-        
-        if (isAppentusWinner) {
-          status = 'won';
-        } else if (hasAppentusParticipant) {
-          status = 'lost';
-        }
-        
-        return {
-          id: result.id,
-          tenderTitle: tenderBrief,
-          organization: 'Various', // Default since we don't have org data
-          referenceNo: referenceNo,
-          location: null,
-          department: null,
-          tenderValue: null,
-          contractValue: result.winningAmount,
-          marginalDifference: null,
-          tenderStage: 'AOC',
-          ourBidValue: result.ourBidAmount,
-          status: status,
-          awardedTo: result.winner,
-          awardedValue: result.winningAmount,
-          participatorBidders: participatorBidders,
-          resultDate: result.resultDate,
-          assignedTo: null,
-          reasonForLoss: null,
-          missedReason: null,
-          companyEligible: null,
-          aiMatchScore: null,
-          notes: result.notes,
-          createdAt: result.createdAt,
-          link: null
-        };
-      });
+      // Delete the assignment
+      await db.delete(tenderAssignments).where(eq(tenderAssignments.id, id));
       
-      res.json(enhancedResults);
-    } catch (error: any) {
-      console.error("Error fetching enhanced tender results:", error);
-      res.status(500).json({ error: "Failed to fetch tender results", details: error.message });
-    }
-  });
-
-  app.get("/api/enhanced-tender-results/by-status/:status", async (req, res) => {
-    try {
-      const results = await storage.getResultsByStatus(req.params.status);
-      res.json(results);
+      // Update tender status back to active and remove assignedTo
+      await db.update(tenders)
+        .set({ 
+          status: 'active',
+          assignedTo: null
+        })
+        .where(eq(tenders.id, assignment.tenderId));
+      
+      res.json({ success: true, message: "Assignment removed successfully" });
     } catch (error) {
-      res.status(500).json({ error: "Failed to fetch results by status" });
+      console.error("Error removing assignment:", error);
+      res.status(500).json({ error: "Failed to remove assignment" });
     }
   });
 
-  // Enhanced endpoints for detailed views
-  app.get("/api/tenders/:id/details", async (req, res) => {
+  // Get activity logs for a specific tender
+  app.get("/api/tenders/:id/activity-logs", async (req, res) => {
     try {
-      const tender = await storage.getTenderWithDetails(req.params.id);
-      if (!tender) {
+      const { id } = req.params;
+      
+      const result = await db.execute(sql`
+        SELECT al.*, u.name as created_by_name 
+        FROM activity_logs al
+        LEFT JOIN users u ON al.created_by = u.name OR al.created_by = u.id
+        WHERE al.tender_id = ${id}
+        ORDER BY al.created_at DESC
+      `);
+      
+      res.json(result.rows || []);
+    } catch (error) {
+      console.error("Activity logs fetch error:", error);
+      res.status(500).json({ error: "Failed to fetch activity logs" });
+    }
+  });
+
+  // Get single tender with details
+  app.get("/api/tenders/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      const result = await db.execute(sql`
+        SELECT t.*, u.name as assigned_to_name 
+        FROM tenders t 
+        LEFT JOIN users u ON t.assigned_to = u.id
+        WHERE t.id = ${id}
+      `);
+      
+      if (result.rows.length === 0) {
         return res.status(404).json({ error: "Tender not found" });
       }
+      
+      const tender = {
+        ...result.rows[0],
+        requirements: typeof result.rows[0].requirements === 'string' 
+          ? JSON.parse(result.rows[0].requirements) 
+          : result.rows[0].requirements,
+        assignedToName: result.rows[0].assigned_to_name
+      };
+      
       res.json(tender);
     } catch (error) {
-      res.status(500).json({ error: "Failed to fetch tender details" });
+      console.error("Single tender fetch error:", error);
+      res.status(500).json({ error: "Failed to fetch tender" });
     }
   });
 
-  app.get("/api/users/:id/details", async (req, res) => {
+  // Get assigned tenders by role (for role-based frontend routing)
+  app.get("/api/tenders/assigned/:role", async (req, res) => {
     try {
-      const user = await storage.getUserWithDetails(req.params.id);
-      if (!user) {
-        return res.status(404).json({ error: "User not found" });
+      const { role } = req.params;
+      
+      // Get all users with this role
+      const usersWithRole = await db.execute(sql`
+        SELECT id FROM users WHERE role = ${role}
+      `);
+      
+      if (usersWithRole.length === 0) {
+        return res.json([]);
       }
-      res.json(user);
+      
+      const userIds = usersWithRole.map(user => user.id);
+      const placeholders = userIds.map((_, index) => `$${index + 1}`).join(',');
+      
+      const assignedTenders = await db.execute(sql`
+        SELECT t.*, u.name as assigned_to_name
+        FROM tenders t
+        LEFT JOIN users u ON t.assigned_to = u.id
+        WHERE t.assigned_to = ANY(ARRAY[${sql.join(userIds, sql`, `)}]) 
+        AND t.status = 'assigned'
+        ORDER BY t.updated_at DESC
+      `);
+      
+      res.json(assignedTenders);
     } catch (error) {
-      res.status(500).json({ error: "Failed to fetch user details" });
+      console.error("Error fetching assigned tenders by role:", error);
+      res.status(500).json({ error: "Failed to fetch assigned tenders" });
+    }
+  });
+
+  // Document upload endpoints
+  const documentUpload = multer({
+    dest: 'uploads/documents/',
+    limits: { fileSize: 50 * 1024 * 1024 }, // 50MB limit
+    fileFilter: (req, file, cb) => {
+      const allowedTypes = [
+        'application/pdf',
+        'application/msword',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/vnd.ms-excel',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      ];
+      if (allowedTypes.includes(file.mimetype)) {
+        cb(null, true);
+      } else {
+        cb(new Error('Invalid file type. Only PDF, DOC, DOCX, XLS, XLSX files are allowed.'), false);
+      }
+    }
+  });
+
+  // Upload documents for a tender
+  app.post("/api/tenders/:tenderId/documents", documentUpload.array('documents', 10), async (req, res) => {
+    try {
+      const { tenderId } = req.params;
+      const files = req.files as Express.Multer.File[];
+      
+      if (!files || files.length === 0) {
+        return res.status(400).json({ error: "No files uploaded" });
+      }
+
+      // Verify tender exists
+      const tender = await db.select().from(tenders).where(eq(tenders.id, tenderId)).limit(1);
+      if (tender.length === 0) {
+        return res.status(404).json({ error: "Tender not found" });
+      }
+
+      const uploadedDocs = [];
+      
+      for (const file of files) {
+        const docId = uuidv4();
+        const filename = `${docId}_${file.originalname}`;
+        const filePath = path.join('uploads/documents', filename);
+        
+        // Move file to permanent location
+        await fs.rename(file.path, filePath);
+        
+        // Insert document record
+        const [document] = await db.insert(documents).values({
+          id: docId,
+          tenderId,
+          filename,
+          originalName: file.originalname,
+          mimeType: file.mimetype,
+          size: file.size,
+          uploadedAt: new Date()
+        }).returning();
+        
+        uploadedDocs.push(document);
+      }
+
+      // Log activity
+      const activityDescription = `Documents uploaded: ${files.map(f => f.originalname).join(', ')}`;
+      
+      await db.execute(sql`
+        INSERT INTO activity_logs (id, tender_id, activity_type, description, created_by, created_at)
+        VALUES (${uuidv4()}, ${tenderId}, 'document_uploaded', ${activityDescription}, 'bidder-uuid-003', NOW())
+      `);
+
+      res.json({ 
+        message: "Documents uploaded successfully", 
+        documents: uploadedDocs,
+        count: uploadedDocs.length 
+      });
+    } catch (error) {
+      console.error("Document upload error:", error);
+      res.status(500).json({ error: "Failed to upload documents" });
+    }
+  });
+
+  // Get documents for a tender
+  app.get("/api/tenders/:tenderId/documents", async (req, res) => {
+    try {
+      const { tenderId } = req.params;
+      
+      const tenderDocs = await db.select().from(documents)
+        .where(eq(documents.tenderId, tenderId))
+        .orderBy(desc(documents.uploadedAt));
+      
+      res.json(tenderDocs);
+    } catch (error) {
+      console.error("Error fetching documents:", error);
+      res.status(500).json({ error: "Failed to fetch documents" });
+    }
+  });
+
+  // Download document
+  app.get("/api/documents/:documentId/download", async (req, res) => {
+    try {
+      const { documentId } = req.params;
+      
+      const [document] = await db.select().from(documents)
+        .where(eq(documents.id, documentId))
+        .limit(1);
+      
+      if (!document) {
+        return res.status(404).json({ error: "Document not found" });
+      }
+      
+      const filePath = path.join('uploads/documents', document.filename);
+      
+      // Check if file exists
+      try {
+        await fs.access(filePath);
+      } catch {
+        return res.status(404).json({ error: "File not found on disk" });
+      }
+      
+      res.setHeader('Content-Disposition', `attachment; filename="${document.originalName}"`);
+      res.setHeader('Content-Type', document.mimeType);
+      res.sendFile(path.resolve(filePath));
+    } catch (error) {
+      console.error("Document download error:", error);
+      res.status(500).json({ error: "Failed to download document" });
     }
   });
 
