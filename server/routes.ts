@@ -824,11 +824,11 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
       const { userId } = req.params;
       
       const assignedTenders = await db.execute(sql`
-        SELECT t.*, ta.priority, ta.budget, ta.status as assignment_status, ta.created_at as assigned_at
+        SELECT t.*, u.name as assigned_to_name
         FROM tenders t
-        LEFT JOIN tender_assignments ta ON t.id = ta.tender_id
-        WHERE ta.user_id = ${userId}
-        ORDER BY ta.created_at DESC
+        LEFT JOIN users u ON t.assigned_to = u.id
+        WHERE t.assigned_to = ${userId} AND t.status = 'assigned'
+        ORDER BY t.updated_at DESC
       `);
       
       res.json(assignedTenders);
@@ -954,6 +954,39 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
     } catch (error) {
       console.error("Single tender fetch error:", error);
       res.status(500).json({ error: "Failed to fetch tender" });
+    }
+  });
+
+  // Get assigned tenders by role (for role-based frontend routing)
+  app.get("/api/tenders/assigned/:role", async (req, res) => {
+    try {
+      const { role } = req.params;
+      
+      // Get all users with this role
+      const usersWithRole = await db.execute(sql`
+        SELECT id FROM users WHERE role = ${role}
+      `);
+      
+      if (usersWithRole.length === 0) {
+        return res.json([]);
+      }
+      
+      const userIds = usersWithRole.map(user => user.id);
+      const placeholders = userIds.map((_, index) => `$${index + 1}`).join(',');
+      
+      const assignedTenders = await db.execute(sql`
+        SELECT t.*, u.name as assigned_to_name
+        FROM tenders t
+        LEFT JOIN users u ON t.assigned_to = u.id
+        WHERE t.assigned_to = ANY(ARRAY[${sql.join(userIds, sql`, `)}]) 
+        AND t.status = 'assigned'
+        ORDER BY t.updated_at DESC
+      `);
+      
+      res.json(assignedTenders);
+    } catch (error) {
+      console.error("Error fetching assigned tenders by role:", error);
+      res.status(500).json({ error: "Failed to fetch assigned tenders" });
     }
   });
 

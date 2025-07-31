@@ -62,8 +62,9 @@ export default function AssignedTenders() {
 
   // Fetch assigned tenders for current user
   const { data: assignedTenders = [], isLoading } = useQuery<AssignedTender[]>({
-    queryKey: ["/api/tenders/assigned", user?.username],
-    enabled: !!user?.username,
+    queryKey: ["/api/users", user?.id, "assigned-tenders"],
+    queryFn: () => fetch(`/api/users/${user?.id}/assigned-tenders`).then(res => res.json()),
+    enabled: !!user?.id,
   });
 
   // Format currency
