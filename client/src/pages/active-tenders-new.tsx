@@ -10,6 +10,80 @@ import { FileSpreadsheet, FileText, Target, Building2, DollarSign } from "lucide
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 
+// Upload History Component
+function UploadHistoryComponent() {
+  const { data: uploadHistory = [], isLoading } = useQuery<any[]>({
+    queryKey: ["/api/tender-imports"],
+  });
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Upload History</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="animate-pulse space-y-4">
+            {[1,2,3].map(i => (
+              <div key={i} className="h-16 bg-gray-200 rounded"></div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (uploadHistory.length === 0) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Upload History</CardTitle>
+          <CardDescription>Track your recent Excel uploads and processing status</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="text-center py-8">
+            <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-900">No Upload History</h3>
+            <p className="text-gray-500 mt-1">Upload history will appear here after processing files.</p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Upload History</CardTitle>
+        <CardDescription>Recent Excel file uploads and processing results</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-4">
+          {uploadHistory.map((upload, index) => (
+            <div key={index} className="flex items-center justify-between p-4 border rounded-lg">
+              <div className="flex items-center gap-4">
+                <FileSpreadsheet className="h-8 w-8 text-blue-500" />
+                <div>
+                  <p className="font-medium">{upload.fileName}</p>
+                  <p className="text-sm text-gray-500">
+                    {upload.tendersProcessed} processed, {upload.duplicatesSkipped} duplicates
+                  </p>
+                  <p className="text-xs text-gray-400">
+                    {new Date(upload.uploadedAt).toLocaleString()}
+                  </p>
+                </div>
+              </div>
+              <Badge variant={upload.status === 'completed' ? 'default' : 'destructive'}>
+                {upload.status}
+              </Badge>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 interface Tender {
   id: string;
   title: string;
@@ -324,21 +398,7 @@ export default function ActiveTendersPage() {
           </TabsContent>
 
           <TabsContent value="upload-history" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Upload History</CardTitle>
-                <CardDescription>
-                  Track your recent Excel uploads and processing status
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="text-center py-8">
-                  <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-gray-900">Upload History</h3>
-                  <p className="text-gray-500 mt-1">Upload history will be displayed here after processing files.</p>
-                </div>
-              </CardContent>
-            </Card>
+            <UploadHistoryComponent />
           </TabsContent>
         </Tabs>
       </div>

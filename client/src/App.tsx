@@ -15,7 +15,7 @@ import UserManagement from "@/pages/user-management";
 import AdminSettings from "@/pages/admin-settings";
 import ActiveTenders from "@/pages/active-tenders-new";
 import TenderResults from "@/pages/tender-results";
-import TenderDetail from "@/pages/tender-detail";
+import TenderDetail from "@/pages/tender-detail-enhanced";
 import AssignedTenders from "@/pages/assigned-tenders";
 import UploadDemo from "@/pages/upload-demo";
 import Login from "@/pages/login";

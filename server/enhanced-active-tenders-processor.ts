@@ -163,11 +163,16 @@ export async function processActiveTendersWithSubsheets(filePath: string, fileNa
           // For Excel hyperlinks, check if the cell has hyperlink data
           try {
             const cellAddress = worksheet.getCell(i + 1, columnMap.title + 1);
-            if (cellAddress && cellAddress.hyperlink && cellAddress.hyperlink.hyperlink) {
-              tenderLink = cellAddress.hyperlink.hyperlink;
+            if (cellAddress && cellAddress.hyperlink) {
+              if (typeof cellAddress.hyperlink === 'string') {
+                tenderLink = cellAddress.hyperlink;
+              } else if (cellAddress.hyperlink.hyperlink) {
+                tenderLink = cellAddress.hyperlink.hyperlink;
+              }
             }
           } catch (error) {
             // Continue with text-based URL extraction
+            console.log(`Hyperlink extraction error for row ${i + 1}:`, error);
           }
           
           // If no hyperlink, look for URL patterns in the title text
@@ -257,6 +262,17 @@ export async function processActiveTendersWithSubsheets(filePath: string, fileNa
             aiScore = Math.min(85, 50 + (matchingKeywords.length * 10));
           }
           
+          // Check for duplicates using T247 ID
+          const existingTender = await db.execute(sql`
+            SELECT id FROM tenders 
+            WHERE requirements::text LIKE ${'%"t247_id":"' + t247Id + '"%'}
+          `);
+          
+          if (existingTender.rows.length > 0) {
+            totalDuplicates++;
+            continue;
+          }
+          
           // Insert into database
           await db.execute(sql`
             INSERT INTO tenders (
@@ -277,8 +293,11 @@ export async function processActiveTendersWithSubsheets(filePath: string, fileNa
                 msmeExemption: msmeExemption,
                 startupExemption: startupExemption,
                 eligibilityCriteria: eligibilityCriteria,
-                checklist: checklist
-              }])}, ${tenderLink || null}
+                checklist: checklist,
+                documentFees: documentFees,
+                emd: emd,
+                quantity: quantity
+              }])}, ${tenderLink}
             )
           `);
           
