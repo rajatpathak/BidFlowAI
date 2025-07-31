@@ -355,6 +355,28 @@ Project Architecture: Separated frontend (React.js) and backend (Node.js) with M
   - Complete tender detail pages with professional activity timeline
   - All assignment operations show proper usernames instead of user IDs
 
+### Complete Not Relevant Tender Approval Workflow System (July 31, 2025) ✅
+- **Admin Approval Workflow**: Complete not-relevant request system with pending/approved/rejected states
+  - Bidders submit not-relevant requests with detailed reasons and admin approval requirement
+  - Admin interface for reviewing and approving/rejecting requests with optional comments
+  - All actions tracked in activity logs with proper usernames and timestamps
+  - Database schema extended with not_relevant_* columns for complete workflow tracking
+- **Comprehensive User Interface**: 
+  - "Not Relevant Requests" admin page for managing pending approval requests
+  - "Not Relevant Tenders" archive page with search and filtering capabilities
+  - Role-based navigation with admin-only menu items (Shield icon indicators)
+  - Updated routing in App.tsx with proper protected routes for admin functions
+- **Enhanced API Endpoints**: 
+  - POST /api/tenders/:id/not-relevant: Submit not-relevant request (pending approval)
+  - POST /api/tenders/:id/not-relevant/approve: Admin approve/reject with comments
+  - GET /api/admin/not-relevant-requests: Fetch pending requests for admin review
+  - GET /api/tenders/not-relevant: Fetch approved not-relevant tenders archive
+- **Complete Integration**: 
+  - Fixed duplicate API routes causing "Tender Not Found" errors
+  - Activity logging system integrated with not-relevant workflow tracking
+  - Database columns added: not_relevant_reason, not_relevant_requested_by, not_relevant_requested_at, not_relevant_approved_by, not_relevant_approved_at, not_relevant_status
+  - Navigation updated with proper role-based access control and admin-only sections
+
 ### Enhanced Code Quality & Dynamic Backend Integration (July 31, 2025) ✅
 - **Complete Authentication System**: JWT-based authentication with bcrypt password hashing and secure middleware
   - Authentication endpoints: /api/auth/login, /api/auth/logout, /api/auth/user

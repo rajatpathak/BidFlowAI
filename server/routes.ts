@@ -23,6 +23,9 @@ import { v4 as uuidv4 } from 'uuid';
 import { eq, desc, sql, ne } from 'drizzle-orm';
 import { authenticateToken, optionalAuth, requireRole, generateToken, comparePassword, AuthenticatedRequest } from './auth.js';
 import { validateRequest, validateQuery, loginSchema, createTenderSchema, updateTenderSchema, assignTenderSchema } from './validation.js';
+import jwt from 'jsonwebtoken';
+
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
 // Setup multer for file uploads
 const upload = multer({
@@ -384,22 +387,14 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
   });
 
   // Mark tender as not relevant (pending admin approval)
-  app.post("/api/tenders/:id/not-relevant", async (req, res) => {
+  app.post("/api/tenders/:id/not-relevant", authenticateToken, async (req: AuthenticatedRequest, res) => {
     try {
       const { id } = req.params;
       const { reason } = req.body;
-      const token = req.headers.authorization?.replace('Bearer ', '');
       
-      if (!token) {
-        return res.status(401).json({ error: "Authentication required" });
-      }
-
-      // Verify token and get user
-      const decoded = jwt.verify(token, JWT_SECRET) as any;
-      const [user] = await db.execute(sql`SELECT * FROM users WHERE id = ${decoded.userId}`);
-      
+      const user = req.user;
       if (!user) {
-        return res.status(401).json({ error: "Invalid user" });
+        return res.status(401).json({ error: "Authentication required" });
       }
       
       // Update tender with not relevant request (pending approval)
@@ -427,22 +422,14 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
   });
 
   // Admin approve/reject not relevant request
-  app.post("/api/tenders/:id/not-relevant/approve", async (req, res) => {
+  app.post("/api/tenders/:id/not-relevant/approve", authenticateToken, requireRole('admin'), async (req: AuthenticatedRequest, res) => {
     try {
       const { id } = req.params;
       const { action, comments } = req.body; // action: 'approve' or 'reject'
-      const token = req.headers.authorization?.replace('Bearer ', '');
       
-      if (!token) {
+      const user = req.user;
+      if (!user) {
         return res.status(401).json({ error: "Authentication required" });
-      }
-
-      // Verify token and get user
-      const decoded = jwt.verify(token, JWT_SECRET) as any;
-      const [user] = await db.execute(sql`SELECT * FROM users WHERE id = ${decoded.userId}`);
-      
-      if (!user || user.role !== 'admin') {
-        return res.status(403).json({ error: "Only admins can approve/reject not relevant requests" });
       }
 
       // Get tender details
@@ -493,21 +480,8 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
   });
 
   // Get pending not relevant requests (for admin)
-  app.get("/api/admin/not-relevant-requests", async (req, res) => {
+  app.get("/api/admin/not-relevant-requests", authenticateToken, requireRole('admin'), async (req: AuthenticatedRequest, res) => {
     try {
-      const token = req.headers.authorization?.replace('Bearer ', '');
-      
-      if (!token) {
-        return res.status(401).json({ error: "Authentication required" });
-      }
-
-      // Verify token and get user
-      const decoded = jwt.verify(token, JWT_SECRET) as any;
-      const [user] = await db.execute(sql`SELECT * FROM users WHERE id = ${decoded.userId}`);
-      
-      if (!user || user.role !== 'admin') {
-        return res.status(403).json({ error: "Only admins can view not relevant requests" });
-      }
 
       const requests = await db.execute(sql`
         SELECT 
@@ -716,18 +690,7 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
     }
   });
 
-  // Get single tender
-  app.get("/api/tenders/:id", async (req, res) => {
-    try {
-      const [tender] = await db.select().from(tenders).where(eq(tenders.id, req.params.id)).limit(1);
-      if (!tender) {
-        return res.status(404).json({ error: "Tender not found" });
-      }
-      res.json(tender);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to fetch tender" });
-    }
-  });
+
 
   // Assign tender to bidder
   app.post("/api/tenders/:id/assign", async (req, res) => {
