@@ -12,10 +12,11 @@ export async function processMissedOpportunities() {
     console.log("🔍 Checking for missed opportunities...");
     
     // Find tenders that have passed deadline and are not assigned
+    // Only consider tenders with deadlines before today (not including today)
     const expiredTenders = await db.execute(sql`
       SELECT id, title, organization, deadline, status
       FROM tenders 
-      WHERE deadline < NOW() 
+      WHERE deadline < CURRENT_DATE 
       AND (assigned_to IS NULL OR assigned_to = '')
       AND status = 'active'
     `);
@@ -28,7 +29,7 @@ export async function processMissedOpportunities() {
         UPDATE tenders 
         SET status = 'missed_opportunity',
             updated_at = NOW()
-        WHERE deadline < NOW() 
+        WHERE deadline < CURRENT_DATE 
         AND (assigned_to IS NULL OR assigned_to = '')
         AND status = 'active'
       `);
@@ -38,9 +39,11 @@ export async function processMissedOpportunities() {
       // Log activity for each missed opportunity
       for (const tender of expiredTenders) {
         await db.execute(sql`
-          INSERT INTO activity_logs (tender_id, action, details, created_at)
+          INSERT INTO activity_logs (tender_id, activity_type, description, action, details, created_at)
           VALUES (
             ${tender.id},
+            'status_change',
+            ${`Tender moved to missed opportunity - deadline ${tender.deadline} expired`},
             'missed_opportunity',
             ${JSON.stringify({
               reason: 'deadline_expired',

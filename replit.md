@@ -292,6 +292,23 @@ Project Architecture: Separated frontend (React.js) and backend (Node.js) with M
   - Real-time progress shows "duplicates/updates" instead of just "duplicates"
 - **Production Ready**: Enhanced duplicate prevention with complete audit trail for all tender modifications
 
+### Smart Missed Opportunities Management System (July 31, 2025) ✅
+- **Intelligent Deadline Processing**: Fixed date logic to use CURRENT_DATE instead of NOW() for accurate deadline checking
+  - Correctly identifies 923 actually expired tenders (before July 31st, 2025)
+  - August 1st, 2025 deadlines properly excluded as they haven't expired yet
+  - Manual processing endpoint: POST /api/process-missed-opportunities
+- **Auto-Trigger During Excel Upload**: 
+  - Automatically checks for missed opportunities during non-corrigendum uploads
+  - Only processes tenders without recent corrigendum updates (Reference ID or T247 ID based)
+  - Smart detection of corrigendum uploads vs regular updates
+  - Activity logging with detailed audit trail for auto-processed missed opportunities
+- **Complete Missed Opportunities UI**: 
+  - Dedicated page with search, filtering, and statistics dashboard
+  - Professional table view showing days missed, total value, and average value calculations
+  - Navigation integration with AlertTriangle icon in sidebar
+  - Real-time processing capabilities with visual feedback
+- **Database Status**: 406 active tenders, 923 missed opportunities, 1,278 future deadlines, 2,201 total unique tenders
+
 ### Excel Upload Functionality for Active Tenders Complete (July 30, 2025) ✅
 - **Multi-Sheet Excel Processing**: Enhanced system supporting Non-GeM and GeM subsheets
   - Successfully processes 1,235+ tenders from 2 subsheets simultaneously

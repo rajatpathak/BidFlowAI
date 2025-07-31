@@ -144,7 +144,14 @@ export async function processSimpleExcelUpload(
             // If existing tender found, UPDATE instead of INSERT
             if (existingTender) {
               let hasChanges = false;
-              // Check each field for changes and update if needed
+              let isCorrigendum = false;
+              
+              // Check if this is a corrigendum (amendment/update)
+              if (title.toLowerCase().includes('corrigendum') || 
+                  title.toLowerCase().includes('amendment') || 
+                  title.toLowerCase().includes('addendum')) {
+                isCorrigendum = true;
+              }
               
               // Check each field for changes
               if (existingTender.title !== title) {
@@ -171,7 +178,7 @@ export async function processSimpleExcelUpload(
                   // Log the update with before/after values
                   const updateLog = {
                     tenderId: existingTender.id,
-                    action: 'updated',
+                    action: isCorrigendum ? 'corrigendum_update' : 'updated',
                     before: {
                       title: existingTender.title,
                       organization: existingTender.organization,
@@ -187,6 +194,7 @@ export async function processSimpleExcelUpload(
                       link: link
                     },
                     source: 'excel_upload',
+                    isCorrigendum: isCorrigendum,
                     timestamp: new Date().toISOString()
                   };
 
@@ -208,8 +216,15 @@ export async function processSimpleExcelUpload(
 
                   // Insert activity log
                   await db.execute(sql`
-                    INSERT INTO activity_logs (tender_id, action, details, created_at)
-                    VALUES (${existingTender.id}, 'tender_updated', ${JSON.stringify(updateLog)}, NOW())
+                    INSERT INTO activity_logs (tender_id, activity_type, description, action, details, created_at)
+                    VALUES (
+                      ${existingTender.id}, 
+                      'tender_update',
+                      ${`Tender updated via Excel upload${isCorrigendum ? ' (Corrigendum)' : ''}`},
+                      'tender_updated', 
+                      ${JSON.stringify(updateLog)}, 
+                      NOW()
+                    )
                   `);
 
                   console.log(`Updated existing tender: ${title.substring(0, 50)}... (logged changes)`);
@@ -219,6 +234,52 @@ export async function processSimpleExcelUpload(
                 }
               } else {
                 console.log(`No changes detected for: ${title.substring(0, 50)}...`);
+                
+                // If no corrigendum and no changes, this tender should be checked for missed opportunity
+                if (!isCorrigendum && existingTender.status === 'active') {
+                  console.log(`📅 Non-corrigendum upload: checking if tender ${existingTender.id} should be missed opportunity`);
+                  
+                  // Check if deadline has passed for this specific tender
+                  const currentDate = new Date();
+                  currentDate.setHours(0, 0, 0, 0); // Start of today
+                  const tenderDeadline = new Date(existingTender.deadline as string);
+                  tenderDeadline.setHours(0, 0, 0, 0); // Start of deadline date
+                  
+                  if (tenderDeadline < currentDate && !existingTender.assigned_to) {
+                    try {
+                      await db.execute(sql`
+                        UPDATE tenders 
+                        SET status = 'missed_opportunity',
+                            updated_at = NOW()
+                        WHERE id = ${existingTender.id}
+                      `);
+                      
+                      // Log the missed opportunity
+                      await db.execute(sql`
+                        INSERT INTO activity_logs (tender_id, activity_type, description, action, details, created_at)
+                        VALUES (
+                          ${existingTender.id},
+                          'status_change',
+                          ${'Auto-moved to missed opportunity via non-corrigendum upload trigger'},
+                          'auto_missed_opportunity',
+                          ${JSON.stringify({
+                            reason: 'non_corrigendum_upload_trigger',
+                            deadline: existingTender.deadline,
+                            triggered_by: 'excel_upload',
+                            reference: reference,
+                            t247_id: t247Id,
+                            source: 'automated_check'
+                          })},
+                          NOW()
+                        )
+                      `);
+                      
+                      console.log(`🚫 Auto-moved tender ${existingTender.id} to missed opportunity (deadline: ${tenderDeadline.toDateString()})`);
+                    } catch (error) {
+                      console.error('Error auto-processing missed opportunity:', error);
+                    }
+                  }
+                }
               }
               
               duplicates++;
