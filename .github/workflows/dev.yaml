@@ -6,6 +6,8 @@ on:
       - production
 env:
   KEY_NAME: "BidFlowAI" 
+  FILE_PATH: "BidFlowAI" 
+  
 
 jobs:
   build:
