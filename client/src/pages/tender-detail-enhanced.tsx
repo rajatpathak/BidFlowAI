@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { useState } from "react";
@@ -25,7 +26,9 @@ import {
   Info,
   PlayCircle,
   AlertTriangle,
-  Upload
+  Upload,
+  Download,
+  File
 } from "lucide-react";
 
 interface TenderDetail {
@@ -76,6 +79,12 @@ export default function TenderDetailEnhancedPage() {
     enabled: !!params?.id,
   });
 
+  // Fetch uploaded documents
+  const { data: documents = [] } = useQuery({
+    queryKey: [`/api/tenders/${params?.id}/documents`],
+    enabled: !!params?.id,
+  });
+
   // Start bidding mutation
   const startBiddingMutation = useMutation({
     mutationFn: async (data: { tenderId: string; files: FileList }) => {
@@ -103,6 +112,7 @@ export default function TenderDetailEnhancedPage() {
       setShowBiddingDialog(false);
       setSelectedFiles(null);
       queryClient.invalidateQueries({ queryKey: [`/api/tenders/${params?.id}`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/tenders/${params?.id}/documents`] });
     },
     onError: (error: any) => {
       toast({
@@ -347,7 +357,17 @@ export default function TenderDetailEnhancedPage() {
           </CardContent>
         </Card>
 
-        {/* Comprehensive Details Grid */}
+        {/* Tabbed Content */}
+        <Tabs defaultValue="details" className="w-full">
+          <TabsList className="grid w-full grid-cols-4">
+            <TabsTrigger value="details">Details</TabsTrigger>
+            <TabsTrigger value="documents">Uploaded Documents</TabsTrigger>
+            <TabsTrigger value="activity">Activity Logs</TabsTrigger>
+            <TabsTrigger value="prepared">Prepared Documents</TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="details" className="space-y-6 mt-6">
+            {/* Comprehensive Details Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Reference Information */}
           <Card>
@@ -507,8 +527,73 @@ export default function TenderDetailEnhancedPage() {
           </Card>
         </div>
 
-        {/* Activity Logs */}
-        <ActivityLogsSection tenderId={tender.id} />
+          </TabsContent>
+          
+          <TabsContent value="documents" className="space-y-6 mt-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <File className="h-5 w-5" />
+                  Uploaded Documents
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {documents.length > 0 ? (
+                  <div className="space-y-3">
+                    {documents.map((doc: any, index: number) => (
+                      <div key={index} className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50">
+                        <div className="flex items-center gap-3">
+                          <File className="h-5 w-5 text-blue-600" />
+                          <div>
+                            <p className="font-medium">{doc.originalName || doc.filename}</p>
+                            <p className="text-sm text-gray-500">
+                              {doc.size ? `${(doc.size / 1024 / 1024).toFixed(2)} MB` : 'Unknown size'} • 
+                              Uploaded {doc.uploadedAt ? new Date(doc.uploadedAt).toLocaleDateString() : 'Recently'}
+                            </p>
+                          </div>
+                        </div>
+                        <Button variant="outline" size="sm" asChild>
+                          <a href={`/api/documents/${doc.id}/download`} target="_blank" rel="noopener noreferrer">
+                            <Download className="h-4 w-4 mr-2" />
+                            Download
+                          </a>
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-gray-500">
+                    <File className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                    <p>No documents uploaded yet</p>
+                    <p className="text-sm">Use the "Start Bidding" button to upload RFP documents</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+          
+          <TabsContent value="activity" className="space-y-6 mt-6">
+            <ActivityLogsSection tenderId={tender.id} />
+          </TabsContent>
+          
+          <TabsContent value="prepared" className="space-y-6 mt-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <FileText className="h-5 w-5" />
+                  Prepared Documents
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-center py-8 text-gray-500">
+                  <FileText className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                  <p>No prepared documents yet</p>
+                  <p className="text-sm">Documents prepared for this tender will appear here</p>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
 
         {/* Start Bidding Dialog */}
         <Dialog open={showBiddingDialog} onOpenChange={setShowBiddingDialog}>
