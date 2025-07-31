@@ -1,9 +1,14 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRoute, useLocation } from "wouter";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
+import { useState } from "react";
 import { 
   ArrowLeft, 
   ExternalLink, 
@@ -15,7 +20,9 @@ import {
   Target, 
   CheckCircle,
   XCircle,
-  Info
+  Info,
+  PlayCircle,
+  AlertTriangle
 } from "lucide-react";
 
 interface TenderDetail {
@@ -28,6 +35,8 @@ interface TenderDetail {
   status: string;
   source: string;
   aiScore: number;
+  assignedTo?: string;
+  assignedToName?: string;
   requirements: Array<{
     location: string;
     reference: string;
@@ -50,10 +59,51 @@ interface TenderDetail {
 export default function TenderDetailEnhancedPage() {
   const [, navigate] = useLocation();
   const [match, params] = useRoute("/tender/:id");
+  const [showNotRelevantDialog, setShowNotRelevantDialog] = useState(false);
+  const [notRelevantReason, setNotRelevantReason] = useState("");
+  const { toast } = useToast();
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
   
   const { data: tender, isLoading } = useQuery<TenderDetail>({
     queryKey: [`/api/tenders/${params?.id}`],
     enabled: !!params?.id,
+  });
+
+  // Not relevant submission mutation
+  const notRelevantMutation = useMutation({
+    mutationFn: async (reason: string) => {
+      const response = await fetch(`/api/tenders/${params?.id}/not-relevant`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        },
+        body: JSON.stringify({ reason }),
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to submit not relevant request');
+      }
+      
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Request Submitted",
+        description: "Not relevant request submitted for admin approval.",
+      });
+      setShowNotRelevantDialog(false);
+      setNotRelevantReason("");
+      queryClient.invalidateQueries({ queryKey: [`/api/tenders/${params?.id}`] });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: "Failed to submit not relevant request.",
+        variant: "destructive",
+      });
+    },
   });
 
   if (isLoading) {
@@ -176,6 +226,41 @@ export default function TenderDetailEnhancedPage() {
                     View on Tender Portal
                   </a>
                 </Button>
+              </div>
+            )}
+
+            {/* Action Buttons for Assigned Tenders */}
+            {tender.status === 'assigned' && tender.assignedTo === user?.id && (
+              <div className="mb-6 flex gap-4">
+                <Button 
+                  size="lg" 
+                  onClick={() => navigate(`/create-bid?tenderId=${tender.id}`)}
+                  className="bg-green-600 hover:bg-green-700"
+                >
+                  <PlayCircle className="h-5 w-5 mr-2" />
+                  Start Bidding
+                </Button>
+                <Button 
+                  size="lg" 
+                  variant="outline"
+                  onClick={() => setShowNotRelevantDialog(true)}
+                  className="border-orange-500 text-orange-600 hover:bg-orange-50"
+                >
+                  <AlertTriangle className="h-5 w-5 mr-2" />
+                  Not Relevant
+                </Button>
+              </div>
+            )}
+
+            {/* Assignment Info */}
+            {tender.assignedTo && (
+              <div className="mb-6 p-4 bg-blue-50 rounded-lg">
+                <div className="flex items-center gap-2">
+                  <Target className="h-5 w-5 text-blue-600" />
+                  <span className="font-medium text-blue-900">
+                    Assigned to: {tender.assignedToName || 'Unknown User'}
+                  </span>
+                </div>
               </div>
             )}
           </CardContent>
@@ -343,6 +428,45 @@ export default function TenderDetailEnhancedPage() {
 
         {/* Activity Logs */}
         <ActivityLogsSection tenderId={tender.id} />
+
+        {/* Not Relevant Dialog */}
+        <Dialog open={showNotRelevantDialog} onOpenChange={setShowNotRelevantDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Mark Tender as Not Relevant</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <p className="text-sm text-gray-600">
+                Please provide a reason why this tender is not relevant to our business.
+                This request will be sent to admin for approval.
+              </p>
+              <Textarea
+                placeholder="Enter reason for marking as not relevant..."
+                value={notRelevantReason}
+                onChange={(e) => setNotRelevantReason(e.target.value)}
+                rows={4}
+              />
+            </div>
+            <DialogFooter>
+              <Button 
+                variant="outline" 
+                onClick={() => {
+                  setShowNotRelevantDialog(false);
+                  setNotRelevantReason("");
+                }}
+              >
+                Cancel
+              </Button>
+              <Button 
+                onClick={() => notRelevantMutation.mutate(notRelevantReason)}
+                disabled={!notRelevantReason.trim() || notRelevantMutation.isPending}
+                className="bg-orange-600 hover:bg-orange-700"
+              >
+                {notRelevantMutation.isPending ? "Submitting..." : "Submit Request"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );
