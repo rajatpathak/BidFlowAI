@@ -1,10 +1,18 @@
 import { useParams } from "wouter";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { CalendarDays, ExternalLink, MapPin, Building, User, Clock, Activity } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Progress } from "@/components/ui/progress";
+import { useToast } from "@/hooks/use-toast";
+import { CalendarDays, ExternalLink, MapPin, Building, User, Clock, Activity, FileText, Upload, PlayCircle } from "lucide-react";
 import { format } from "date-fns";
+import { useState } from "react";
+import { apiRequest } from "@/lib/queryClient";
 
 // Helper function to display activity types
 const getActivityTypeDisplay = (activityType: string): string => {
@@ -59,8 +67,23 @@ interface ActivityLog {
   details?: any;
 }
 
+interface TenderDocument {
+  id: string;
+  tenderId: string;
+  filename: string;
+  originalName: string;
+  mimeType: string;
+  size: number;
+  uploadedAt: string;
+}
+
 export default function TenderDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const [showBiddingDialog, setShowBiddingDialog] = useState(false);
+  const [uploadedFiles, setUploadedFiles] = useState<FileList | null>(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   const { data: tender, isLoading: tenderLoading } = useQuery<TenderDetail>({
     queryKey: [`/api/tenders/${id}`],
@@ -71,6 +94,82 @@ export default function TenderDetailPage() {
     queryKey: [`/api/tenders/${id}/activity-logs`],
     enabled: !!id,
   });
+
+  const { data: documents = [], isLoading: documentsLoading } = useQuery<TenderDocument[]>({
+    queryKey: [`/api/tenders/${id}/documents`],
+    enabled: !!id,
+  });
+
+  const uploadDocumentsMutation = useMutation({
+    mutationFn: async (formData: FormData) => {
+      return apiRequest(`/api/tenders/${id}/documents`, {
+        method: 'POST',
+        body: formData,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/tenders/${id}/documents`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/tenders/${id}/activity-logs`] });
+      setShowBiddingDialog(false);
+      setUploadedFiles(null);
+      setUploadProgress(0);
+      toast({
+        title: "Documents Uploaded",
+        description: "RFP documents have been successfully uploaded.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Upload Failed",
+        description: error.message || "Failed to upload documents",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleStartBidding = () => {
+    setShowBiddingDialog(true);
+  };
+
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (files && files.length > 0) {
+      setUploadedFiles(files);
+    }
+  };
+
+  const handleUploadDocuments = async () => {
+    if (!uploadedFiles || uploadedFiles.length === 0) {
+      toast({
+        title: "No Files Selected",
+        description: "Please select at least one RFP document to upload.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const formData = new FormData();
+    Array.from(uploadedFiles).forEach((file) => {
+      formData.append('documents', file);
+    });
+    formData.append('type', 'rfp_document');
+
+    setUploadProgress(10);
+    
+    // Simulate progress
+    const progressInterval = setInterval(() => {
+      setUploadProgress(prev => Math.min(prev + 15, 90));
+    }, 200);
+
+    try {
+      await uploadDocumentsMutation.mutateAsync(formData);
+      clearInterval(progressInterval);
+      setUploadProgress(100);
+    } catch (error) {
+      clearInterval(progressInterval);
+      setUploadProgress(0);
+    }
+  };
 
   if (tenderLoading) {
     return (
@@ -174,16 +273,22 @@ export default function TenderDetailPage() {
                 </div>
               )}
 
-              {tender.link && (
-                <div className="pt-4">
+              <div className="pt-4 flex gap-3">
+                {tender.link && (
                   <Button asChild variant="outline">
                     <a href={tender.link} target="_blank" rel="noopener noreferrer">
                       <ExternalLink className="h-4 w-4 mr-2" />
                       View Tender Portal
                     </a>
                   </Button>
-                </div>
-              )}
+                )}
+                {tender.assignedTo && (
+                  <Button onClick={handleStartBidding} className="bg-green-600 hover:bg-green-700">
+                    <PlayCircle className="h-4 w-4 mr-2" />
+                    Start Bidding
+                  </Button>
+                )}
+              </div>
             </CardContent>
           </Card>
 
@@ -227,15 +332,22 @@ export default function TenderDetailPage() {
           )}
         </div>
 
-        {/* Activity Log Sidebar */}
+        {/* Sidebar with Tabs */}
         <div className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Activity className="h-5 w-5" />
-                Activity Log ({activityLogs.length})
-              </CardTitle>
-            </CardHeader>
+          <Tabs defaultValue="activity" className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="activity">Activity Log</TabsTrigger>
+              <TabsTrigger value="documents">Documents</TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="activity">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Activity className="h-5 w-5" />
+                    Activity Log ({activityLogs.length})
+                  </CardTitle>
+                </CardHeader>
             <CardContent>
               {logsLoading ? (
                 <div className="space-y-3">
@@ -304,8 +416,66 @@ export default function TenderDetailPage() {
                   ))}
                 </div>
               )}
-            </CardContent>
-          </Card>
+                </CardContent>
+              </Card>
+            </TabsContent>
+            
+            <TabsContent value="documents">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <FileText className="h-5 w-5" />
+                    Documents ({documents.length})
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {documentsLoading ? (
+                    <div className="space-y-3">
+                      {[1, 2, 3].map(i => (
+                        <div key={i} className="animate-pulse">
+                          <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
+                          <div className="h-3 bg-gray-200 rounded w-1/2"></div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : documents.length === 0 ? (
+                    <div className="text-center py-8">
+                      <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                      <p className="text-sm text-gray-500">No documents uploaded yet</p>
+                      {tender?.assignedTo && (
+                        <p className="text-xs text-gray-400 mt-1">Click "Start Bidding" to upload RFP documents</p>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {documents.map((doc) => (
+                        <div key={doc.id} className="flex items-center justify-between p-3 border rounded-lg">
+                          <div className="flex items-center gap-3">
+                            <FileText className="h-5 w-5 text-blue-600" />
+                            <div>
+                              <p className="text-sm font-medium">{doc.originalName}</p>
+                              <div className="flex items-center gap-2 text-xs text-gray-500">
+                                <span>{(doc.size / 1024).toFixed(1)} KB</span>
+                                <span>•</span>
+                                <span>{format(new Date(doc.uploadedAt), 'MMM dd, yyyy')}</span>
+                              </div>
+                            </div>
+                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => window.open(`/api/documents/${doc.id}/download`, '_blank')}
+                          >
+                            Download
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
 
           {/* Quick Actions */}
           <Card>
@@ -331,6 +501,85 @@ export default function TenderDetailPage() {
           </Card>
         </div>
       </div>
+
+      {/* Start Bidding Dialog */}
+      <Dialog open={showBiddingDialog} onOpenChange={setShowBiddingDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Upload className="h-5 w-5 text-green-600" />
+              Start Bidding Process
+            </DialogTitle>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div className="text-sm text-gray-600">
+              Upload RFP documents to begin the bidding process for this tender.
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="documents">Select RFP Documents</Label>
+              <Input
+                id="documents"
+                type="file"
+                multiple
+                accept=".pdf,.doc,.docx,.xls,.xlsx"
+                onChange={handleFileSelect}
+                className="cursor-pointer"
+              />
+              <div className="text-xs text-gray-500">
+                Accepted formats: PDF, DOC, DOCX, XLS, XLSX
+              </div>
+            </div>
+
+            {uploadedFiles && uploadedFiles.length > 0 && (
+              <div className="space-y-2">
+                <Label>Selected Files ({uploadedFiles.length})</Label>
+                <div className="max-h-32 overflow-y-auto space-y-1">
+                  {Array.from(uploadedFiles).map((file, index) => (
+                    <div key={index} className="flex items-center gap-2 text-sm text-gray-600 bg-gray-50 p-2 rounded">
+                      <FileText className="h-4 w-4" />
+                      <span className="flex-1 truncate">{file.name}</span>
+                      <span className="text-xs">({(file.size / 1024).toFixed(1)} KB)</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {uploadProgress > 0 && uploadProgress < 100 && (
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span>Uploading documents...</span>
+                  <span>{uploadProgress}%</span>
+                </div>
+                <Progress value={uploadProgress} className="w-full" />
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setShowBiddingDialog(false);
+                setUploadedFiles(null);
+                setUploadProgress(0);
+              }}
+              disabled={uploadDocumentsMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleUploadDocuments}
+              disabled={!uploadedFiles || uploadedFiles.length === 0 || uploadDocumentsMutation.isPending}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              {uploadDocumentsMutation.isPending ? "Uploading..." : "Upload & Start Bidding"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -14,8 +14,12 @@ import {
   users,
   roles,
   departments,
-  userRoles
+  userRoles,
+  documents
 } from '../shared/schema.js';
+import path from 'path';
+import fs from 'fs/promises';
+import { v4 as uuidv4 } from 'uuid';
 import { eq, desc, sql, ne } from 'drizzle-orm';
 
 // Setup multer for file uploads
@@ -987,6 +991,132 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
     } catch (error) {
       console.error("Error fetching assigned tenders by role:", error);
       res.status(500).json({ error: "Failed to fetch assigned tenders" });
+    }
+  });
+
+  // Document upload endpoints
+  const documentUpload = multer({
+    dest: 'uploads/documents/',
+    limits: { fileSize: 50 * 1024 * 1024 }, // 50MB limit
+    fileFilter: (req, file, cb) => {
+      const allowedTypes = [
+        'application/pdf',
+        'application/msword',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/vnd.ms-excel',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      ];
+      if (allowedTypes.includes(file.mimetype)) {
+        cb(null, true);
+      } else {
+        cb(new Error('Invalid file type. Only PDF, DOC, DOCX, XLS, XLSX files are allowed.'), false);
+      }
+    }
+  });
+
+  // Upload documents for a tender
+  app.post("/api/tenders/:tenderId/documents", documentUpload.array('documents', 10), async (req, res) => {
+    try {
+      const { tenderId } = req.params;
+      const files = req.files as Express.Multer.File[];
+      
+      if (!files || files.length === 0) {
+        return res.status(400).json({ error: "No files uploaded" });
+      }
+
+      // Verify tender exists
+      const tender = await db.select().from(tenders).where(eq(tenders.id, tenderId)).limit(1);
+      if (tender.length === 0) {
+        return res.status(404).json({ error: "Tender not found" });
+      }
+
+      const uploadedDocs = [];
+      
+      for (const file of files) {
+        const docId = uuidv4();
+        const filename = `${docId}_${file.originalname}`;
+        const filePath = path.join('uploads/documents', filename);
+        
+        // Move file to permanent location
+        await fs.rename(file.path, filePath);
+        
+        // Insert document record
+        const [document] = await db.insert(documents).values({
+          id: docId,
+          tenderId,
+          filename,
+          originalName: file.originalname,
+          mimeType: file.mimetype,
+          size: file.size,
+          uploadedAt: new Date()
+        }).returning();
+        
+        uploadedDocs.push(document);
+      }
+
+      // Log activity
+      const activityDescription = `Documents uploaded: ${files.map(f => f.originalname).join(', ')}`;
+      
+      await db.execute(sql`
+        INSERT INTO activity_logs (id, tender_id, activity_type, description, created_by, created_at)
+        VALUES (${uuidv4()}, ${tenderId}, 'document_uploaded', ${activityDescription}, 'bidder-uuid-003', NOW())
+      `);
+
+      res.json({ 
+        message: "Documents uploaded successfully", 
+        documents: uploadedDocs,
+        count: uploadedDocs.length 
+      });
+    } catch (error) {
+      console.error("Document upload error:", error);
+      res.status(500).json({ error: "Failed to upload documents" });
+    }
+  });
+
+  // Get documents for a tender
+  app.get("/api/tenders/:tenderId/documents", async (req, res) => {
+    try {
+      const { tenderId } = req.params;
+      
+      const tenderDocs = await db.select().from(documents)
+        .where(eq(documents.tenderId, tenderId))
+        .orderBy(desc(documents.uploadedAt));
+      
+      res.json(tenderDocs);
+    } catch (error) {
+      console.error("Error fetching documents:", error);
+      res.status(500).json({ error: "Failed to fetch documents" });
+    }
+  });
+
+  // Download document
+  app.get("/api/documents/:documentId/download", async (req, res) => {
+    try {
+      const { documentId } = req.params;
+      
+      const [document] = await db.select().from(documents)
+        .where(eq(documents.id, documentId))
+        .limit(1);
+      
+      if (!document) {
+        return res.status(404).json({ error: "Document not found" });
+      }
+      
+      const filePath = path.join('uploads/documents', document.filename);
+      
+      // Check if file exists
+      try {
+        await fs.access(filePath);
+      } catch {
+        return res.status(404).json({ error: "File not found on disk" });
+      }
+      
+      res.setHeader('Content-Disposition', `attachment; filename="${document.originalName}"`);
+      res.setHeader('Content-Type', document.mimeType);
+      res.sendFile(path.resolve(filePath));
+    } catch (error) {
+      console.error("Document download error:", error);
+      res.status(500).json({ error: "Failed to download document" });
     }
   });
 
