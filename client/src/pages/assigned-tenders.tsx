@@ -43,13 +43,21 @@ interface AssignedTender {
   value: number;
   deadline: string;
   location: string;
-  referenceNo: string;
+  referenceNo?: string;
   link?: string;
   aiScore: number;
   status: string;
-  assignedAt: string;
-  assignedBy: string;
-  assignmentNotes?: string;
+  source: string;
+  assignedToName?: string;
+  requirements?: Array<{
+    reference?: string;
+    t247_id?: string;
+    location?: string;
+    msmeExemption?: string;
+    startupExemption?: string;
+  }>;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export default function AssignedTenders() {
@@ -78,13 +86,41 @@ export default function AssignedTenders() {
     }).format(amount);
   };
 
+  // Helper functions
+  const getSourceBadge = (tender: AssignedTender) => {
+    if (tender.source === 'gem') {
+      return <Badge variant="default" className="bg-green-100 text-green-800">GeM</Badge>;
+    } else if (tender.source === 'non_gem') {
+      return <Badge variant="outline" className="border-blue-500 text-blue-700">Non-GeM</Badge>;
+    }
+    return <Badge variant="secondary">Unknown</Badge>;
+  };
+
+  const getCorrigendumBadge = (tender: AssignedTender) => {
+    if (tender.title.toLowerCase().includes('corrigendum') || 
+        tender.title.toLowerCase().includes('amendment') || 
+        tender.title.toLowerCase().includes('addendum')) {
+      return <Badge variant="destructive" className="bg-red-100 text-red-800">Corrigendum</Badge>;
+    }
+    return null;
+  };
+
+  const getReferenceNo = (tender: AssignedTender) => {
+    // Check requirements array first, then fallback to referenceNo field
+    if (tender.requirements && tender.requirements.length > 0) {
+      const ref = tender.requirements[0]?.reference || tender.requirements[0]?.t247_id;
+      if (ref) return ref;
+    }
+    return tender.referenceNo || 'N/A';
+  };
+
   // Filter tenders based on search and status
   const filteredTenders = assignedTenders.filter((tender) => {
     const matchesSearch = !searchQuery || 
       tender.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       tender.organization.toLowerCase().includes(searchQuery.toLowerCase()) ||
       tender.location.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      tender.referenceNo.toLowerCase().includes(searchQuery.toLowerCase());
+      getReferenceNo(tender).toLowerCase().includes(searchQuery.toLowerCase());
     
     const matchesStatus = statusFilter === "all" || tender.status === statusFilter;
     
@@ -227,9 +263,8 @@ export default function AssignedTenders() {
                       <TableHead>Value</TableHead>
                       <TableHead>Deadline</TableHead>
                       <TableHead>Location</TableHead>
+                      <TableHead>Source</TableHead>
                       <TableHead>AI Score</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Assigned By</TableHead>
                       <TableHead>Actions</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -238,89 +273,97 @@ export default function AssignedTenders() {
                       <TableRow key={tender.id}>
                         {/* Tender Details */}
                         <TableCell>
-                          <div className="space-y-1">
-                            <div className="font-medium text-sm">
-                              {tender.title}
+                          <div className="space-y-2">
+                            <div className="font-medium text-sm leading-tight">
+                              {tender.title.length > 80 
+                                ? `${tender.title.substring(0, 80)}...` 
+                                : tender.title}
                             </div>
-                            {tender.referenceNo && (
-                              <Badge variant="outline" className="text-xs font-mono">
-                                {tender.referenceNo}
-                              </Badge>
-                            )}
-                            {tender.assignmentNotes && (
-                              <div className="text-xs text-gray-500 mt-1">
-                                Note: {tender.assignmentNotes}
-                              </div>
-                            )}
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-gray-500">
+                                Ref: {getReferenceNo(tender)}
+                              </span>
+                              {getCorrigendumBadge(tender)}
+                            </div>
                           </div>
                         </TableCell>
                         
                         {/* Organization */}
                         <TableCell>
-                          <div className="flex items-center gap-1 text-sm">
-                            <Building2 className="h-3 w-3 text-gray-400" />
-                            {tender.organization}
+                          <div className="flex items-center gap-2">
+                            <Building2 className="h-4 w-4 text-gray-400" />
+                            <span className="text-sm">
+                              {tender.organization.length > 30 
+                                ? `${tender.organization.substring(0, 30)}...` 
+                                : tender.organization}
+                            </span>
                           </div>
                         </TableCell>
                         
                         {/* Value */}
                         <TableCell>
-                          <div className="text-sm font-medium text-green-600">
-                            {formatCurrency(tender.value)}
+                          <div className="flex items-center gap-2">
+                            <DollarSign className="h-4 w-4 text-gray-400" />
+                            <span className="text-sm font-medium">
+                              {formatCurrency(tender.value)}
+                            </span>
                           </div>
                         </TableCell>
                         
                         {/* Deadline */}
                         <TableCell>
-                          <div className="flex items-center gap-1 text-sm">
-                            <Calendar className="h-3 w-3 text-gray-400" />
-                            {tender.deadline ? new Date(tender.deadline).toLocaleDateString() : "N/A"}
+                          <div className="flex items-center gap-2">
+                            <Calendar className="h-4 w-4 text-gray-400" />
+                            <span className="text-sm">
+                              {new Date(tender.deadline).toLocaleDateString('en-IN')}
+                            </span>
                           </div>
                         </TableCell>
                         
                         {/* Location */}
                         <TableCell>
-                          <div className="text-sm">{tender.location || "N/A"}</div>
+                          <span className="text-sm">{tender.location}</span>
+                        </TableCell>
+                        
+                        {/* Source */}
+                        <TableCell>
+                          {getSourceBadge(tender)}
                         </TableCell>
                         
                         {/* AI Score */}
                         <TableCell>
-                          <Badge 
-                            variant={tender.aiScore >= 70 ? "default" : "secondary"}
-                            className={tender.aiScore >= 70 ? "bg-green-500 text-white" : ""}
-                          >
-                            {tender.aiScore}%
-                          </Badge>
-                        </TableCell>
-                        
-                        {/* Status */}
-                        <TableCell>
-                          <Badge variant="outline">
-                            {tender.status || 'Assigned'}
-                          </Badge>
-                        </TableCell>
-                        
-                        {/* Assigned By */}
-                        <TableCell>
-                          <div className="flex items-center gap-1 text-sm">
-                            <User className="h-3 w-3 text-gray-400" />
-                            {tender.assignedBy || 'Admin'}
+                          <div className="flex items-center gap-2">
+                            <Target className="h-4 w-4 text-gray-400" />
+                            <Badge 
+                              variant={tender.aiScore >= 70 ? "default" : "secondary"}
+                              className={tender.aiScore >= 70 ? "bg-green-100 text-green-800" : ""}
+                            >
+                              {tender.aiScore}% Match
+                            </Badge>
                           </div>
                         </TableCell>
                         
                         {/* Actions */}
                         <TableCell>
                           <div className="flex items-center gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => window.open(`/tender/${tender.id}`, '_blank')}
+                            >
+                              <ExternalLink className="h-4 w-4" />
+                              View
+                            </Button>
                             {tender.link && (
-                              <Button size="sm" variant="outline" asChild>
-                                <a href={tender.link} target="_blank" rel="noopener noreferrer">
-                                  <ExternalLink className="h-3 w-3" />
-                                </a>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => window.open(tender.link, '_blank')}
+                              >
+                                <ExternalLink className="h-4 w-4" />
+                                Link
                               </Button>
                             )}
-                            <Button size="sm" variant="outline">
-                              View Details
-                            </Button>
                           </div>
                         </TableCell>
                       </TableRow>
