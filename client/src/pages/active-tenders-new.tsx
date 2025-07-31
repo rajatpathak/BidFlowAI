@@ -326,7 +326,7 @@ export default function ActiveTendersPage() {
     }
   };
 
-  // Select all / deselect all handler
+  // Select all / deselect all handler for current page
   const handleSelectAll = (tendersList: Tender[]) => {
     const allCurrentSelected = tendersList.every(t => selectedTenders.has(t.id));
     if (allCurrentSelected) {
@@ -338,6 +338,24 @@ export default function ActiveTendersPage() {
       // Select all current page tenders
       const newSelected = new Set(selectedTenders);
       tendersList.forEach(t => newSelected.add(t.id));
+      setSelectedTenders(newSelected);
+    }
+  };
+
+  // Global select all handler - selects ALL tenders across all pages
+  const handleGlobalSelectAll = (source: 'gem' | 'non_gem') => {
+    const relevantTenders = source === 'gem' ? gemTenders : nonGemTenders;
+    const allSelected = relevantTenders.every(t => selectedTenders.has(t.id));
+    
+    if (allSelected) {
+      // Deselect all tenders of this source
+      const newSelected = new Set(selectedTenders);
+      relevantTenders.forEach(t => newSelected.delete(t.id));
+      setSelectedTenders(newSelected);
+    } else {
+      // Select all tenders of this source
+      const newSelected = new Set(selectedTenders);
+      relevantTenders.forEach(t => newSelected.add(t.id));
       setSelectedTenders(newSelected);
     }
   };
@@ -600,9 +618,11 @@ export default function ActiveTendersPage() {
               onMarkNotRelevant={handleMarkNotRelevant}
               onDelete={handleDelete}
               onSelectAll={handleSelectAll}
+              onGlobalSelectAll={handleGlobalSelectAll}
               onDeleteSelected={handleDeleteSelected}
               user={user ? { role: user.role } : undefined}
               source="gem"
+              allTendersCount={gemTenders.length}
             />
           </TabsContent>
 
@@ -618,9 +638,11 @@ export default function ActiveTendersPage() {
               onMarkNotRelevant={handleMarkNotRelevant}
               onDelete={handleDelete}
               onSelectAll={handleSelectAll}
+              onGlobalSelectAll={handleGlobalSelectAll}
               onDeleteSelected={handleDeleteSelected}
               user={user ? { role: user.role } : undefined}
               source="non_gem"
+              allTendersCount={nonGemTenders.length}
             />
           </TabsContent>
 

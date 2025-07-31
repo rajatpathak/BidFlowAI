@@ -50,9 +50,11 @@ interface TenderTableProps {
   onMarkNotRelevant?: (tenderId: string) => void;
   onDelete?: (tenderId: string) => void;
   onSelectAll?: (tenders: Tender[]) => void;
+  onGlobalSelectAll?: (source: 'gem' | 'non_gem') => void;
   onDeleteSelected?: () => void;
   user?: { role: string };
   source: 'gem' | 'non_gem';
+  allTendersCount?: number;
 }
 
 export function TenderTable({
@@ -66,9 +68,11 @@ export function TenderTable({
   onMarkNotRelevant,
   onDelete,
   onSelectAll,
+  onGlobalSelectAll,
   onDeleteSelected,
   user,
-  source
+  source,
+  allTendersCount = 0
 }: TenderTableProps) {
   
   const handleSelectAll = (checked: boolean) => {
@@ -129,23 +133,36 @@ export function TenderTable({
             {source === 'gem' ? 'GeM' : 'Non-GeM'} Tenders ({tenders.length})
           </CardTitle>
           <div className="flex items-center gap-2">
-            {selectedTenders.size > 0 && (
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-600">
-                  {selectedTenders.size} selected
-                </span>
-                {user?.role === 'admin' && onDeleteSelected && (
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={onDeleteSelected}
-                  >
-                    <Trash2 className="h-4 w-4 mr-1" />
-                    Delete Selected
-                  </Button>
-                )}
-              </div>
-            )}
+            <div className="flex items-center gap-2">
+              {onGlobalSelectAll && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onGlobalSelectAll(source)}
+                >
+                  {allTendersCount > 0 && selectedTenders.size === allTendersCount 
+                    ? 'Deselect All' 
+                    : `Select All (${allTendersCount})`}
+                </Button>
+              )}
+              {selectedTenders.size > 0 && (
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-gray-600">
+                    {selectedTenders.size} selected
+                  </span>
+                  {user?.role === 'admin' && onDeleteSelected && (
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={onDeleteSelected}
+                    >
+                      <Trash2 className="h-4 w-4 mr-1" />
+                      Delete Selected
+                    </Button>
+                  )}
+                </div>
+              )}
+            </div>
             <div className="text-sm text-gray-500">
               Page {currentPage} of {totalPages}
             </div>
