@@ -165,7 +165,8 @@ export async function processSimpleExcelUpload(
               nonGemAdded++;
             }
             
-            if (totalProcessed % 50 === 0) {
+            // More frequent progress updates
+            if (totalProcessed % 10 === 0) {
               console.log(`Progress: ${totalProcessed} entries processed, ${duplicates} duplicates skipped...`);
               
               // Call progress callback if provided

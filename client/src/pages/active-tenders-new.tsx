@@ -485,51 +485,56 @@ export default function ActiveTendersPage() {
   // Delete progress state
   const [deleteProgress, setDeleteProgress] = useState({ current: 0, total: 0, isDeleting: false });
 
-  // File upload handler
+  // File upload handler with real-time progress
   const handleFileUpload = async (file: File) => {
     setIsUploading(true);
     setUploadProgress(0);
+    setUploadStats({ processed: 0, duplicates: 0, total: 0, gemAdded: 0, nonGemAdded: 0, errors: 0 });
     
     const formData = new FormData();
     formData.append("file", file);
     formData.append("uploadedBy", user?.username || "admin");
 
     try {
-      // Simulate progress with better logic
-      let progressValue = 0;
-      const progressInterval = setInterval(() => {
-        progressValue += Math.random() * 15 + 5; // Increment by 5-20%
-        if (progressValue > 95) {
-          progressValue = 95; // Cap at 95% until completion
-        }
-        setUploadProgress(progressValue);
-      }, 500);
-
+      // Start the upload request
       const response = await fetch("/api/upload-tenders", {
         method: "POST",
         body: formData,
       });
 
       if (!response.ok) {
-        clearInterval(progressInterval);
         throw new Error("Upload failed");
       }
 
-      setUploadProgress(100);
-      clearInterval(progressInterval);
-      
       const result = await response.json();
+      const sessionId = result.sessionId;
+
+      // Connect to real-time progress stream
+      const eventSource = new EventSource(`/api/upload-progress/${sessionId}`);
       
-      // Update final stats
-      setUploadStats({ 
-        processed: result.tendersProcessed || 0, 
-        duplicates: result.duplicatesSkipped || 0, 
-        total: (result.tendersProcessed || 0) + (result.duplicatesSkipped || 0),
-        gemAdded: result.gemAdded || 0,
-        nonGemAdded: result.nonGemAdded || 0,
-        errors: result.errorsEncountered || 0
-      });
+      eventSource.onmessage = (event) => {
+        const progress = JSON.parse(event.data);
+        setUploadProgress(progress.percentage || 0);
+        setUploadStats({
+          processed: progress.processed || 0,
+          duplicates: progress.duplicates || 0,
+          total: progress.total || 0,
+          gemAdded: progress.gemAdded || 0,
+          nonGemAdded: progress.nonGemAdded || 0,
+          errors: progress.errors || 0
+        });
+
+        // Close connection when completed
+        if (progress.completed || progress.percentage >= 100) {
+          eventSource.close();
+        }
+      };
+
+      eventSource.onerror = () => {
+        eventSource.close();
+      };
       
+      // Final success notification
       toast({
         title: "Upload Successful", 
         description: `${result.gemAdded || 0} GeM + ${result.nonGemAdded || 0} Non-GeM entries added, ${result.duplicatesSkipped || 0} duplicates skipped${result.errorsEncountered ? `, ${result.errorsEncountered} errors` : ''}`,

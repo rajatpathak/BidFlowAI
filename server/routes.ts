@@ -21,14 +21,36 @@ const upload = multer({
 
 export function registerRoutes(app: express.Application, storage: IStorage) {
   
-  // Upload progress tracking
+  // Upload progress tracking with SSE
   const uploadProgress = new Map();
+  const uploadClients = new Map();
 
-  // Get upload progress
+  // Server-sent events for upload progress
   app.get("/api/upload-progress/:sessionId", (req, res) => {
     const sessionId = req.params.sessionId;
-    const progress = uploadProgress.get(sessionId) || { processed: 0, duplicates: 0, total: 0, percentage: 0 };
-    res.json(progress);
+    
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Headers': 'Cache-Control'
+    });
+
+    // Store the client connection
+    uploadClients.set(sessionId, res);
+
+    // Send initial progress
+    const progress = uploadProgress.get(sessionId) || { 
+      processed: 0, duplicates: 0, total: 0, percentage: 0,
+      gemAdded: 0, nonGemAdded: 0, errors: 0 
+    };
+    res.write(`data: ${JSON.stringify(progress)}\n\n`);
+
+    // Clean up on client disconnect
+    req.on('close', () => {
+      uploadClients.delete(sessionId);
+    });
   });
 
   // Upload tenders via Excel file (Active Tenders)
@@ -43,7 +65,10 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
       console.log(`Processing tender upload: ${req.file.originalname} (Session: ${sessionId})`);
 
       // Initialize progress tracking
-      uploadProgress.set(sessionId, { processed: 0, duplicates: 0, total: 0, percentage: 0 });
+      uploadProgress.set(sessionId, { 
+        processed: 0, duplicates: 0, total: 0, percentage: 0,
+        gemAdded: 0, nonGemAdded: 0, errors: 0 
+      });
 
       // Use simple Excel processor with progress callback
       const { processSimpleExcelUpload } = await import('./simple-excel-processor.js');
@@ -53,11 +78,28 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
         uploadedBy,
         (progress) => {
           uploadProgress.set(sessionId, progress);
+          
+          // Send progress to connected clients via SSE
+          const client = uploadClients.get(sessionId);
+          if (client) {
+            client.write(`data: ${JSON.stringify(progress)}\n\n`);
+          }
         }
       );
 
+      // Send final completion and clean up
+      const finalProgress = { ...uploadProgress.get(sessionId), percentage: 100, completed: true };
+      const client = uploadClients.get(sessionId);
+      if (client) {
+        client.write(`data: ${JSON.stringify(finalProgress)}\n\n`);
+        client.end();
+      }
+      
       // Clean up progress tracking
-      setTimeout(() => uploadProgress.delete(sessionId), 30000);
+      setTimeout(() => {
+        uploadProgress.delete(sessionId);
+        uploadClients.delete(sessionId);
+      }, 30000);
 
       if (!result.success) {
         return res.status(500).json({ error: result.error || "Failed to process Excel file" });
@@ -69,6 +111,8 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
         duplicatesSkipped: result.duplicatesSkipped || 0,
         sheetsProcessed: result.sheetsProcessed || 0,
         errorsEncountered: result.errorsEncountered || 0,
+        gemAdded: result.gemAdded || 0,
+        nonGemAdded: result.nonGemAdded || 0,
         sessionId: sessionId
       });
     } catch (error) {
@@ -89,7 +133,7 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
         ORDER BY uploaded_at DESC 
         LIMIT 20
       `);
-      res.json(result.rows || result || []);
+      res.json(result || []);
     } catch (error) {
       console.error("Tender imports fetch error:", error);
       // Return empty array instead of error to prevent frontend breaks
@@ -120,7 +164,7 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
         resultsProcessed: result.resultsProcessed || 0,
         duplicatesSkipped: result.duplicatesSkipped || 0,
         sheetsProcessed: result.sheetsProcessed || 0,
-        appentusCount: result.appentusCount || 0
+        errorsEncountered: result.errorsEncountered || 0
       });
     } catch (error) {
       console.error("Tender results upload error:", error);
@@ -181,7 +225,7 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
     try {
       // Query the database directly using raw SQL since table schema and code don't match
       const result = await db.execute(sql`SELECT * FROM enhanced_tender_results ORDER BY created_at DESC`);
-      res.json(result.rows || []);
+      res.json(result || []);
     } catch (error) {
       console.error("Enhanced tender results fetch error:", error);
       res.status(500).json({ error: "Failed to fetch tender results" });
