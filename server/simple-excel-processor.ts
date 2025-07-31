@@ -99,7 +99,7 @@ export async function processSimpleExcelUpload(filePath: string, fileName: strin
               try {
                 const existingByRef = await db.execute(sql`
                   SELECT id FROM tenders 
-                  WHERE reference_no = ${reference}
+                  WHERE requirements::text LIKE '%' || ${reference} || '%'
                   LIMIT 1
                 `);
                 
