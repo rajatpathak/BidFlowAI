@@ -101,27 +101,11 @@ export async function processSimpleExcelUpload(
               }
             }
             
-            // Enhanced duplicate checking with multiple methods
+            // Strict duplicate detection: Reference No and T247 ID must be unique
             let isDuplicate = false;
             
-            // Method 1: Check by title and organization combination (most reliable)
-            try {
-              const existingByTitleOrg = await db.execute(sql`
-                SELECT id FROM tenders 
-                WHERE title = ${title} AND organization = ${organization}
-                LIMIT 1
-              `);
-              
-              if (existingByTitleOrg.length > 0) {
-                console.log(`Duplicate found (title+org): ${title.substring(0, 50)}...`);
-                isDuplicate = true;
-              }
-            } catch (error) {
-              console.log(`Error checking title+org duplicate:`, error);
-            }
-            
-            // Method 2: T247 ID check (if not already duplicate and ID is valid)
-            if (!isDuplicate && t247Id && t247Id.length >= 6 && /^\d+$/.test(t247Id)) {
+            // Primary check: T247 ID (must be unique if present and valid)
+            if (t247Id && t247Id.trim().length > 0) {
               try {
                 const existingByT247 = await db.execute(sql`
                   SELECT id FROM tenders 
@@ -138,8 +122,8 @@ export async function processSimpleExcelUpload(
               }
             }
             
-            // Method 3: Reference No check (if not already duplicate and reference is substantial)
-            if (!isDuplicate && reference && reference.length > 8 && (reference.includes('/') || reference.includes('GEM'))) {
+            // Secondary check: Reference No (must be unique if present and valid)
+            if (!isDuplicate && reference && reference.trim().length > 0) {
               try {
                 const existingByRef = await db.execute(sql`
                   SELECT id FROM tenders 
