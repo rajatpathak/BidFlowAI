@@ -51,8 +51,8 @@ export default function Sidebar() {
   const { user, logout, hasPermission } = useAuth();
 
   return (
-    <div className="hidden lg:flex lg:flex-shrink-0">
-      <div className="flex flex-col w-64 bg-white border-r border-gray-200">
+    <div className="hidden lg:flex lg:flex-shrink-0" style={{ zIndex: 10 }}>
+      <div className="flex flex-col w-64 bg-white border-r border-gray-200" style={{ pointerEvents: 'auto' }}>
         {/* Logo Header */}
         <div className="flex items-center justify-center h-16 px-4 border-b border-gray-200">
           <div className="flex items-center space-x-2">
@@ -102,11 +102,17 @@ export default function Sidebar() {
                 key={item.name}
                 href={item.href}
                 className={cn(
-                  "flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors",
+                  "flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors cursor-pointer",
+                  "hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-primary",
                   isActive
                     ? "text-white bg-primary"
-                    : "text-gray-700 hover:bg-gray-100"
+                    : "text-gray-700"
                 )}
+                style={{ pointerEvents: 'auto' }}
+                onClick={(e) => {
+                  console.log('Menu item clicked:', item.name, item.href);
+                  // Let wouter handle the navigation
+                }}
               >
                 <Icon className="w-5 h-5 mr-3" />
                 {item.name}

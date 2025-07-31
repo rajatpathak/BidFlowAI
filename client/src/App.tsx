@@ -7,7 +7,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { ErrorBoundary } from "@/components/common/ErrorBoundary";
 import { PageLoader } from "@/components/common/LoadingSpinner";
 import { UploadProvider } from "@/contexts/UploadContext";
-import SimpleSidebar from "@/components/layout/simple-sidebar";
+import Sidebar from "@/components/layout/sidebar";
 import Dashboard from "@/pages/dashboard";
 import CreateBid from "@/pages/create-bid";
 import AIInsights from "@/pages/ai-insights";
@@ -57,7 +57,7 @@ function Router() {
       {/* Protected routes with authenticated layout */}
       <Route>
         <div className="flex h-screen overflow-hidden">
-          <SimpleSidebar />
+          <Sidebar />
           <div className="flex-1 overflow-auto">
             <Switch>
               <Route path="/" component={() => <ProtectedRoute><Dashboard /></ProtectedRoute>} />
