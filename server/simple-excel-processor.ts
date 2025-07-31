@@ -97,15 +97,15 @@ export async function processSimpleExcelUpload(
               }
             }
             
-            // Check for duplicates using both T247 ID and Reference No
+            // More precise duplicate checking - only check valid identifiers
             let isDuplicate = false;
             
-            // Check T247 ID duplicate
-            if (t247Id && t247Id.length > 3) {
+            // Primary check: T247 ID (only for numeric IDs with sufficient length)
+            if (t247Id && t247Id.length >= 6 && /^\d+$/.test(t247Id)) {
               try {
                 const existingByT247 = await db.execute(sql`
                   SELECT id FROM tenders 
-                  WHERE requirements::text LIKE '%' || ${t247Id} || '%'
+                  WHERE requirements::text LIKE '%"t247_id":"' || ${t247Id} || '"%'
                   LIMIT 1
                 `);
                 
@@ -114,16 +114,16 @@ export async function processSimpleExcelUpload(
                   isDuplicate = true;
                 }
               } catch (error) {
-                console.log(`Error checking T247 ID duplicate:`, error);
+                console.log(`Error checking T247 duplicate:`, error);
               }
             }
             
-            // Check Reference No duplicate if not already duplicate
-            if (!isDuplicate && reference && reference.length > 3) {
+            // Secondary check: Reference No (only for substantial references with proper format)
+            if (!isDuplicate && reference && reference.length > 8 && (reference.includes('/') || reference.includes('GEM'))) {
               try {
                 const existingByRef = await db.execute(sql`
                   SELECT id FROM tenders 
-                  WHERE requirements::text LIKE '%' || ${reference} || '%'
+                  WHERE requirements::text LIKE '%"reference":"' || ${reference} || '"%'
                   LIMIT 1
                 `);
                 
@@ -204,7 +204,9 @@ export async function processSimpleExcelUpload(
         }
         
         sheetsProcessed++;
-        console.log(`Completed sheet ${sheetName}: ${totalProcessed} entries added, ${duplicates} duplicates skipped`);
+        const currentSheetAdded = totalProcessed - previousTotal;
+        const currentSheetDuplicates = duplicates - previousDuplicates;
+        console.log(`Completed sheet ${sheetName}: ${currentSheetAdded} entries added, ${currentSheetDuplicates} duplicates skipped`);
         
         // Log hyperlink extraction for this sheet  
         try {
