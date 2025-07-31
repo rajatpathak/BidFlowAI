@@ -31,6 +31,12 @@ const upload = multer({
 });
 
 export function registerRoutes(app: express.Application, storage: IStorage) {
+  // Add API route logging for debugging
+  app.use('/api/*', (req, res, next) => {
+    console.log(`🔄 API Request: ${req.method} ${req.path}`);
+    res.setHeader('Content-Type', 'application/json');
+    next();
+  });
   
   // Authentication routes with proper error handling
   app.post('/api/auth/login', async (req: AuthenticatedRequest, res) => {
