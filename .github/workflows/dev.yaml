@@ -49,7 +49,7 @@ jobs:
             ssh-add ~/.ssh/${{ env.KEY_NAME }}  
             git config --global --add safe.directory /var/www/html/${{ env.FILE_PATH }}
             git fetch --all
-            git reset --hard origin/develop
+            git reset --hard origin/production
             rm -rf package-lock.json
             rm -rf node_modules
             cp .env.example .env
