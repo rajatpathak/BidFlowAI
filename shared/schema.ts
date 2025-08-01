@@ -209,6 +209,86 @@ export const companySettings = pgTable("company_settings", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// Document Repository for storing company documents
+export const documentRepository = pgTable("document_repository", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: text("name").notNull(),
+  description: text("description"),
+  filename: text("filename").notNull(),
+  originalName: text("original_name").notNull(),
+  mimeType: text("mime_type").notNull(),
+  size: integer("size").notNull(),
+  category: text("category").notNull(), // e.g., "certificates", "technical", "financial", "legal"
+  tags: json("tags").default([]), // Array of tags for searchability
+  uploadedBy: uuid("uploaded_by").references(() => users.id),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// RFP Documents uploaded for processing
+export const rfpDocuments = pgTable("rfp_documents", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenderId: uuid("tender_id").references(() => tenders.id),
+  filename: text("filename").notNull(),
+  originalName: text("original_name").notNull(),
+  mimeType: text("mime_type").notNull(),
+  size: integer("size").notNull(),
+  extractedContent: text("extracted_content"), // OCR or text extraction results
+  processedData: json("processed_data"), // AI-extracted key information
+  processingStatus: text("processing_status").default("pending"), // pending, processing, completed, failed
+  uploadedBy: uuid("uploaded_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Bid Document Templates and Types
+export const bidDocumentTypes = pgTable("bid_document_types", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: text("name").notNull(), // e.g., "Pre-Qualification", "QCBS", "BOQ"
+  description: text("description"),
+  category: text("category").notNull(), // e.g., "standard", "custom"
+  template: text("template"), // HTML template for the document
+  isRequired: boolean("is_required").default(false),
+  isActive: boolean("is_active").default(true),
+  createdBy: uuid("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Individual Bid Documents for each tender
+export const bidDocuments = pgTable("bid_documents", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenderId: uuid("tender_id").references(() => tenders.id),
+  documentTypeId: uuid("document_type_id").references(() => bidDocumentTypes.id),
+  title: text("title").notNull(),
+  content: text("content"), // HTML content of the document
+  status: text("status").default("pending"), // pending, draft, completed, approved
+  isAutoFilled: boolean("is_auto_filled").default(false),
+  aiConfidence: integer("ai_confidence"), // 0-100 confidence score from AI
+  lastEditedBy: uuid("last_edited_by").references(() => users.id),
+  createdBy: uuid("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Final Bid Packages
+export const bidPackages = pgTable("bid_packages", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenderId: uuid("tender_id").references(() => tenders.id),
+  packageName: text("package_name").notNull(),
+  status: text("status").default("draft"), // draft, under_review, approved, submitted
+  documents: json("documents").default([]), // Array of document IDs included in package
+  finalPdfPath: text("final_pdf_path"), // Path to generated PDF
+  coverPage: text("cover_page"), // HTML content for cover page
+  tableOfContents: boolean("table_of_contents").default(true),
+  approvedBy: uuid("approved_by").references(() => users.id),
+  approvedAt: timestamp("approved_at"),
+  generatedBy: uuid("generated_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 export const excelUploads = pgTable("excel_uploads", {
   id: uuid("id").primaryKey().defaultRandom(),
   filename: text("filename").notNull(),
@@ -322,6 +402,34 @@ export type InsertCompanySettings = typeof companySettings.$inferInsert;
 
 export type ExcelUpload = typeof excelUploads.$inferSelect;
 export type InsertExcelUpload = typeof excelUploads.$inferInsert;
+
+export type TenderResultsImport = typeof tenderResultsImports.$inferSelect;
+export type InsertTenderResultsImport = typeof tenderResultsImports.$inferInsert;
+
+export type EnhancedTenderResult = typeof enhancedTenderResults.$inferSelect;
+export type InsertEnhancedTenderResult = typeof enhancedTenderResults.$inferInsert;
+
+export type ActivityLog = typeof activityLogs.$inferSelect;
+export type InsertActivityLog = typeof activityLogs.$inferInsert;
+
+export type DocumentTemplate = typeof documentTemplates.$inferSelect;
+export type InsertDocumentTemplate = typeof documentTemplates.$inferInsert;
+
+// New bid document system types
+export type DocumentRepository = typeof documentRepository.$inferSelect;
+export type InsertDocumentRepository = typeof documentRepository.$inferInsert;
+
+export type RfpDocument = typeof rfpDocuments.$inferSelect;
+export type InsertRfpDocument = typeof rfpDocuments.$inferInsert;
+
+export type BidDocumentType = typeof bidDocumentTypes.$inferSelect;
+export type InsertBidDocumentType = typeof bidDocumentTypes.$inferInsert;
+
+export type BidDocument = typeof bidDocuments.$inferSelect;
+export type InsertBidDocument = typeof bidDocuments.$inferInsert;
+
+export type BidPackage = typeof bidPackages.$inferSelect;
+export type InsertBidPackage = typeof bidPackages.$inferInsert;
 
 export type TenderResultsImport = typeof tenderResultsImports.$inferSelect;
 export type InsertTenderResultsImport = typeof tenderResultsImports.$inferInsert;

@@ -10,6 +10,7 @@ import { UploadProvider } from "@/contexts/UploadContext";
 import Sidebar from "@/components/layout/sidebar";
 import Dashboard from "@/pages/dashboard";
 import CreateBid from "@/pages/create-bid";
+import BidCreation from "@/pages/bid-creation";
 import AIInsights from "@/pages/ai-insights";
 import RecommendationDashboard from "@/components/ai/recommendation-dashboard";
 import Finance from "@/pages/finance";
@@ -70,6 +71,7 @@ function Router() {
               <Route path="/tender-results" component={() => <ProtectedRoute requiredPermission="view_tenders"><TenderResults /></ProtectedRoute>} />
               <Route path="/missed-opportunities" component={() => <ProtectedRoute requiredPermission="view_tenders"><MissedOpportunities /></ProtectedRoute>} />
               <Route path="/create-bid" component={() => <ProtectedRoute requiredPermission="create_bids"><CreateBid /></ProtectedRoute>} />
+              <Route path="/bid-creation/:id?" component={() => <ProtectedRoute requiredPermission="create_bids"><BidCreation /></ProtectedRoute>} />
               <Route path="/ai-insights" component={() => <ProtectedRoute requiredPermission="use_ai_insights"><AIInsights /></ProtectedRoute>} />
               <Route path="/ai-recommendations" component={() => <ProtectedRoute requiredPermission="use_ai_insights"><RecommendationDashboard /></ProtectedRoute>} />
               <Route path="/finance" component={() => <ProtectedRoute requiredPermission="view_finance"><Finance /></ProtectedRoute>} />

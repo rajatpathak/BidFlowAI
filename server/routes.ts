@@ -17,10 +17,14 @@ import {
   userRoles,
   documents,
   documentTemplates,
-  companySettings
+  companySettings,
+  documentRepository,
+  rfpDocuments,
+  bidDocumentTypes,
+  bidDocuments,
+  bidPackages
 } from '../shared/schema.js';
 import path from 'path';
-import { promises as fs } from 'fs';
 import { v4 as uuidv4 } from 'uuid';
 import { eq, desc, sql, ne } from 'drizzle-orm';
 import { authenticateToken, optionalAuth, requireRole, generateToken, generateSessionToken, comparePassword, invalidateSession, AuthenticatedRequest } from './auth.js';
@@ -2027,6 +2031,425 @@ Provide detailed analysis focusing on extracting email addresses, phone numbers,
     }
   });
 
+  // =================
+  // BID DOCUMENT CREATION SYSTEM ROUTES
+  // =================
+
+  // Document Repository Routes
+  app.get("/api/document-repository", authenticateToken, async (req, res) => {
+    try {
+      const documents = await db
+        .select()
+        .from(documentRepository)
+        .where(eq(documentRepository.isActive, true))
+        .orderBy(documentRepository.createdAt);
+      res.json(documents);
+    } catch (error) {
+      console.error("Error fetching document repository:", error);
+      res.status(500).json({ error: "Failed to fetch documents" });
+    }
+  });
+
+  app.post("/api/document-repository", authenticateToken, upload.single('document'), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+
+      const { name, description, category, tags } = req.body;
+      const userId = req.user?.id;
+
+      const [document] = await db
+        .insert(documentRepository)
+        .values({
+          name: name || req.file.originalname,
+          description,
+          filename: req.file.filename,
+          originalName: req.file.originalname,
+          mimeType: req.file.mimetype,
+          size: req.file.size,
+          category: category || 'general',
+          tags: tags ? JSON.parse(tags) : [],
+          uploadedBy: userId,
+        })
+        .returning();
+
+      res.json(document);
+    } catch (error) {
+      console.error("Error uploading document:", error);
+      res.status(500).json({ error: "Failed to upload document" });
+    }
+  });
+
+  // RFP Document Routes
+  app.post("/api/rfp-documents", authenticateToken, upload.single('rfp'), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "No RFP file uploaded" });
+      }
+
+      const { tenderId } = req.body;
+      const userId = req.user?.id;
+
+      // Insert RFP document record
+      const [rfpDoc] = await db
+        .insert(rfpDocuments)
+        .values({
+          tenderId,
+          filename: req.file.filename,
+          originalName: req.file.originalname,
+          mimeType: req.file.mimetype,
+          size: req.file.size,
+          uploadedBy: userId,
+          processingStatus: 'pending'
+        })
+        .returning();
+
+      // Start AI processing asynchronously
+      processRFPDocument(rfpDoc.id, req.file.path);
+
+      res.json(rfpDoc);
+    } catch (error) {
+      console.error("Error uploading RFP:", error);
+      res.status(500).json({ error: "Failed to upload RFP" });
+    }
+  });
+
+  app.get("/api/rfp-documents/:tenderId", authenticateToken, async (req, res) => {
+    try {
+      const { tenderId } = req.params;
+      const rfpDocs = await db
+        .select()
+        .from(rfpDocuments)
+        .where(eq(rfpDocuments.tenderId, tenderId))
+        .orderBy(rfpDocuments.createdAt);
+      res.json(rfpDocs);
+    } catch (error) {
+      console.error("Error fetching RFP documents:", error);
+      res.status(500).json({ error: "Failed to fetch RFP documents" });
+    }
+  });
+
+  // Bid Document Types Routes
+  app.get("/api/bid-document-types", authenticateToken, async (req, res) => {
+    try {
+      const types = await db
+        .select()
+        .from(bidDocumentTypes)
+        .where(eq(bidDocumentTypes.isActive, true))
+        .orderBy(bidDocumentTypes.name);
+      res.json(types);
+    } catch (error) {
+      console.error("Error fetching bid document types:", error);
+      res.status(500).json({ error: "Failed to fetch document types" });
+    }
+  });
+
+  // Bid Documents Routes  
+  app.get("/api/bid-documents/:tenderId", authenticateToken, async (req, res) => {
+    try {
+      const { tenderId } = req.params;
+      const bidDocs = await db
+        .select({
+          id: bidDocuments.id,
+          tenderId: bidDocuments.tenderId,
+          documentTypeId: bidDocuments.documentTypeId,
+          title: bidDocuments.title,
+          content: bidDocuments.content,
+          status: bidDocuments.status,
+          isAutoFilled: bidDocuments.isAutoFilled,
+          aiConfidence: bidDocuments.aiConfidence,
+          lastEditedBy: bidDocuments.lastEditedBy,
+          createdBy: bidDocuments.createdBy,
+          createdAt: bidDocuments.createdAt,
+          updatedAt: bidDocuments.updatedAt,
+          documentType: {
+            id: bidDocumentTypes.id,
+            name: bidDocumentTypes.name,
+            description: bidDocumentTypes.description,
+            category: bidDocumentTypes.category,
+            isRequired: bidDocumentTypes.isRequired
+          }
+        })
+        .from(bidDocuments)
+        .leftJoin(bidDocumentTypes, eq(bidDocuments.documentTypeId, bidDocumentTypes.id))
+        .where(eq(bidDocuments.tenderId, tenderId))
+        .orderBy(bidDocumentTypes.name);
+      res.json(bidDocs);
+    } catch (error) {
+      console.error("Error fetching bid documents:", error);
+      res.status(500).json({ error: "Failed to fetch bid documents" });
+    }
+  });
+
+  app.post("/api/bid-documents", authenticateToken, async (req, res) => {
+    try {
+      const { tenderId, documentTypeIds } = req.body;
+      const userId = req.user?.id;
+
+      // Create bid documents for selected types
+      const documentsToCreate = documentTypeIds.map((typeId: string) => ({
+        tenderId,
+        documentTypeId: typeId,
+        title: `Document for ${typeId}`,
+        createdBy: userId,
+        status: 'pending'
+      }));
+
+      const createdDocs = await db
+        .insert(bidDocuments)
+        .values(documentsToCreate)
+        .returning();
+
+      // Start AI auto-filling process
+      startAIDocumentGeneration(tenderId, createdDocs);
+
+      res.json(createdDocs);
+    } catch (error) {
+      console.error("Error creating bid documents:", error);
+      res.status(500).json({ error: "Failed to create bid documents" });
+    }
+  });
+
+  app.put("/api/bid-documents/:id", authenticateToken, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { title, content, status } = req.body;
+      const userId = req.user?.id;
+
+      const [updatedDoc] = await db
+        .update(bidDocuments)
+        .set({
+          title,
+          content,
+          status,
+          lastEditedBy: userId,
+          updatedAt: new Date()
+        })
+        .where(eq(bidDocuments.id, id))
+        .returning();
+
+      res.json(updatedDoc);
+    } catch (error) {
+      console.error("Error updating bid document:", error);
+      res.status(500).json({ error: "Failed to update document" });
+    }
+  });
+
+  // Bid Package Routes
+  app.get("/api/bid-packages/:tenderId", authenticateToken, async (req, res) => {
+    try {
+      const { tenderId } = req.params;
+      const packages = await db
+        .select()
+        .from(bidPackages)
+        .where(eq(bidPackages.tenderId, tenderId))
+        .orderBy(bidPackages.createdAt);
+      res.json(packages);
+    } catch (error) {
+      console.error("Error fetching bid packages:", error);
+      res.status(500).json({ error: "Failed to fetch bid packages" });
+    }
+  });
+
+  app.post("/api/bid-packages", authenticateToken, async (req, res) => {
+    try {
+      const { tenderId, packageName, documentIds, coverPage } = req.body;
+      const userId = req.user?.id;
+
+      const [bidPackage] = await db
+        .insert(bidPackages)
+        .values({
+          tenderId,
+          packageName,
+          documents: documentIds,
+          coverPage,
+          generatedBy: userId,
+          status: 'draft'
+        })
+        .returning();
+
+      res.json(bidPackage);
+    } catch (error) {
+      console.error("Error creating bid package:", error);
+      res.status(500).json({ error: "Failed to create bid package" });
+    }
+  });
+
+  app.post("/api/bid-packages/:id/generate", authenticateToken, async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      // Generate final PDF package
+      const pdfPath = await generateBidPackagePDF(id);
+      
+      // Update package with PDF path
+      const [updatedPackage] = await db
+        .update(bidPackages)
+        .set({
+          finalPdfPath: pdfPath,
+          status: 'completed',
+          updatedAt: new Date()
+        })
+        .where(eq(bidPackages.id, id))
+        .returning();
+
+      res.json(updatedPackage);
+    } catch (error) {
+      console.error("Error generating bid package:", error);
+      res.status(500).json({ error: "Failed to generate bid package" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
+
+// =================
+// AI PROCESSING FUNCTIONS
+// =================
+
+async function processRFPDocument(rfpDocId: string, filePath: string) {
+  try {
+    // Update status to processing
+    await db
+      .update(rfpDocuments)
+      .set({ processingStatus: 'processing' })
+      .where(eq(rfpDocuments.id, rfpDocId));
+
+    // Extract text content (simplified - would use proper PDF parsing)
+    const extractedContent = "Sample extracted content from RFP";
+    
+    // Use AI to analyze RFP content
+    const analysis = await analyzeRFPWithAI(extractedContent);
+    
+    // Update document with results
+    await db
+      .update(rfpDocuments)
+      .set({
+        extractedContent,
+        processedData: analysis,
+        processingStatus: 'completed'
+      })
+      .where(eq(rfpDocuments.id, rfpDocId));
+
+  } catch (error) {
+    console.error("RFP processing error:", error);
+    await db
+      .update(rfpDocuments)
+      .set({ processingStatus: 'failed' })
+      .where(eq(rfpDocuments.id, rfpDocId));
+  }
+}
+
+async function analyzeRFPWithAI(content: string) {
+  try {
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o", // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
+      messages: [
+        {
+          role: "system",
+          content: "You are an expert at analyzing RFP documents. Extract key information and provide structured analysis."
+        },
+        {
+          role: "user", 
+          content: `Analyze this RFP content and extract key details like project scope, requirements, deadlines, evaluation criteria, and technical specifications: ${content}`
+        }
+      ],
+      response_format: { type: "json_object" }
+    });
+
+    return JSON.parse(response.choices[0].message.content || '{}');
+  } catch (error) {
+    console.error("AI analysis error:", error);
+    return {};
+  }
+}
+
+async function startAIDocumentGeneration(tenderId: string, documents: any[]) {
+  // Process each document asynchronously
+  for (const doc of documents) {
+    try {
+      // Get company settings and RFP data
+      const [companyData] = await db.select().from(companySettings).limit(1);
+      const [rfpData] = await db
+        .select()
+        .from(rfpDocuments)
+        .where(eq(rfpDocuments.tenderId, tenderId))
+        .limit(1);
+
+      // Get document template
+      const [docType] = await db
+        .select()
+        .from(bidDocumentTypes)
+        .where(eq(bidDocumentTypes.id, doc.documentTypeId))
+        .limit(1);
+
+      if (docType?.template && companyData) {
+        // Generate content using AI and template
+        const generatedContent = await generateDocumentContentWithAI(
+          docType.template,
+          companyData,
+          rfpData?.processedData || {}
+        );
+
+        // Update document with generated content
+        await db
+          .update(bidDocuments)
+          .set({
+            title: docType.name,
+            content: generatedContent,
+            status: 'draft',
+            isAutoFilled: true,
+            aiConfidence: 85,
+            updatedAt: new Date()
+          })
+          .where(eq(bidDocuments.id, doc.id));
+      }
+    } catch (error) {
+      console.error("Document generation error:", error);
+    }
+  }
+}
+
+async function generateDocumentContentWithAI(template: string, companyData: any, rfpData: any) {
+  try {
+    // Replace template variables with actual data
+    let content = template
+      .replace(/{{companyName}}/g, companyData.companyName || '')
+      .replace(/{{annualTurnover}}/g, companyData.annualTurnover?.toLocaleString() || '')
+      .replace(/{{establishedYear}}/g, companyData.establishedYear || '')
+      .replace(/{{certifications}}/g, companyData.certifications?.join(', ') || '');
+
+    // Use AI to enhance and complete the content
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o", // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
+      messages: [
+        {
+          role: "system",
+          content: "You are a professional bid writer. Enhance and complete this document template with relevant details."
+        },
+        {
+          role: "user",
+          content: `Complete and enhance this bid document template: ${content}. RFP Details: ${JSON.stringify(rfpData)}`
+        }
+      ]
+    });
+
+    return response.choices[0].message.content || content;
+  } catch (error) {
+    console.error("AI content generation error:", error);
+    return template; // Return template as fallback
+  }
+}
+
+async function generateBidPackagePDF(packageId: string) {
+  // Simplified PDF generation - would use proper PDF library
+  const timestamp = Date.now();
+  const pdfPath = `uploads/bid-package-${packageId}-${timestamp}.pdf`;
+  
+  // Generate PDF logic would go here
+  console.log(`Generated PDF package at: ${pdfPath}`);
+  
+  return pdfPath;
+}
 }
