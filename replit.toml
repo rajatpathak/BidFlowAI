@@ -1,0 +1,13 @@
+# Replit configuration for production deployment
+entrypoint = "npm start"
+
+[build]
+command = "npm run build"
+
+[deployment]
+build_cmd = "npm run build"
+run_cmd = "npm start"
+
+[env]
+NODE_ENV = "production"
+PORT = "5000"

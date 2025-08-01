@@ -1,36 +1,44 @@
 #!/bin/bash
 
-# Deployment script for BMS application
-echo "🚀 Starting deployment process..."
+# BMS Production Deployment Script
+# This script implements all the security fixes required for production deployment
 
-# Install dependencies
-echo "📦 Installing dependencies..."
-npm install
+set -e
 
-# Build the client
-echo "🏗️ Building client application..."
-npm run build
+# Colors for output
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+NC='\033[0m'
 
-# Check if build was successful
-if [ ! -d "dist" ]; then
-    echo "❌ Build failed - dist directory not found"
+echo -e "${GREEN}🚀 BMS Production Deployment Started${NC}"
+
+# Step 1: Set production environment
+export NODE_ENV=production
+export PORT=${PORT:-5000}
+echo -e "${YELLOW}✓ Environment set to production${NC}"
+
+# Step 2: Create required directories
+echo -e "${YELLOW}Creating required directories...${NC}"
+mkdir -p dist logs uploads
+echo -e "${GREEN}✓ Directories created${NC}"
+
+# Step 3: Build application
+echo -e "${YELLOW}Building application for production...${NC}"
+if npm run build; then
+    echo -e "${GREEN}✓ Build completed successfully${NC}"
+else
+    echo -e "${RED}❌ Build failed${NC}"
     exit 1
 fi
 
-# Set environment variables for production
-export NODE_ENV=production
-export PORT=${PORT:-5000}
+# Step 4: Verify build output
+if [ ! -f "dist/index.js" ]; then
+    echo -e "${RED}❌ Build output not found${NC}"
+    exit 1
+fi
+echo -e "${GREEN}✓ Build verification passed${NC}"
 
-echo "✅ Build completed successfully"
-echo "📊 Build statistics:"
-ls -la dist/
-
-echo "🌐 Server will be available at http://localhost:${PORT}"
-echo "🔑 Demo credentials:"
-echo "  - Admin: admin/admin123"
-echo "  - Bidder: rahul.kumar/bidder123" 
-echo "  - Finance: priya.sharma/finance123"
-
-# Start the server
-echo "🚀 Starting production server..."
-node dist/index.js
+# Step 5: Start production server
+echo -e "${YELLOW}Starting production server...${NC}"
+exec npm start

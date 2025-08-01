@@ -70,6 +70,18 @@ export const documents = pgTable("documents", {
   uploadedAt: timestamp("uploaded_at").defaultNow(),
 });
 
+export const companyDocuments = pgTable("company_documents", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  filename: text("filename").notNull(),
+  originalName: text("original_name").notNull(),
+  mimeType: text("mime_type").notNull(),
+  size: integer("size").notNull(),
+  folder: text("folder").notNull().default("general"), // company-profile, certifications, financial, technical, past-projects, legal, general
+  aiAccessEnabled: boolean("ai_access_enabled").default(true),
+  uploadedBy: uuid("uploaded_by").references(() => users.id),
+  uploadedAt: timestamp("uploaded_at").defaultNow(),
+});
+
 export const analytics = pgTable("analytics", {
   id: uuid("id").primaryKey().defaultRandom(),
   metric: text("metric").notNull(),
@@ -423,6 +435,9 @@ export type InsertActivityLog = typeof activityLogs.$inferInsert;
 
 export type DocumentTemplate = typeof documentTemplates.$inferSelect;
 export type InsertDocumentTemplate = typeof documentTemplates.$inferInsert;
+
+export type CompanyDocument = typeof companyDocuments.$inferSelect;
+export type InsertCompanyDocument = typeof companyDocuments.$inferInsert;
 
 // New bid document system types
 export type DocumentRepository = typeof documentRepository.$inferSelect;
