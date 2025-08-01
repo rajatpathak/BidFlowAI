@@ -2,7 +2,7 @@ import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { registerRoutes } from './routes.js';
-import { DatabaseStorage } from './database-storage.js';
+import { DatabaseStorage } from './storage.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -55,7 +55,7 @@ const storage = new DatabaseStorage();
 registerRoutes(app, storage);
 
 // Serve static files from client build
-const clientBuildPath = path.join(__dirname, '..', 'client', 'dist');
+const clientBuildPath = path.join(__dirname, 'public');
 app.use(express.static(clientBuildPath));
 
 // Serve uploaded files
@@ -68,7 +68,13 @@ app.get('*', (req, res) => {
     return res.status(404).json({ error: 'API endpoint not found' });
   }
   
-  res.sendFile(path.join(clientBuildPath, 'index.html'));
+  // Check if the built file exists, otherwise send index.html
+  const indexPath = path.join(clientBuildPath, 'index.html');
+  if (!require('fs').existsSync(indexPath)) {
+    return res.status(500).json({ error: 'Production build not found. Run npm run build first.' });
+  }
+  
+  res.sendFile(indexPath);
 });
 
 // Error handling middleware
