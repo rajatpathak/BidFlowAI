@@ -15,6 +15,8 @@ Project Architecture: Clean, simple, and scalable structure with consolidated co
 - **Complete Deployment Suite**: Added comprehensive deployment configurations including Docker, PM2, GitHub Actions, and manual server setup
 - **Production Security**: Enhanced server configuration with security headers, CORS, and graceful shutdown handling
 - **Bid Document Management**: Added comprehensive bid document management system as sub-tab in tender view with create, edit, delete, and workflow capabilities
+- **Admin Document Management**: Enhanced admin settings with comprehensive bid document oversight including workflow management, document statistics, and approval controls
+- **Centralized Document Library**: Added folder-based document organization system in admin interface for company documents accessible by bidders and AI systems
 
 ## System Architecture
 

@@ -20,7 +20,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { insertCompanySettingsSchema } from "@shared/schema";
 import { z } from "zod";
-import { Settings, Upload, FileSpreadsheet, Building2, CheckCircle, XCircle, Clock, FileText, Plus, Edit, Trash2, Image, GripVertical, X, Eye, Brain, Package } from "lucide-react";
+import { Settings, Upload, FileSpreadsheet, Building2, CheckCircle, XCircle, Clock, FileText, Plus, Edit, Trash2, Image, GripVertical, X, Eye, Brain, Package, Folder, FolderPlus, Download, Search } from "lucide-react";
 import BidDocumentManagement from "@/components/BidDocumentManagement";
 import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -107,6 +107,10 @@ export default function AdminSettingsPage() {
   const [showTemplateForm, setShowTemplateForm] = useState(false);
   const [templateImages, setTemplateImages] = useState<ImageFile[]>([]);
   const [draggedImageIndex, setDraggedImageIndex] = useState<number | null>(null);
+  const [selectedFolder, setSelectedFolder] = useState<string>('');
+  const [newFolderName, setNewFolderName] = useState<string>('');
+  const [showNewFolderForm, setShowNewFolderForm] = useState<boolean>(false);
+  const [documentSearchTerm, setDocumentSearchTerm] = useState<string>('');
   const { toast } = useToast();
 
   const { data: companySettings, isLoading: settingsLoading } = useQuery<CompanySettings>({
@@ -1235,9 +1239,10 @@ export default function AdminSettingsPage() {
             </CardHeader>
             <CardContent>
               <Tabs defaultValue="overview" className="w-full">
-                <TabsList className="grid w-full grid-cols-4">
+                <TabsList className="grid w-full grid-cols-5">
                   <TabsTrigger value="overview">Overview</TabsTrigger>
                   <TabsTrigger value="all-documents">All Documents</TabsTrigger>
+                  <TabsTrigger value="document-library">Document Library</TabsTrigger>
                   <TabsTrigger value="workflow">Workflow Management</TabsTrigger>
                   <TabsTrigger value="templates">Document Types</TabsTrigger>
                 </TabsList>
@@ -1302,6 +1307,350 @@ export default function AdminSettingsPage() {
                             <p className="font-medium">Implementation Plan updated</p>
                             <p className="text-sm text-gray-600">1 hour ago by Project Manager</p>
                           </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+
+                {/* Document Library Tab */}
+                <TabsContent value="document-library" className="mt-6">
+                  <Card>
+                    <CardHeader>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <CardTitle>Centralized Document Library</CardTitle>
+                          <CardDescription>
+                            Organize company documents in folders for use by bidders and AI systems
+                          </CardDescription>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button onClick={() => setShowNewFolderForm(true)} variant="outline">
+                            <FolderPlus className="h-4 w-4 mr-2" />
+                            New Folder
+                          </Button>
+                          <Button>
+                            <Plus className="h-4 w-4 mr-2" />
+                            Upload Documents
+                          </Button>
+                        </div>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                        {/* Folder Sidebar */}
+                        <div className="lg:col-span-1">
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2 mb-4">
+                              <Search className="h-4 w-4 text-gray-500" />
+                              <Input 
+                                placeholder="Search documents..." 
+                                value={documentSearchTerm}
+                                onChange={(e) => setDocumentSearchTerm(e.target.value)}
+                                className="text-sm"
+                              />
+                            </div>
+                            
+                            <h3 className="font-semibold text-sm text-gray-700 mb-3">FOLDERS</h3>
+                            
+                            {/* New Folder Form */}
+                            {showNewFolderForm && (
+                              <div className="mb-3 p-3 border-2 border-dashed border-blue-300 rounded-lg bg-blue-50">
+                                <Input
+                                  placeholder="Folder name"
+                                  value={newFolderName}
+                                  onChange={(e) => setNewFolderName(e.target.value)}
+                                  className="mb-2 text-sm"
+                                />
+                                <div className="flex gap-1">
+                                  <Button 
+                                    size="sm" 
+                                    className="flex-1"
+                                    onClick={() => {
+                                      if (newFolderName.trim()) {
+                                        toast({
+                                          title: "Folder Created",
+                                          description: `"${newFolderName}" folder created successfully.`,
+                                        });
+                                        setNewFolderName('');
+                                        setShowNewFolderForm(false);
+                                      }
+                                    }}
+                                  >
+                                    Create
+                                  </Button>
+                                  <Button 
+                                    size="sm" 
+                                    variant="outline" 
+                                    onClick={() => {
+                                      setShowNewFolderForm(false);
+                                      setNewFolderName('');
+                                    }}
+                                  >
+                                    Cancel
+                                  </Button>
+                                </div>
+                              </div>
+                            )}
+                            
+                            {/* Folder List */}
+                            <div className="space-y-1">
+                              {[
+                                { name: 'All Documents', count: 125, id: '' },
+                                { name: 'Company Profile', count: 15, id: 'company-profile' },
+                                { name: 'Certifications', count: 23, id: 'certifications' },
+                                { name: 'Financial Documents', count: 18, id: 'financial' },
+                                { name: 'Technical Specifications', count: 32, id: 'technical' },
+                                { name: 'Past Projects', count: 27, id: 'past-projects' },
+                                { name: 'Legal Documents', count: 10, id: 'legal' }
+                              ].map((folder) => (
+                                <div
+                                  key={folder.id}
+                                  onClick={() => setSelectedFolder(folder.id)}
+                                  className={`
+                                    flex items-center justify-between p-2 rounded-lg cursor-pointer transition-colors
+                                    ${selectedFolder === folder.id 
+                                      ? 'bg-blue-100 text-blue-700 border border-blue-200' 
+                                      : 'hover:bg-gray-100'
+                                    }
+                                  `}
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <Folder className={`h-4 w-4 ${selectedFolder === folder.id ? 'text-blue-600' : 'text-gray-500'}`} />
+                                    <span className="text-sm font-medium">{folder.name}</span>
+                                  </div>
+                                  <Badge variant="secondary" className="text-xs">
+                                    {folder.count}
+                                  </Badge>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Document Content Area */}
+                        <div className="lg:col-span-3">
+                          <div className="space-y-4">
+                            {/* Current Folder Header */}
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <Folder className="h-5 w-5 text-gray-600" />
+                                <h3 className="font-semibold">
+                                  {selectedFolder === '' ? 'All Documents' : 
+                                   selectedFolder === 'company-profile' ? 'Company Profile' :
+                                   selectedFolder === 'certifications' ? 'Certifications' :
+                                   selectedFolder === 'financial' ? 'Financial Documents' :
+                                   selectedFolder === 'technical' ? 'Technical Specifications' :
+                                   selectedFolder === 'past-projects' ? 'Past Projects' :
+                                   selectedFolder === 'legal' ? 'Legal Documents' : 'Documents'}
+                                </h3>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <select className="px-3 py-2 border rounded-md text-sm">
+                                  <option value="">Sort by Date</option>
+                                  <option value="name">Sort by Name</option>
+                                  <option value="size">Sort by Size</option>
+                                  <option value="type">Sort by Type</option>
+                                </select>
+                                <Button variant="outline" size="sm">
+                                  <Upload className="h-4 w-4 mr-2" />
+                                  Upload Here
+                                </Button>
+                              </div>
+                            </div>
+
+                            {/* Upload Area */}
+                            <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center bg-gray-50">
+                              <div className="space-y-4">
+                                <div className="mx-auto w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center">
+                                  <Upload className="h-8 w-8 text-gray-400" />
+                                </div>
+                                <div>
+                                  <h4 className="text-lg font-medium text-gray-700">Drop files here or click to upload</h4>
+                                  <p className="text-sm text-gray-500 mt-1">
+                                    Supports: PDF, DOC, DOCX, XLS, XLSX, PPT, PPTX, Images
+                                  </p>
+                                </div>
+                                <div className="flex items-center justify-center gap-4">
+                                  <Button>
+                                    <Plus className="h-4 w-4 mr-2" />
+                                    Choose Files
+                                  </Button>
+                                  <span className="text-sm text-gray-500">or drag and drop</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Documents Grid */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-6">
+                              {[
+                                {
+                                  name: 'Company_Overview_2025.pdf',
+                                  type: 'PDF',
+                                  size: '2.3 MB',
+                                  uploaded: '2 days ago',
+                                  folder: 'company-profile',
+                                  icon: FileText
+                                },
+                                {
+                                  name: 'ISO_27001_Certificate.pdf',
+                                  type: 'PDF',
+                                  size: '1.8 MB',
+                                  uploaded: '1 week ago',
+                                  folder: 'certifications',
+                                  icon: FileText
+                                },
+                                {
+                                  name: 'Financial_Statement_2024.xlsx',
+                                  type: 'Excel',
+                                  size: '4.2 MB',
+                                  uploaded: '3 days ago',
+                                  folder: 'financial',
+                                  icon: FileSpreadsheet
+                                },
+                                {
+                                  name: 'Technical_Capabilities.docx',
+                                  type: 'Word',
+                                  size: '1.5 MB',
+                                  uploaded: '5 days ago',
+                                  folder: 'technical',
+                                  icon: FileText
+                                },
+                                {
+                                  name: 'Past_Projects_Portfolio.pdf',
+                                  type: 'PDF',
+                                  size: '15.6 MB',
+                                  uploaded: '1 week ago',
+                                  folder: 'past-projects',
+                                  icon: FileText
+                                },
+                                {
+                                  name: 'CMMI_Level_5_Certificate.pdf',
+                                  type: 'PDF',
+                                  size: '2.1 MB',
+                                  uploaded: '2 weeks ago',
+                                  folder: 'certifications',
+                                  icon: FileText
+                                }
+                              ]
+                              .filter(doc => selectedFolder === '' || doc.folder === selectedFolder)
+                              .filter(doc => documentSearchTerm === '' || 
+                                doc.name.toLowerCase().includes(documentSearchTerm.toLowerCase())
+                              )
+                              .map((doc, index) => (
+                                <Card key={index} className="hover:shadow-md transition-shadow cursor-pointer">
+                                  <CardContent className="p-4">
+                                    <div className="flex items-start gap-3">
+                                      <div className="p-2 bg-blue-100 rounded-lg">
+                                        <doc.icon className="h-6 w-6 text-blue-600" />
+                                      </div>
+                                      <div className="flex-1 min-w-0">
+                                        <h4 className="font-medium text-sm truncate" title={doc.name}>
+                                          {doc.name}
+                                        </h4>
+                                        <div className="flex items-center gap-2 mt-1">
+                                          <Badge variant="outline" className="text-xs">
+                                            {doc.type}
+                                          </Badge>
+                                          <span className="text-xs text-gray-500">{doc.size}</span>
+                                        </div>
+                                        <p className="text-xs text-gray-500 mt-1">{doc.uploaded}</p>
+                                      </div>
+                                    </div>
+                                    <div className="flex gap-1 mt-3">
+                                      <Button variant="ghost" size="sm" className="flex-1">
+                                        <Eye className="h-3 w-3 mr-1" />
+                                        View
+                                      </Button>
+                                      <Button variant="ghost" size="sm" className="flex-1">
+                                        <Download className="h-3 w-3 mr-1" />
+                                        Download
+                                      </Button>
+                                      <Button variant="ghost" size="sm">
+                                        <Trash2 className="h-3 w-3" />
+                                      </Button>
+                                    </div>
+                                  </CardContent>
+                                </Card>
+                              ))}
+                            </div>
+
+                            {/* Empty State */}
+                            {selectedFolder !== '' && [
+                              'company-profile', 'certifications', 'financial', 
+                              'technical', 'past-projects', 'legal'
+                            ].includes(selectedFolder) && (
+                              <div className="text-center py-12">
+                                <div className="mx-auto w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+                                  <Folder className="h-8 w-8 text-gray-400" />
+                                </div>
+                                <h3 className="text-lg font-medium text-gray-700 mb-2">
+                                  No documents in this folder yet
+                                </h3>
+                                <p className="text-sm text-gray-500 mb-4">
+                                  Upload your first document to get started
+                                </p>
+                                <Button>
+                                  <Upload className="h-4 w-4 mr-2" />
+                                  Upload Documents
+                                </Button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Folder Management Section */}
+                      <div className="mt-8 pt-6 border-t">
+                        <h3 className="font-semibold mb-4">Folder Management</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                          <Card className="border-dashed border-gray-300 hover:border-blue-300 transition-colors">
+                            <CardContent className="p-4 text-center">
+                              <FolderPlus className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                              <h4 className="font-medium text-gray-700">Create New Folder</h4>
+                              <p className="text-sm text-gray-500 mt-1">
+                                Organize documents by category
+                              </p>
+                              <Button 
+                                variant="outline" 
+                                size="sm" 
+                                className="mt-3"
+                                onClick={() => setShowNewFolderForm(true)}
+                              >
+                                Create Folder
+                              </Button>
+                            </CardContent>
+                          </Card>
+
+                          <Card>
+                            <CardContent className="p-4">
+                              <div className="flex items-center gap-2 mb-2">
+                                <Folder className="h-5 w-5 text-blue-600" />
+                                <h4 className="font-medium">Bulk Upload</h4>
+                              </div>
+                              <p className="text-sm text-gray-600 mb-3">
+                                Upload multiple documents at once with automatic folder detection
+                              </p>
+                              <Button variant="outline" size="sm">
+                                Start Bulk Upload
+                              </Button>
+                            </CardContent>
+                          </Card>
+
+                          <Card>
+                            <CardContent className="p-4">
+                              <div className="flex items-center gap-2 mb-2">
+                                <Brain className="h-5 w-5 text-purple-600" />
+                                <h4 className="font-medium">AI Integration</h4>
+                              </div>
+                              <p className="text-sm text-gray-600 mb-3">
+                                Allow AI to access these documents for bid assistance
+                              </p>
+                              <Button variant="outline" size="sm">
+                                Configure AI Access
+                              </Button>
+                            </CardContent>
+                          </Card>
                         </div>
                       </div>
                     </CardContent>
