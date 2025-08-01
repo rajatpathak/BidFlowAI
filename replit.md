@@ -5,7 +5,15 @@ The Bid Management System (BMS) is a comprehensive full-stack web application de
 
 ## User Preferences
 Preferred communication style: Simple, everyday language.
-Project Architecture: Separated frontend (React.js) and backend (Node.js) with MySQL database for easier route management.
+Project Architecture: Clean, simple, and scalable structure with consolidated codebase for easier deployment and maintenance.
+
+## Recent Changes (August 1, 2025)
+- **Project Restructure**: Cleaned up project structure by removing duplicate directories and unused files
+- **Simplified Architecture**: Created consolidated route handlers and removed complex scattered server files
+- **Clean Image Upload**: Fixed image upload functionality with proper multer configuration and file serving
+- **Deployment Ready**: Streamlined codebase for easier server deployment and maintenance
+- **Complete Deployment Suite**: Added comprehensive deployment configurations including Docker, PM2, GitHub Actions, and manual server setup
+- **Production Security**: Enhanced server configuration with security headers, CORS, and graceful shutdown handling
 
 ## System Architecture
 
@@ -21,10 +29,11 @@ Project Architecture: Separated frontend (React.js) and backend (Node.js) with M
 ### Backend
 - **Runtime**: Node.js with Express.js
 - **Language**: TypeScript with ES modules
-- **Database ORM**: Drizzle ORM (initially with PostgreSQL, later migrated to MySQL as per user preference)
-- **File Uploads**: Multer
+- **Database ORM**: Drizzle ORM with PostgreSQL
+- **File Uploads**: Multer with local storage
 - **AI Integration**: OpenAI API
-- **Authentication**: Database session-based authentication with JWT tokens stored in PostgreSQL, bcrypt password hashing, and role-based access control (Admin, Finance Manager, Senior Bidder)
+- **Authentication**: Simple JWT-based authentication for demo purposes
+- **Architecture**: Clean modular route structure for easy maintenance and deployment
 
 ### Data Storage
 - **Primary Database**: PostgreSQL (via Neon serverless for production), with a user preference to migrate to MySQL.

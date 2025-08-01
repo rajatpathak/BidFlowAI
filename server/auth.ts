@@ -3,7 +3,7 @@ import bcrypt from 'bcrypt';
 import { Request, Response, NextFunction } from 'express';
 import { db } from './db.js';
 import { users, userSessions } from '../shared/schema.js';
-import { eq, and, gte } from 'drizzle-orm';
+import { eq, and, gte, sql } from 'drizzle-orm';
 import { v4 as uuidv4 } from 'uuid';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
@@ -125,7 +125,7 @@ export async function authenticateToken(
       .where(
         and(
           eq(userSessions.token, token),
-          gte(userSessions.expiresAt, new Date())
+          gte(userSessions.expiresAt, sql`NOW()`)
         )
       )
       .limit(1);
