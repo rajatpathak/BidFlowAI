@@ -147,20 +147,41 @@ export default function AdminSettingsPage() {
         projectTypes: data.projectTypes ? data.projectTypes.split(",").map(s => s.trim()) : [],
       };
       
+      console.log("Submitting company settings:", payload);
+      
+      const token = localStorage.getItem('auth_token');
       const response = await fetch("/api/company-settings", {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        credentials: 'include', // Include session cookies
         body: JSON.stringify(payload),
       });
-      if (!response.ok) throw new Error("Failed to update settings");
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Settings update failed:", response.status, errorText);
+        throw new Error(`Failed to update settings: ${response.status}`);
+      }
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
+      console.log("Settings updated successfully:", result);
       queryClient.invalidateQueries({ queryKey: ["/api/company-settings"] });
       queryClient.invalidateQueries({ queryKey: ["/api/tenders"] });
       toast({
         title: "Settings updated",
         description: "Company settings have been updated successfully.",
+      });
+    },
+    onError: (error) => {
+      console.error("Settings update error:", error);
+      toast({
+        title: "Update failed",
+        description: error.message || "Failed to update company settings",
+        variant: "destructive",
       });
     },
   });

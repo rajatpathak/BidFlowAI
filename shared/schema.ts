@@ -13,6 +13,15 @@ export const users = pgTable("users", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const userSessions = pgTable("user_sessions", {
+  id: text("id").primaryKey(),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  token: text("token").notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  lastAccessed: timestamp("last_accessed").defaultNow(),
+});
+
 export const tenders = pgTable("tenders", {
   id: uuid("id").primaryKey().defaultRandom(),
   title: text("title").notNull(),
@@ -262,6 +271,9 @@ export const documentTemplates = pgTable("document_templates", {
 // Type exports
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
+
+export type UserSession = typeof userSessions.$inferSelect;
+export type InsertUserSession = typeof userSessions.$inferInsert;
 
 export type Tender = typeof tenders.$inferSelect;
 export type InsertTender = typeof tenders.$inferInsert;

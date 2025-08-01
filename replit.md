@@ -24,7 +24,7 @@ Project Architecture: Separated frontend (React.js) and backend (Node.js) with M
 - **Database ORM**: Drizzle ORM (initially with PostgreSQL, later migrated to MySQL as per user preference)
 - **File Uploads**: Multer
 - **AI Integration**: OpenAI API
-- **Authentication**: JWT-based with bcrypt password hashing and role-based access control (Admin, Finance Manager, Senior Bidder)
+- **Authentication**: Database session-based authentication with JWT tokens stored in PostgreSQL, bcrypt password hashing, and role-based access control (Admin, Finance Manager, Senior Bidder)
 
 ### Data Storage
 - **Primary Database**: PostgreSQL (via Neon serverless for production), with a user preference to migrate to MySQL.

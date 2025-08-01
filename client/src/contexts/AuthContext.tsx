@@ -43,7 +43,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const refreshUser = async () => {
     try {
       const token = localStorage.getItem('auth_token');
+      console.log('Refreshing user with token:', token ? 'Present' : 'Missing');
+      
       if (!token) {
+        console.log('No token found, setting user to null');
         setUser(null);
         setIsLoading(false);
         return;
@@ -57,10 +60,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
         credentials: 'include',
       });
 
+      console.log('User refresh response status:', response.status);
+
       if (response.ok) {
         const userData = await response.json();
+        console.log('User data refreshed successfully:', userData);
         setUser(userData);
       } else {
+        console.log('Invalid token, removing from localStorage');
         // Invalid token, remove it
         localStorage.removeItem('auth_token');
         setUser(null);
@@ -71,12 +78,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setUser(null);
     } finally {
       setIsLoading(false);
+      console.log('User refresh completed');
     }
   };
 
   const login = async (credentials: { username: string; password: string }) => {
     try {
       setIsLoading(true);
+      console.log('Starting login process for:', credentials.username);
+      
       const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: {
@@ -87,29 +97,43 @@ export function AuthProvider({ children }: AuthProviderProps) {
         body: JSON.stringify(credentials),
       });
 
+      console.log('Login response status:', response.status);
+      console.log('Login response headers:', Object.fromEntries(response.headers.entries()));
+
       if (response.ok) {
         const contentType = response.headers.get('content-type');
         if (contentType && contentType.includes('application/json')) {
-          const { user: userData, token } = await response.json();
+          const responseData = await response.json();
+          console.log('Login response data:', responseData);
+          
+          const { user: userData, token } = responseData;
           localStorage.setItem('auth_token', token);
           setUser(userData);
+          
+          console.log('Login successful, user set:', userData);
+          
           toast({
             title: "Login Successful",
             description: `Welcome back, ${userData.name}!`,
           });
         } else {
+          console.error('Server returned non-JSON response:', await response.text());
           throw new Error('Server returned non-JSON response');
         }
       } else {
         const contentType = response.headers.get('content-type');
         if (contentType && contentType.includes('application/json')) {
           const error = await response.json();
+          console.error('Login error response:', error);
           throw new Error(error.message || 'Login failed');
         } else {
+          const errorText = await response.text();
+          console.error('Login failed with HTML response:', errorText);
           throw new Error(`Login failed: Server returned HTML instead of JSON (${response.status})`);
         }
       }
     } catch (error) {
+      console.error('Login error:', error);
       toast({
         title: "Login Failed",
         description: error instanceof Error ? error.message : 'Invalid credentials',
