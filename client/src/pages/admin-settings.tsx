@@ -111,7 +111,96 @@ export default function AdminSettingsPage() {
   const [newFolderName, setNewFolderName] = useState<string>('');
   const [showNewFolderForm, setShowNewFolderForm] = useState<boolean>(false);
   const [documentSearchTerm, setDocumentSearchTerm] = useState<string>('');
+  const [uploadingFile, setUploadingFile] = useState<boolean>(false);
   const { toast } = useToast();
+
+  // Fetch company documents
+  const { data: companyDocuments = [], isLoading: documentsLoading, refetch: refetchDocuments } = useQuery({
+    queryKey: ['/api/company-documents', selectedFolder, documentSearchTerm],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (selectedFolder) params.append('folder', selectedFolder);
+      if (documentSearchTerm) params.append('search', documentSearchTerm);
+      
+      const response = await fetch(`/api/company-documents?${params}`);
+      if (!response.ok) throw new Error('Failed to fetch documents');
+      return response.json();
+    },
+  });
+
+  // Fetch document stats
+  const { data: documentStats } = useQuery({
+    queryKey: ['/api/company-documents/stats'],
+    queryFn: async () => {
+      const response = await fetch('/api/company-documents/stats');
+      if (!response.ok) throw new Error('Failed to fetch stats');
+      return response.json();
+    },
+  });
+
+  // File upload handler
+  const handleFileUpload = async (files: FileList, folder: string = selectedFolder || 'general') => {
+    setUploadingFile(true);
+    
+    try {
+      for (const file of Array.from(files)) {
+        const formData = new FormData();
+        formData.append('document', file);
+        formData.append('folder', folder);
+        formData.append('aiAccessEnabled', 'true');
+        
+        const response = await fetch('/api/company-documents/upload', {
+          method: 'POST',
+          body: formData,
+        });
+        
+        if (!response.ok) {
+          throw new Error('Upload failed');
+        }
+      }
+      
+      toast({
+        title: "Upload Successful",
+        description: `${files.length} file(s) uploaded successfully to ${folder} folder.`,
+      });
+      
+      refetchDocuments();
+    } catch (error) {
+      toast({
+        title: "Upload Failed",
+        description: "Failed to upload files. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setUploadingFile(false);
+    }
+  };
+
+  // Delete document handler
+  const handleDeleteDocument = async (documentId: string) => {
+    try {
+      const response = await fetch(`/api/company-documents/${documentId}`, {
+        method: 'DELETE',
+      });
+      
+      if (!response.ok) {
+        throw new Error('Delete failed');
+      }
+      
+      toast({
+        title: "Document Deleted",
+        description: "Document has been deleted successfully.",
+      });
+      
+      refetchDocuments();
+    } catch (error) {
+      toast({
+        title: "Delete Failed",
+        description: "Failed to delete document. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
 
   const { data: companySettings, isLoading: settingsLoading } = useQuery<CompanySettings>({
     queryKey: ["/api/company-settings"],
@@ -282,7 +371,7 @@ export default function AdminSettingsPage() {
     },
   });
 
-  const handleFileUpload = async () => {
+  const handleExcelFileUpload = async () => {
     if (!uploadFile) return;
     
     setIsUploading(true);
@@ -716,7 +805,7 @@ export default function AdminSettingsPage() {
 
               <div className="flex justify-center">
                 <Button
-                  onClick={handleFileUpload}
+                  onClick={handleExcelFileUpload}
                   disabled={!uploadFile || isUploading}
                   className="w-full md:w-auto px-8 py-2"
                   size="lg"
@@ -1396,13 +1485,13 @@ export default function AdminSettingsPage() {
                             {/* Folder List */}
                             <div className="space-y-1">
                               {[
-                                { name: 'All Documents', count: 125, id: '' },
-                                { name: 'Company Profile', count: 15, id: 'company-profile' },
-                                { name: 'Certifications', count: 23, id: 'certifications' },
-                                { name: 'Financial Documents', count: 18, id: 'financial' },
-                                { name: 'Technical Specifications', count: 32, id: 'technical' },
-                                { name: 'Past Projects', count: 27, id: 'past-projects' },
-                                { name: 'Legal Documents', count: 10, id: 'legal' }
+                                { name: 'All Documents', count: documentStats?.totalDocuments || 0, id: '' },
+                                { name: 'Company Profile', count: documentStats?.folderStats?.['company-profile'] || 0, id: 'company-profile' },
+                                { name: 'Certifications', count: documentStats?.folderStats?.['certifications'] || 0, id: 'certifications' },
+                                { name: 'Financial Documents', count: documentStats?.folderStats?.['financial'] || 0, id: 'financial' },
+                                { name: 'Technical Specifications', count: documentStats?.folderStats?.['technical'] || 0, id: 'technical' },
+                                { name: 'Past Projects', count: documentStats?.folderStats?.['past-projects'] || 0, id: 'past-projects' },
+                                { name: 'Legal Documents', count: documentStats?.folderStats?.['legal'] || 0, id: 'legal' }
                               ].map((folder) => (
                                 <div
                                   key={folder.id}
@@ -1460,22 +1549,54 @@ export default function AdminSettingsPage() {
                             </div>
 
                             {/* Upload Area */}
-                            <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center bg-gray-50">
+                            <div 
+                              className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center bg-gray-50 hover:border-blue-400 transition-colors"
+                              onDrop={(e) => {
+                                e.preventDefault();
+                                const files = e.dataTransfer.files;
+                                if (files.length > 0) {
+                                  handleFileUpload(files);
+                                }
+                              }}
+                              onDragOver={(e) => e.preventDefault()}
+                            >
                               <div className="space-y-4">
                                 <div className="mx-auto w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center">
-                                  <Upload className="h-8 w-8 text-gray-400" />
+                                  {uploadingFile ? (
+                                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                                  ) : (
+                                    <Upload className="h-8 w-8 text-gray-400" />
+                                  )}
                                 </div>
                                 <div>
-                                  <h4 className="text-lg font-medium text-gray-700">Drop files here or click to upload</h4>
+                                  <h4 className="text-lg font-medium text-gray-700">
+                                    {uploadingFile ? 'Uploading...' : 'Drop files here or click to upload'}
+                                  </h4>
                                   <p className="text-sm text-gray-500 mt-1">
                                     Supports: PDF, DOC, DOCX, XLS, XLSX, PPT, PPTX, Images
                                   </p>
                                 </div>
                                 <div className="flex items-center justify-center gap-4">
-                                  <Button>
-                                    <Plus className="h-4 w-4 mr-2" />
-                                    Choose Files
-                                  </Button>
+                                  <label htmlFor="file-upload">
+                                    <Button disabled={uploadingFile} asChild>
+                                      <span>
+                                        <Plus className="h-4 w-4 mr-2" />
+                                        Choose Files
+                                      </span>
+                                    </Button>
+                                  </label>
+                                  <input
+                                    id="file-upload"
+                                    type="file"
+                                    multiple
+                                    accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.jpg,.jpeg,.png,.gif,.txt"
+                                    className="hidden"
+                                    onChange={(e) => {
+                                      if (e.target.files && e.target.files.length > 0) {
+                                        handleFileUpload(e.target.files);
+                                      }
+                                    }}
+                                  />
                                   <span className="text-sm text-gray-500">or drag and drop</span>
                                 </div>
                               </div>
@@ -1483,78 +1604,102 @@ export default function AdminSettingsPage() {
 
                             {/* Documents Grid */}
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-6">
-                              {[
-                                {
-                                  name: 'Company_Overview_2025.pdf',
-                                  type: 'PDF',
-                                  size: '2.3 MB',
-                                  uploaded: '2 days ago',
-                                  folder: 'company-profile',
-                                  icon: FileText
-                                },
-                                {
-                                  name: 'ISO_27001_Certificate.pdf',
-                                  type: 'PDF',
-                                  size: '1.8 MB',
-                                  uploaded: '1 week ago',
-                                  folder: 'certifications',
-                                  icon: FileText
-                                },
-                                {
-                                  name: 'Financial_Statement_2024.xlsx',
-                                  type: 'Excel',
-                                  size: '4.2 MB',
-                                  uploaded: '3 days ago',
-                                  folder: 'financial',
-                                  icon: FileSpreadsheet
-                                },
-                                {
-                                  name: 'Technical_Capabilities.docx',
-                                  type: 'Word',
-                                  size: '1.5 MB',
-                                  uploaded: '5 days ago',
-                                  folder: 'technical',
-                                  icon: FileText
-                                },
-                                {
-                                  name: 'Past_Projects_Portfolio.pdf',
-                                  type: 'PDF',
-                                  size: '15.6 MB',
-                                  uploaded: '1 week ago',
-                                  folder: 'past-projects',
-                                  icon: FileText
-                                },
-                                {
-                                  name: 'CMMI_Level_5_Certificate.pdf',
-                                  type: 'PDF',
-                                  size: '2.1 MB',
-                                  uploaded: '2 weeks ago',
-                                  folder: 'certifications',
-                                  icon: FileText
-                                }
-                              ]
-                              .filter(doc => selectedFolder === '' || doc.folder === selectedFolder)
-                              .filter(doc => documentSearchTerm === '' || 
-                                doc.name.toLowerCase().includes(documentSearchTerm.toLowerCase())
-                              )
-                              .map((doc, index) => (
-                                <Card key={index} className="hover:shadow-md transition-shadow cursor-pointer">
+                              {documentsLoading ? (
+                                <div className="col-span-full text-center py-8">
+                                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                                  <p className="text-gray-500">Loading documents...</p>
+                                </div>
+                              ) : companyDocuments.length === 0 ? (
+                                <div className="col-span-full text-center py-12">
+                                  <div className="mx-auto w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+                                    <Folder className="h-8 w-8 text-gray-400" />
+                                  </div>
+                                  <h3 className="text-lg font-medium text-gray-700 mb-2">
+                                    No documents found
+                                  </h3>
+                                  <p className="text-sm text-gray-500 mb-4">
+                                    {selectedFolder ? 'This folder is empty. Upload your first document to get started.' : 'No documents match your search criteria.'}
+                                  </p>
+                                  {selectedFolder && (
+                                    <label htmlFor="file-upload-empty">
+                                      <Button asChild>
+                                        <span>
+                                          <Upload className="h-4 w-4 mr-2" />
+                                          Upload Documents
+                                        </span>
+                                      </Button>
+                                    </label>
+                                  )}
+                                  <input
+                                    id="file-upload-empty"
+                                    type="file"
+                                    multiple
+                                    accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.jpg,.jpeg,.png,.gif,.txt"
+                                    className="hidden"
+                                    onChange={(e) => {
+                                      if (e.target.files && e.target.files.length > 0) {
+                                        handleFileUpload(e.target.files);
+                                      }
+                                    }}
+                                  />
+                                </div>
+                              ) : (
+                                companyDocuments.map((doc: any, index: number) => {
+                                  const getFileIcon = (mimeType: string) => {
+                                    if (mimeType.includes('spreadsheet') || mimeType.includes('excel')) return FileSpreadsheet;
+                                    if (mimeType.includes('image')) return Image;
+                                    return FileText;
+                                  };
+                                  
+                                  const getFileType = (mimeType: string) => {
+                                    if (mimeType.includes('pdf')) return 'PDF';
+                                    if (mimeType.includes('word')) return 'Word';
+                                    if (mimeType.includes('spreadsheet') || mimeType.includes('excel')) return 'Excel';
+                                    if (mimeType.includes('presentation') || mimeType.includes('powerpoint')) return 'PowerPoint';
+                                    if (mimeType.includes('image')) return 'Image';
+                                    return 'Document';
+                                  };
+                                  
+                                  const formatFileSize = (bytes: number) => {
+                                    if (bytes === 0) return '0 Bytes';
+                                    const k = 1024;
+                                    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+                                    const i = Math.floor(Math.log(bytes) / Math.log(k));
+                                    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+                                  };
+                                  
+                                  const formatDate = (dateString: string) => {
+                                    const date = new Date(dateString);
+                                    const now = new Date();
+                                    const diffTime = Math.abs(now.getTime() - date.getTime());
+                                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                                    
+                                    if (diffDays === 1) return 'Yesterday';
+                                    if (diffDays < 7) return `${diffDays} days ago`;
+                                    if (diffDays < 30) return `${Math.ceil(diffDays / 7)} weeks ago`;
+                                    return date.toLocaleDateString();
+                                  };
+                                  
+                                  const IconComponent = getFileIcon(doc.mimeType);
+                                  
+                                  return (
+                                <Card key={doc.id} className="hover:shadow-md transition-shadow cursor-pointer">
                                   <CardContent className="p-4">
                                     <div className="flex items-start gap-3">
                                       <div className="p-2 bg-blue-100 rounded-lg">
-                                        <doc.icon className="h-6 w-6 text-blue-600" />
+                                        <IconComponent className="h-6 w-6 text-blue-600" />
                                       </div>
                                       <div className="flex-1 min-w-0">
-                                        <h4 className="font-medium text-sm truncate" title={doc.name}>
-                                          {doc.name}
+                                        <h4 className="font-medium text-sm truncate" title={doc.originalName}>
+                                          {doc.originalName}
                                         </h4>
                                         <div className="flex items-center gap-2 mt-1">
                                           <Badge variant="outline" className="text-xs">
-                                            {doc.type}
+                                            {getFileType(doc.mimeType)}
                                           </Badge>
-                                          <span className="text-xs text-gray-500">{doc.size}</span>
+                                          <span className="text-xs text-gray-500">{formatFileSize(doc.size)}</span>
                                         </div>
-                                        <p className="text-xs text-gray-500 mt-1">{doc.uploaded}</p>
+                                        <p className="text-xs text-gray-500 mt-1">{formatDate(doc.uploadedAt)}</p>
                                       </div>
                                     </div>
                                     <div className="flex gap-1 mt-3">
@@ -1566,13 +1711,19 @@ export default function AdminSettingsPage() {
                                         <Download className="h-3 w-3 mr-1" />
                                         Download
                                       </Button>
-                                      <Button variant="ghost" size="sm">
+                                      <Button 
+                                        variant="ghost" 
+                                        size="sm"
+                                        onClick={() => handleDeleteDocument(doc.id)}
+                                      >
                                         <Trash2 className="h-3 w-3" />
                                       </Button>
                                     </div>
                                   </CardContent>
                                 </Card>
-                              ))}
+                              );
+                            })
+                          )}
                             </div>
 
                             {/* Empty State */}
