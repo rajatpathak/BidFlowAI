@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, integer, boolean, timestamp, json, bigint, uuid } from "drizzle-orm/pg-core";
+import { pgTable, text, integer, boolean, timestamp, json, jsonb, bigint, uuid, varchar } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -343,6 +343,15 @@ export const documentTemplates = pgTable("document_templates", {
   category: text("category").notNull().default("participation"), // participation, technical, commercial, etc.
   mandatory: boolean("mandatory").default(false),
   format: text("format"), // PDF, DOC, XLS, etc.
+  images: jsonb("images").$type<Array<{
+    id: string;
+    filename: string;
+    originalName: string;
+    mimeType: string;
+    size: number;
+    order: number;
+    url: string;
+  }>>().default([]),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
   createdBy: uuid("created_by").references(() => users.id),
@@ -430,18 +439,6 @@ export type InsertBidDocument = typeof bidDocuments.$inferInsert;
 
 export type BidPackage = typeof bidPackages.$inferSelect;
 export type InsertBidPackage = typeof bidPackages.$inferInsert;
-
-export type TenderResultsImport = typeof tenderResultsImports.$inferSelect;
-export type InsertTenderResultsImport = typeof tenderResultsImports.$inferInsert;
-
-export type EnhancedTenderResult = typeof enhancedTenderResults.$inferSelect;
-export type InsertEnhancedTenderResult = typeof enhancedTenderResults.$inferInsert;
-
-export type ActivityLog = typeof activityLogs.$inferSelect;
-export type InsertActivityLog = typeof activityLogs.$inferInsert;
-
-export type DocumentTemplate = typeof documentTemplates.$inferSelect;
-export type InsertDocumentTemplate = typeof documentTemplates.$inferInsert;
 
 // Zod schemas for validation
 export const insertUserSchema = createInsertSchema(users);

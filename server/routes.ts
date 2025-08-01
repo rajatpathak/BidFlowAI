@@ -1887,7 +1887,7 @@ Provide detailed analysis focusing on extracting email addresses, phone numbers,
   // Create new document template
   app.post("/api/document-templates", authenticateToken, requireRole(['admin']), async (req: AuthenticatedRequest, res) => {
     try {
-      const { name, description, category, mandatory, format } = req.body;
+      const { name, description, category, mandatory, format, images = [] } = req.body;
       
       const [newTemplate] = await db.insert(documentTemplates).values({
         name,
@@ -1895,6 +1895,7 @@ Provide detailed analysis focusing on extracting email addresses, phone numbers,
         category: category || 'participation',
         mandatory: mandatory || false,
         format,
+        images,
         createdBy: req.user?.id || 'system'
       }).returning();
       
@@ -1909,7 +1910,7 @@ Provide detailed analysis focusing on extracting email addresses, phone numbers,
   app.put("/api/document-templates/:id", authenticateToken, requireRole(['admin']), async (req, res) => {
     try {
       const { id } = req.params;
-      const { name, description, category, mandatory, format } = req.body;
+      const { name, description, category, mandatory, format, images = [] } = req.body;
       
       const [updatedTemplate] = await db.update(documentTemplates)
         .set({ 
@@ -1918,6 +1919,7 @@ Provide detailed analysis focusing on extracting email addresses, phone numbers,
           category, 
           mandatory, 
           format,
+          images,
           updatedAt: new Date()
         })
         .where(eq(documentTemplates.id, id))
@@ -1945,6 +1947,30 @@ Provide detailed analysis focusing on extracting email addresses, phone numbers,
     } catch (error) {
       console.error("Error deleting document template:", error);
       res.status(500).json({ error: "Failed to delete document template" });
+    }
+  });
+
+  // Image upload endpoint for templates
+  app.post('/api/upload-images', authenticateToken, upload.array('images'), async (req, res) => {
+    try {
+      if (!req.files || !Array.isArray(req.files)) {
+        return res.status(400).json({ error: 'No images uploaded' });
+      }
+
+      const uploadedImages = req.files.map((file, index) => ({
+        id: `img_${Date.now()}_${index}`,
+        filename: file.filename,
+        originalName: file.originalname,
+        mimeType: file.mimetype,
+        size: file.size,
+        order: index + 1,
+        url: `/uploads/${file.filename}`,
+      }));
+
+      res.json(uploadedImages);
+    } catch (error) {
+      console.error('Error uploading images:', error);
+      res.status(500).json({ error: 'Failed to upload images' });
     }
   });
 

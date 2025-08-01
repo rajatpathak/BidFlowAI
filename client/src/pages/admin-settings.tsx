@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -20,7 +20,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { insertCompanySettingsSchema } from "@shared/schema";
 import { z } from "zod";
-import { Settings, Upload, FileSpreadsheet, Building2, CheckCircle, XCircle, Clock, FileText, Plus, Edit, Trash2 } from "lucide-react";
+import { Settings, Upload, FileSpreadsheet, Building2, CheckCircle, XCircle, Clock, FileText, Plus, Edit, Trash2, Image, GripVertical, X } from "lucide-react";
 import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
@@ -56,6 +56,15 @@ type DocumentTemplate = {
   category: string;
   mandatory: boolean;
   format: string | null;
+  images: Array<{
+    id: string;
+    filename: string;
+    originalName: string;
+    mimeType: string;
+    size: number;
+    order: number;
+    url: string;
+  }>;
   createdAt: Date;
   updatedAt: Date;
   createdBy: string | null;
@@ -80,11 +89,23 @@ const documentTemplateFormSchema = z.object({
   format: z.string().optional(),
 });
 
+type ImageFile = {
+  id: string;
+  filename: string;
+  originalName: string;
+  mimeType: string;
+  size: number;
+  order: number;
+  url: string;
+};
+
 export default function AdminSettingsPage() {
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<DocumentTemplate | null>(null);
   const [showTemplateForm, setShowTemplateForm] = useState(false);
+  const [templateImages, setTemplateImages] = useState<ImageFile[]>([]);
+  const [draggedImageIndex, setDraggedImageIndex] = useState<number | null>(null);
   const { toast } = useToast();
 
   const { data: companySettings, isLoading: settingsLoading } = useQuery<CompanySettings>({
@@ -188,10 +209,14 @@ export default function AdminSettingsPage() {
 
   const createTemplateMutation = useMutation({
     mutationFn: async (data: z.infer<typeof documentTemplateFormSchema>) => {
+      const templateData = {
+        ...data,
+        images: templateImages,
+      };
       const response = await fetch("/api/document-templates", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
+        body: JSON.stringify(templateData),
       });
       if (!response.ok) throw new Error("Failed to create template");
       return response.json();
@@ -199,6 +224,7 @@ export default function AdminSettingsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/document-templates"] });
       templateForm.reset();
+      setTemplateImages([]);
       setShowTemplateForm(false);
       toast({
         title: "Template created",
@@ -209,10 +235,14 @@ export default function AdminSettingsPage() {
 
   const updateTemplateMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: z.infer<typeof documentTemplateFormSchema> }) => {
+      const templateData = {
+        ...data,
+        images: templateImages,
+      };
       const response = await fetch(`/api/document-templates/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
+        body: JSON.stringify(templateData),
       });
       if (!response.ok) throw new Error("Failed to update template");
       return response.json();
@@ -220,6 +250,7 @@ export default function AdminSettingsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/document-templates"] });
       templateForm.reset();
+      setTemplateImages([]);
       setEditingTemplate(null);
       setShowTemplateForm(false);
       toast({
@@ -299,6 +330,7 @@ export default function AdminSettingsPage() {
 
   const handleEditTemplate = (template: DocumentTemplate) => {
     setEditingTemplate(template);
+    setTemplateImages(template.images || []);
     templateForm.reset({
       name: template.name,
       description: template.description || "",
@@ -318,7 +350,89 @@ export default function AdminSettingsPage() {
   const resetTemplateForm = () => {
     setEditingTemplate(null);
     setShowTemplateForm(false);
+    setTemplateImages([]);
     templateForm.reset();
+  };
+
+  // Image upload handler
+  const handleImageUpload = async (files: FileList) => {
+    const formData = new FormData();
+    Array.from(files).forEach((file) => {
+      formData.append('images', file);
+    });
+
+    try {
+      const response = await fetch('/api/upload-images', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to upload images');
+      }
+
+      const uploadedImages = await response.json();
+      const newImages: ImageFile[] = uploadedImages.map((img: any, index: number) => ({
+        id: img.id,
+        filename: img.filename,
+        originalName: img.originalName,
+        mimeType: img.mimeType,
+        size: img.size,
+        order: templateImages.length + index + 1,
+        url: img.url,
+      }));
+
+      setTemplateImages(prev => [...prev, ...newImages]);
+      toast({
+        title: "Images uploaded",
+        description: `${newImages.length} images uploaded successfully.`,
+      });
+    } catch (error) {
+      toast({
+        title: "Upload failed",
+        description: "Failed to upload images. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Drag and drop handlers
+  const handleDragStart = (index: number) => {
+    setDraggedImageIndex(index);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+  };
+
+  const handleDrop = (e: React.DragEvent, dropIndex: number) => {
+    e.preventDefault();
+    if (draggedImageIndex === null) return;
+
+    const draggedImage = templateImages[draggedImageIndex];
+    const updatedImages = [...templateImages];
+    
+    // Remove dragged image
+    updatedImages.splice(draggedImageIndex, 1);
+    
+    // Insert at new position
+    updatedImages.splice(dropIndex, 0, draggedImage);
+    
+    // Update order numbers
+    const reorderedImages = updatedImages.map((img, index) => ({
+      ...img,
+      order: index + 1,
+    }));
+    
+    setTemplateImages(reorderedImages);
+    setDraggedImageIndex(null);
+  };
+
+  const removeImage = (imageId: string) => {
+    setTemplateImages(prev => 
+      prev.filter(img => img.id !== imageId)
+        .map((img, index) => ({ ...img, order: index + 1 }))
+    );
   };
 
   const getStatusIcon = (status: string) => {
@@ -748,6 +862,83 @@ export default function AdminSettingsPage() {
                             )}
                           />
                         </div>
+
+                        {/* Image Upload Section */}
+                        <div className="space-y-4">
+                          <Label>Document Images</Label>
+                          <div className="border-2 border-dashed border-gray-300 rounded-lg p-6">
+                            <div className="text-center">
+                              <Image className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                              <div className="space-y-2">
+                                <label htmlFor="template-images" className="cursor-pointer block">
+                                  <div className="text-lg font-medium">Upload Images</div>
+                                  <div className="text-sm text-gray-500">Select multiple images to add to this template</div>
+                                  <Input
+                                    id="template-images"
+                                    type="file"
+                                    accept="image/*"
+                                    multiple
+                                    className="mt-2"
+                                    onChange={(e) => {
+                                      if (e.target.files && e.target.files.length > 0) {
+                                        handleImageUpload(e.target.files);
+                                      }
+                                    }}
+                                  />
+                                </label>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Uploaded Images with Drag & Drop */}
+                          {templateImages.length > 0 && (
+                            <div className="space-y-3">
+                              <Label>Uploaded Images (Drag to reorder)</Label>
+                              <div className="grid grid-cols-1 gap-3">
+                                {templateImages
+                                  .sort((a, b) => a.order - b.order)
+                                  .map((image, index) => (
+                                    <div
+                                      key={image.id}
+                                      draggable
+                                      onDragStart={() => handleDragStart(index)}
+                                      onDragOver={handleDragOver}
+                                      onDrop={(e) => handleDrop(e, index)}
+                                      className={`
+                                        flex items-center gap-4 p-4 border rounded-lg cursor-move hover:bg-gray-50
+                                        ${draggedImageIndex === index ? 'opacity-50' : ''}
+                                      `}
+                                    >
+                                      <GripVertical className="h-5 w-5 text-gray-400" />
+                                      <div className="flex items-center gap-3 flex-1">
+                                        <img
+                                          src={image.url}
+                                          alt={image.originalName}
+                                          className="w-16 h-16 object-cover rounded border"
+                                        />
+                                        <div className="flex-1">
+                                          <div className="font-medium text-sm">{image.originalName}</div>
+                                          <div className="text-xs text-gray-500">
+                                            {(image.size / 1024).toFixed(1)} KB • Order: {image.order}
+                                          </div>
+                                        </div>
+                                      </div>
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => removeImage(image.id)}
+                                        className="text-red-600 hover:text-red-800"
+                                      >
+                                        <X className="h-4 w-4" />
+                                      </Button>
+                                    </div>
+                                  ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
                         <div className="flex gap-2">
                           <Button
                             type="submit"
