@@ -149,7 +149,7 @@ export default function AdminSettingsPage() {
       
       console.log("Submitting company settings:", payload);
       
-      const token = localStorage.getItem('authToken');
+      const token = localStorage.getItem('auth_token');
       const response = await fetch("/api/company-settings", {
         method: "PUT",
         headers: { 
