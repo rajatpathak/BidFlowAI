@@ -1951,7 +1951,7 @@ Provide detailed analysis focusing on extracting email addresses, phone numbers,
   });
 
   // Image upload endpoint for templates
-  app.post('/api/upload-images', authenticateToken, upload.array('images'), async (req, res) => {
+  app.post('/api/upload-images', upload.array('images'), async (req, res) => {
     try {
       if (!req.files || !Array.isArray(req.files)) {
         return res.status(400).json({ error: 'No images uploaded' });

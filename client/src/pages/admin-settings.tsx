@@ -20,7 +20,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { insertCompanySettingsSchema } from "@shared/schema";
 import { z } from "zod";
-import { Settings, Upload, FileSpreadsheet, Building2, CheckCircle, XCircle, Clock, FileText, Plus, Edit, Trash2, Image, GripVertical, X } from "lucide-react";
+import { Settings, Upload, FileSpreadsheet, Building2, CheckCircle, XCircle, Clock, FileText, Plus, Edit, Trash2, Image, GripVertical, X, Eye } from "lucide-react";
 import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
@@ -354,14 +354,37 @@ export default function AdminSettingsPage() {
     templateForm.reset();
   };
 
-  // Image upload handler
+  // Image upload handler with preview
   const handleImageUpload = async (files: FileList) => {
-    const formData = new FormData();
-    Array.from(files).forEach((file) => {
-      formData.append('images', file);
+    // First create previews immediately
+    const filePromises = Array.from(files).map((file, index) => {
+      return new Promise<ImageFile>((resolve) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          resolve({
+            id: `temp_${Date.now()}_${index}`,
+            filename: file.name,
+            originalName: file.name,
+            mimeType: file.type,
+            size: file.size,
+            order: templateImages.length + index + 1,
+            url: e.target?.result as string, // base64 preview
+          });
+        };
+        reader.readAsDataURL(file);
+      });
     });
 
     try {
+      const previewImages = await Promise.all(filePromises);
+      setTemplateImages(prev => [...prev, ...previewImages]);
+
+      // Now upload to server
+      const formData = new FormData();
+      Array.from(files).forEach((file) => {
+        formData.append('images', file);
+      });
+
       const response = await fetch('/api/upload-images', {
         method: 'POST',
         body: formData,
@@ -372,22 +395,29 @@ export default function AdminSettingsPage() {
       }
 
       const uploadedImages = await response.json();
-      const newImages: ImageFile[] = uploadedImages.map((img: any, index: number) => ({
-        id: img.id,
-        filename: img.filename,
-        originalName: img.originalName,
-        mimeType: img.mimeType,
-        size: img.size,
-        order: templateImages.length + index + 1,
-        url: img.url,
-      }));
+      
+      // Replace preview images with actual uploaded images
+      setTemplateImages(prev => {
+        const withoutPreviews = prev.filter(img => !img.id.startsWith('temp_'));
+        const newImages: ImageFile[] = uploadedImages.map((img: any, index: number) => ({
+          id: img.id,
+          filename: img.filename,
+          originalName: img.originalName,
+          mimeType: img.mimeType,
+          size: img.size,
+          order: withoutPreviews.length + index + 1,
+          url: img.url,
+        }));
+        return [...withoutPreviews, ...newImages];
+      });
 
-      setTemplateImages(prev => [...prev, ...newImages]);
       toast({
         title: "Images uploaded",
-        description: `${newImages.length} images uploaded successfully.`,
+        description: `${uploadedImages.length} images uploaded successfully.`,
       });
     } catch (error) {
+      // Remove preview images on error
+      setTemplateImages(prev => prev.filter(img => !img.id.startsWith('temp_')));
       toast({
         title: "Upload failed",
         description: "Failed to upload images. Please try again.",
@@ -872,16 +902,28 @@ export default function AdminSettingsPage() {
                               <div className="space-y-2">
                                 <label htmlFor="template-images" className="cursor-pointer block">
                                   <div className="text-lg font-medium">Upload Images</div>
-                                  <div className="text-sm text-gray-500">Select multiple images to add to this template</div>
+                                  <div className="text-sm text-gray-500">Select multiple images (PNG, JPG, JPEG, WebP). Max 10MB per file.</div>
                                   <Input
                                     id="template-images"
                                     type="file"
-                                    accept="image/*"
+                                    accept="image/png,image/jpeg,image/jpg,image/webp"
                                     multiple
                                     className="mt-2"
                                     onChange={(e) => {
                                       if (e.target.files && e.target.files.length > 0) {
+                                        // Validate file sizes
+                                        const oversizedFiles = Array.from(e.target.files).filter(file => file.size > 10 * 1024 * 1024);
+                                        if (oversizedFiles.length > 0) {
+                                          toast({
+                                            title: "Files too large",
+                                            description: `${oversizedFiles.length} files exceed 10MB limit`,
+                                            variant: "destructive",
+                                          });
+                                          return;
+                                        }
                                         handleImageUpload(e.target.files);
+                                        // Clear the input
+                                        e.target.value = '';
                                       }
                                     }}
                                   />
@@ -893,45 +935,77 @@ export default function AdminSettingsPage() {
                           {/* Uploaded Images with Drag & Drop */}
                           {templateImages.length > 0 && (
                             <div className="space-y-3">
-                              <Label>Uploaded Images (Drag to reorder)</Label>
-                              <div className="grid grid-cols-1 gap-3">
+                              <Label>Uploaded Images ({templateImages.length}) - Drag to reorder</Label>
+                              <div className="grid grid-cols-1 gap-3 max-h-96 overflow-y-auto">
                                 {templateImages
                                   .sort((a, b) => a.order - b.order)
                                   .map((image, index) => (
                                     <div
                                       key={image.id}
-                                      draggable
+                                      draggable={!image.id.startsWith('temp_')}
                                       onDragStart={() => handleDragStart(index)}
                                       onDragOver={handleDragOver}
                                       onDrop={(e) => handleDrop(e, index)}
                                       className={`
-                                        flex items-center gap-4 p-4 border rounded-lg cursor-move hover:bg-gray-50
-                                        ${draggedImageIndex === index ? 'opacity-50' : ''}
+                                        flex items-center gap-4 p-4 border-2 rounded-lg transition-all duration-200
+                                        ${draggedImageIndex === index ? 'opacity-50 border-blue-400' : 'border-gray-200'}
+                                        ${image.id.startsWith('temp_') ? 'cursor-wait' : 'cursor-move hover:border-gray-300'}
+                                        hover:bg-gray-50
                                       `}
                                     >
-                                      <GripVertical className="h-5 w-5 text-gray-400" />
+                                      <GripVertical className={`h-5 w-5 ${image.id.startsWith('temp_') ? 'text-gray-300' : 'text-gray-400'}`} />
                                       <div className="flex items-center gap-3 flex-1">
-                                        <img
-                                          src={image.url}
-                                          alt={image.originalName}
-                                          className="w-16 h-16 object-cover rounded border"
-                                        />
-                                        <div className="flex-1">
-                                          <div className="font-medium text-sm">{image.originalName}</div>
-                                          <div className="text-xs text-gray-500">
-                                            {(image.size / 1024).toFixed(1)} KB • Order: {image.order}
+                                        <div className="relative group">
+                                          <img
+                                            src={image.url}
+                                            alt={image.originalName}
+                                            className="w-20 h-20 object-cover rounded border-2 border-gray-200 group-hover:border-gray-300 transition-colors"
+                                          />
+                                          {image.id.startsWith('temp_') && (
+                                            <div className="absolute inset-0 bg-black bg-opacity-60 rounded flex items-center justify-center">
+                                              <div className="text-white text-xs font-medium">Uploading...</div>
+                                            </div>
+                                          )}
+                                          {/* Preview on hover */}
+                                          <div className="absolute invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-opacity bg-black bg-opacity-75 text-white text-xs p-2 rounded bottom-full left-1/2 transform -translate-x-1/2 mb-2 whitespace-nowrap z-10">
+                                            Click to preview full size
                                           </div>
                                         </div>
+                                        <div className="flex-1">
+                                          <div className="font-medium text-sm truncate max-w-xs">{image.originalName}</div>
+                                          <div className="text-xs text-gray-500 mt-1">
+                                            {(image.size / 1024).toFixed(1)} KB • {image.mimeType} • Order: {image.order}
+                                          </div>
+                                          {image.id.startsWith('temp_') && (
+                                            <div className="text-xs text-orange-600 mt-1">Processing...</div>
+                                          )}
+                                        </div>
                                       </div>
-                                      <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => removeImage(image.id)}
-                                        className="text-red-600 hover:text-red-800"
-                                      >
-                                        <X className="h-4 w-4" />
-                                      </Button>
+                                      <div className="flex gap-2">
+                                        <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="sm"
+                                          onClick={() => {
+                                            // Preview image in new tab
+                                            window.open(image.url, '_blank');
+                                          }}
+                                          className="text-blue-600 hover:text-blue-800"
+                                          disabled={image.id.startsWith('temp_')}
+                                        >
+                                          <Eye className="h-4 w-4" />
+                                        </Button>
+                                        <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="sm"
+                                          onClick={() => removeImage(image.id)}
+                                          className="text-red-600 hover:text-red-800"
+                                          disabled={image.id.startsWith('temp_')}
+                                        >
+                                          <X className="h-4 w-4" />
+                                        </Button>
+                                      </div>
                                     </div>
                                   ))}
                               </div>
@@ -963,6 +1037,7 @@ export default function AdminSettingsPage() {
                     <TableHead>Category</TableHead>
                     <TableHead>Description</TableHead>
                     <TableHead>Format</TableHead>
+                    <TableHead>Images</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Actions</TableHead>
                   </TableRow>
@@ -978,6 +1053,12 @@ export default function AdminSettingsPage() {
                         {template.description || "-"}
                       </TableCell>
                       <TableCell>{template.format || "-"}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <Image className="h-4 w-4 text-gray-500" />
+                          <span className="text-sm">{template.images?.length || 0}</span>
+                        </div>
+                      </TableCell>
                       <TableCell>
                         <Badge variant={template.mandatory ? "destructive" : "default"}>
                           {template.mandatory ? "Mandatory" : "Optional"}
@@ -1006,7 +1087,7 @@ export default function AdminSettingsPage() {
                   ))}
                   {documentTemplates.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center py-8 text-gray-500">
+                      <TableCell colSpan={7} className="text-center py-8 text-gray-500">
                         No document templates found. Add your first template to get started.
                       </TableCell>
                     </TableRow>
