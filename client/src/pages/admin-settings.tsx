@@ -20,7 +20,8 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { insertCompanySettingsSchema } from "@shared/schema";
 import { z } from "zod";
-import { Settings, Upload, FileSpreadsheet, Building2, CheckCircle, XCircle, Clock, FileText, Plus, Edit, Trash2, Image, GripVertical, X, Eye } from "lucide-react";
+import { Settings, Upload, FileSpreadsheet, Building2, CheckCircle, XCircle, Clock, FileText, Plus, Edit, Trash2, Image, GripVertical, X, Eye, Brain, Package } from "lucide-react";
+import BidDocumentManagement from "@/components/BidDocumentManagement";
 import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
@@ -505,6 +506,7 @@ export default function AdminSettingsPage() {
           <TabsTrigger value="company">Company Settings</TabsTrigger>
           <TabsTrigger value="excel">Excel Uploads</TabsTrigger>
           <TabsTrigger value="documents">Document Manager</TabsTrigger>
+          <TabsTrigger value="bid-documents">Bid Document Management</TabsTrigger>
         </TabsList>
 
         <TabsContent value="company" className="space-y-4">
@@ -1215,6 +1217,392 @@ export default function AdminSettingsPage() {
               </Card>
             </TabsContent>
           </Tabs>
+        </TabsContent>
+
+        {/* Bid Document Management Tab */}
+        <TabsContent value="bid-documents" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <Package className="h-5 w-5" />
+                <div>
+                  <CardTitle>Admin Bid Document Management</CardTitle>
+                  <CardDescription>
+                    Manage bid documents across all tenders with administrative oversight and workflow control
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <Tabs defaultValue="overview" className="w-full">
+                <TabsList className="grid w-full grid-cols-4">
+                  <TabsTrigger value="overview">Overview</TabsTrigger>
+                  <TabsTrigger value="all-documents">All Documents</TabsTrigger>
+                  <TabsTrigger value="workflow">Workflow Management</TabsTrigger>
+                  <TabsTrigger value="templates">Document Types</TabsTrigger>
+                </TabsList>
+
+                {/* Overview Tab */}
+                <TabsContent value="overview" className="mt-6">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <Card>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-lg">Total Documents</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-3xl font-bold text-blue-600">156</div>
+                        <p className="text-sm text-gray-600">Across all tenders</p>
+                      </CardContent>
+                    </Card>
+                    
+                    <Card>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-lg">Pending Review</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-3xl font-bold text-orange-600">23</div>
+                        <p className="text-sm text-gray-600">Awaiting approval</p>
+                      </CardContent>
+                    </Card>
+                    
+                    <Card>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-lg">Approved Today</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-3xl font-bold text-green-600">8</div>
+                        <p className="text-sm text-gray-600">Ready for submission</p>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  <Card className="mt-6">
+                    <CardHeader>
+                      <CardTitle>Recent Activity</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-4">
+                        <div className="flex items-center gap-3 p-3 border rounded-lg">
+                          <CheckCircle className="h-5 w-5 text-green-500" />
+                          <div className="flex-1">
+                            <p className="font-medium">Technical Proposal approved for DRDO Tender</p>
+                            <p className="text-sm text-gray-600">2 minutes ago by Finance Manager</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3 p-3 border rounded-lg">
+                          <Clock className="h-5 w-5 text-blue-500" />
+                          <div className="flex-1">
+                            <p className="font-medium">Commercial Proposal submitted for review</p>
+                            <p className="text-sm text-gray-600">15 minutes ago by Senior Bidder</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3 p-3 border rounded-lg">
+                          <Edit className="h-5 w-5 text-orange-500" />
+                          <div className="flex-1">
+                            <p className="font-medium">Implementation Plan updated</p>
+                            <p className="text-sm text-gray-600">1 hour ago by Project Manager</p>
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+
+                {/* All Documents Tab */}
+                <TabsContent value="all-documents" className="mt-6">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>All Bid Documents</CardTitle>
+                      <CardDescription>
+                        View and manage all bid documents across all tenders
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="flex gap-4 mb-6">
+                        <Input placeholder="Search documents..." className="flex-1" />
+                        <select className="px-3 py-2 border rounded-md">
+                          <option value="">All Status</option>
+                          <option value="draft">Draft</option>
+                          <option value="in-review">In Review</option>
+                          <option value="approved">Approved</option>
+                          <option value="rejected">Rejected</option>
+                        </select>
+                        <select className="px-3 py-2 border rounded-md">
+                          <option value="">All Types</option>
+                          <option value="technical">Technical Proposal</option>
+                          <option value="commercial">Commercial Proposal</option>
+                          <option value="compliance">Compliance Statement</option>
+                        </select>
+                      </div>
+
+                      <div className="space-y-3">
+                        {[
+                          { 
+                            id: '1',
+                            title: 'Technical Proposal - DRDO Server Infrastructure',
+                            tender: 'DRDO Advanced Computing Tender',
+                            type: 'Technical Proposal',
+                            status: 'approved',
+                            author: 'John Doe',
+                            updated: '2 hours ago'
+                          },
+                          { 
+                            id: '2',
+                            title: 'Commercial Proposal - Government Portal Development',
+                            tender: 'Digital India Portal Tender',
+                            type: 'Commercial Proposal',
+                            status: 'in-review',
+                            author: 'Jane Smith',
+                            updated: '4 hours ago'
+                          },
+                          { 
+                            id: '3',
+                            title: 'Compliance Statement - Security Certifications',
+                            tender: 'Cybersecurity Services Tender',
+                            type: 'Compliance Statement',
+                            status: 'draft',
+                            author: 'Mike Johnson',
+                            updated: '1 day ago'
+                          }
+                        ].map((doc) => (
+                          <div key={doc.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50">
+                            <div className="flex-1">
+                              <h3 className="font-medium">{doc.title}</h3>
+                              <p className="text-sm text-gray-600">{doc.tender}</p>
+                              <div className="flex items-center gap-4 mt-2">
+                                <Badge variant="outline">{doc.type}</Badge>
+                                <Badge 
+                                  variant={
+                                    doc.status === 'approved' ? 'default' :
+                                    doc.status === 'in-review' ? 'secondary' :
+                                    doc.status === 'rejected' ? 'destructive' : 'outline'
+                                  }
+                                >
+                                  {doc.status}
+                                </Badge>
+                                <span className="text-xs text-gray-500">
+                                  by {doc.author} • {doc.updated}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="flex gap-2">
+                              <Button variant="outline" size="sm">
+                                <Eye className="h-4 w-4 mr-1" />
+                                View
+                              </Button>
+                              <Button variant="outline" size="sm">
+                                <Edit className="h-4 w-4 mr-1" />
+                                Edit
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+
+                {/* Workflow Management Tab */}
+                <TabsContent value="workflow" className="mt-6">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Document Workflow Management</CardTitle>
+                      <CardDescription>
+                        Manage approval workflows and document status changes
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                          <h3 className="font-semibold mb-4">Pending Approvals</h3>
+                          <div className="space-y-3">
+                            {[
+                              {
+                                title: 'Commercial Proposal - Railway Signaling',
+                                author: 'Sarah Wilson',
+                                submitted: '2 hours ago',
+                                type: 'Commercial Proposal'
+                              },
+                              {
+                                title: 'Technical Specification - IoT Infrastructure',
+                                author: 'David Brown',
+                                submitted: '4 hours ago',
+                                type: 'Technical Proposal'
+                              },
+                              {
+                                title: 'Implementation Plan - Smart City Project',
+                                author: 'Lisa Garcia',
+                                submitted: '1 day ago',
+                                type: 'Implementation Plan'
+                              }
+                            ].map((doc, index) => (
+                              <div key={index} className="p-3 border rounded-lg">
+                                <div className="flex items-start justify-between">
+                                  <div className="flex-1">
+                                    <h4 className="font-medium">{doc.title}</h4>
+                                    <p className="text-sm text-gray-600">
+                                      by {doc.author} • {doc.submitted}
+                                    </p>
+                                    <Badge variant="secondary" className="mt-1 text-xs">
+                                      {doc.type}
+                                    </Badge>
+                                  </div>
+                                  <div className="flex gap-1">
+                                    <Button size="sm" className="bg-green-600 hover:bg-green-700">
+                                      <CheckCircle className="h-3 w-3 mr-1" />
+                                      Approve
+                                    </Button>
+                                    <Button size="sm" variant="outline" className="text-red-600">
+                                      Reject
+                                    </Button>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div>
+                          <h3 className="font-semibold mb-4">Workflow Settings</h3>
+                          <div className="space-y-4">
+                            <div className="p-4 border rounded-lg">
+                              <h4 className="font-medium mb-2">Approval Requirements</h4>
+                              <div className="space-y-2">
+                                <label className="flex items-center gap-2">
+                                  <input type="checkbox" checked className="h-4 w-4" />
+                                  <span className="text-sm">Technical documents require admin approval</span>
+                                </label>
+                                <label className="flex items-center gap-2">
+                                  <input type="checkbox" checked className="h-4 w-4" />
+                                  <span className="text-sm">Commercial documents require finance approval</span>
+                                </label>
+                                <label className="flex items-center gap-2">
+                                  <input type="checkbox" className="h-4 w-4" />
+                                  <span className="text-sm">Auto-approve documents below ₹1 Lakh</span>
+                                </label>
+                              </div>
+                            </div>
+
+                            <div className="p-4 border rounded-lg">
+                              <h4 className="font-medium mb-2">Notification Settings</h4>
+                              <div className="space-y-2">
+                                <label className="flex items-center gap-2">
+                                  <input type="checkbox" checked className="h-4 w-4" />
+                                  <span className="text-sm">Email on document submission</span>
+                                </label>
+                                <label className="flex items-center gap-2">
+                                  <input type="checkbox" checked className="h-4 w-4" />
+                                  <span className="text-sm">Email on approval/rejection</span>
+                                </label>
+                                <label className="flex items-center gap-2">
+                                  <input type="checkbox" className="h-4 w-4" />
+                                  <span className="text-sm">Daily digest reports</span>
+                                </label>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+
+                {/* Document Types Tab */}
+                <TabsContent value="templates" className="mt-6">
+                  <Card>
+                    <CardHeader>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <CardTitle>Document Types Management</CardTitle>
+                          <CardDescription>
+                            Configure available document types and their settings
+                          </CardDescription>
+                        </div>
+                        <Button>
+                          <Plus className="h-4 w-4 mr-2" />
+                          Add Document Type
+                        </Button>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {[
+                          { 
+                            name: 'Technical Proposal',
+                            description: 'Technical specifications and implementation details',
+                            count: 45,
+                            required: true
+                          },
+                          { 
+                            name: 'Commercial Proposal',
+                            description: 'Pricing, terms, and financial details',
+                            count: 38,
+                            required: true
+                          },
+                          { 
+                            name: 'Compliance Statement',
+                            description: 'Regulatory and compliance requirements',
+                            count: 28,
+                            required: false
+                          },
+                          { 
+                            name: 'Executive Summary',
+                            description: 'High-level overview and key points',
+                            count: 22,
+                            required: false
+                          },
+                          { 
+                            name: 'Implementation Plan',
+                            description: 'Project timeline and delivery schedule',
+                            count: 31,
+                            required: false
+                          },
+                          { 
+                            name: 'Support & Maintenance',
+                            description: 'Post-delivery support and maintenance plan',
+                            count: 19,
+                            required: false
+                          }
+                        ].map((type, index) => (
+                          <Card key={index} className="border-l-4 border-l-blue-500">
+                            <CardHeader className="pb-3">
+                              <div className="flex items-start justify-between">
+                                <div>
+                                  <CardTitle className="text-lg">{type.name}</CardTitle>
+                                  {type.required && (
+                                    <Badge variant="destructive" className="text-xs mt-1">
+                                      Required
+                                    </Badge>
+                                  )}
+                                </div>
+                                <div className="flex gap-1">
+                                  <Button variant="ghost" size="sm">
+                                    <Edit className="h-3 w-3" />
+                                  </Button>
+                                  <Button variant="ghost" size="sm" className="text-red-600">
+                                    <Trash2 className="h-3 w-3" />
+                                  </Button>
+                                </div>
+                              </div>
+                            </CardHeader>
+                            <CardContent>
+                              <p className="text-sm text-gray-600 mb-3">{type.description}</p>
+                              <div className="flex items-center justify-between">
+                                <span className="text-sm font-medium">{type.count} documents</span>
+                                <Button variant="outline" size="sm">
+                                  View All
+                                </Button>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+              </Tabs>
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
     </div>
