@@ -1,50 +1,87 @@
-# Clean BMS Deployment Guide
+# Complete BMS Server Deployment Guide
 
-## Project Structure (Cleaned)
+## Project Structure (Production Ready)
 ```
 bid-management-system/
-├── client/                   # React frontend (existing)
+├── client/                   # React frontend
 ├── server/                   # Express backend (cleaned)
-│   ├── clean-routes.ts      # All API routes in one file
+│   ├── clean-routes.ts      # All API routes consolidated
 │   ├── simple-index.ts      # Clean server entry point
 │   ├── db.ts               # Database configuration
 │   ├── auth.ts             # Authentication utilities
 │   └── vite.ts             # Vite integration
 ├── shared/                   # Shared schemas
 ├── uploads/                  # File uploads directory
-├── package.json             # Dependencies and scripts
-└── README.md
+├── logs/                     # Application logs
+├── deploy.yml               # GitHub Actions deployment
+├── docker-compose.yml       # Docker deployment
+├── Dockerfile              # Container configuration
+├── nginx.conf              # Reverse proxy config
+├── ecosystem.config.js     # PM2 configuration
+├── deploy-server.sh        # Server deployment script
+└── package.json            # Dependencies and scripts
 ```
 
-## Deployment Steps
+## Deployment Options
 
-### 1. Environment Variables
+### Option 1: Simple Server Deployment (Recommended)
+
+#### 1. Environment Variables (.env)
 ```bash
-DATABASE_URL=your_postgresql_connection_string
-JWT_SECRET=your_jwt_secret_key
-OPENAI_API_KEY=your_openai_key (optional)
-NODE_ENV=production
+DATABASE_URL="postgresql://user:password@localhost:5432/bms_db"
+JWT_SECRET="your-256-bit-secret-key-change-in-production"
+OPENAI_API_KEY="sk-your-openai-key" # Optional
+NODE_ENV="production"
 PORT=5000
 ```
 
-### 2. Install Dependencies
+#### 2. Deploy with Script
 ```bash
-npm install
+chmod +x deploy-server.sh
+./deploy-server.sh
 ```
 
-### 3. Database Setup
+### Option 2: Docker Deployment
+
+#### 1. Create .env file with your variables
+#### 2. Deploy with Docker Compose
+```bash
+docker-compose up -d
+```
+
+### Option 3: Manual PM2 Deployment
+
+#### 1. Install dependencies
+```bash
+npm ci --production
+```
+
+#### 2. Build application
+```bash
+npm run build
+```
+
+#### 3. Setup database
 ```bash
 npm run db:push
 ```
 
-### 4. Start Production Server
+#### 4. Start with PM2
 ```bash
-# Option 1: Use simple clean server
-NODE_ENV=production tsx server/simple-index.ts
-
-# Option 2: Use existing server (if preferred)
-npm run dev
+pm2 start ecosystem.config.js --env production
+pm2 save
+pm2 startup
 ```
+
+### Option 4: GitHub Actions Deployment
+
+#### 1. Set repository secrets:
+- `SERVER_HOST`: Your server IP/domain
+- `SERVER_USER`: SSH username
+- `SERVER_SSH_KEY`: Private SSH key
+- `SERVER_PORT`: SSH port (usually 22)
+
+#### 2. Push to main branch - automatic deployment via deploy.yml
 
 ## Key Features
 - ✅ Document Templates with Image Upload
