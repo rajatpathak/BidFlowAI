@@ -1,102 +1,79 @@
 #!/usr/bin/env node
 
 /**
- * Production Startup Script for Replit Deployment
+ * Production Start Script for Replit Deployment
  * 
- * This script serves as a production-ready entry point that:
- * - Builds the application if needed
- * - Sets up production environment
- * - Starts the server in production mode
+ * This script addresses the deployment error:
+ * "Run command contains 'dev' which is blocked for security reasons"
  * 
- * Command: node start-production.js
+ * SOLUTION: Creates production-ready run configuration that builds and starts
+ * the application in production mode with proper environment settings.
  */
 
-import fs from 'fs';
 import { spawn } from 'child_process';
+import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-// Set production environment
+// Set production environment variables
 process.env.NODE_ENV = 'production';
 process.env.PORT = process.env.PORT || '5000';
 
-console.log('🚀 Starting Business Management System...');
-console.log(`Environment: ${process.env.NODE_ENV}`);
-console.log(`Port: ${process.env.PORT}`);
+console.log('🚀 BMS Production Server Starting...');
+console.log(`📍 Environment: ${process.env.NODE_ENV}`);
+console.log(`🔌 Port: ${process.env.PORT}`);
 
-async function runCommand(command, args = []) {
-  return new Promise((resolve, reject) => {
-    const proc = spawn(command, args, {
-      stdio: 'inherit',
-      shell: true
-    });
-    
-    proc.on('close', (code) => {
-      if (code === 0) {
-        resolve();
-      } else {
-        reject(new Error(`Command failed with code ${code}`));
-      }
-    });
+// Check if production build exists
+const distPath = path.join(process.cwd(), 'dist', 'index.js');
+
+if (!fs.existsSync(distPath)) {
+  console.log('📦 Building application for production...');
+  
+  // Build the application first
+  const buildProcess = spawn('npm', ['run', 'build'], {
+    stdio: 'inherit',
+    shell: true
+  });
+  
+  buildProcess.on('close', (code) => {
+    if (code === 0) {
+      console.log('✅ Build completed successfully');
+      startServer();
+    } else {
+      console.error('❌ Build failed with code:', code);
+      process.exit(1);
+    }
+  });
+} else {
+  console.log('✅ Production build found');
+  startServer();
+}
+
+function startServer() {
+  console.log('🎯 Starting production server...');
+  console.log(`🌐 Server available at: http://localhost:${process.env.PORT}`);
+  
+  // Start the production server
+  const serverProcess = spawn('node', ['dist/index.js'], {
+    stdio: 'inherit',
+    env: {
+      ...process.env,
+      NODE_ENV: 'production'
+    }
+  });
+  
+  // Handle graceful shutdown
+  process.on('SIGTERM', () => {
+    console.log('🔄 Shutting down gracefully...');
+    serverProcess.kill('SIGTERM');
+  });
+  
+  process.on('SIGINT', () => {
+    console.log('🔄 Shutting down gracefully...');
+    serverProcess.kill('SIGINT');
+  });
+  
+  serverProcess.on('close', (code) => {
+    console.log(`🔚 Server exited with code ${code}`);
+    process.exit(code);
   });
 }
-
-async function startProduction() {
-  try {
-    // Check if build exists
-    const distPath = path.join(__dirname, 'dist');
-    const indexPath = path.join(distPath, 'index.js');
-    
-    if (!fs.existsSync(indexPath)) {
-      console.log('Building application for production...');
-      await runCommand('npm', ['run', 'build']);
-      console.log('Build completed successfully');
-    }
-    
-    // Push database schema if needed
-    if (process.env.DATABASE_URL) {
-      console.log('Updating database schema...');
-      try {
-        await runCommand('npm', ['run', 'db:push']);
-        console.log('Database schema updated');
-      } catch (error) {
-        console.log('Database schema update failed (continuing):', error.message);
-      }
-    }
-    
-    // Start production server
-    console.log('Starting production server...');
-    console.log(`Server available at: http://localhost:${process.env.PORT}`);
-    
-    const serverProcess = spawn('node', [indexPath], {
-      stdio: 'inherit',
-      env: {
-        ...process.env,
-        NODE_ENV: 'production'
-      }
-    });
-    
-    // Handle graceful shutdown
-    ['SIGTERM', 'SIGINT'].forEach(signal => {
-      process.on(signal, () => {
-        console.log(`Received ${signal}, shutting down gracefully...`);
-        serverProcess.kill(signal);
-        process.exit(0);
-      });
-    });
-    
-    serverProcess.on('close', (code) => {
-      console.log(`Server exited with code ${code}`);
-      process.exit(code);
-    });
-    
-  } catch (error) {
-    console.error('Startup failed:', error.message);
-    process.exit(1);
-  }
-}
-
-startProduction();

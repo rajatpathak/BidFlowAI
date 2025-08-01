@@ -1,36 +1,34 @@
 #!/bin/bash
 
-# Deployment script for BMS application
-echo "🚀 Starting deployment process..."
+# Production Deployment Script for Replit
+# Fixes deployment error: "Run command contains 'dev' which is blocked for security reasons"
 
-# Install dependencies
-echo "📦 Installing dependencies..."
-npm install
+set -e
 
-# Build the client
-echo "🏗️ Building client application..."
-npm run build
+echo "🚀 BMS Production Deployment Starting..."
 
-# Check if build was successful
-if [ ! -d "dist" ]; then
-    echo "❌ Build failed - dist directory not found"
-    exit 1
-fi
-
-# Set environment variables for production
+# Set production environment
 export NODE_ENV=production
 export PORT=${PORT:-5000}
 
-echo "✅ Build completed successfully"
-echo "📊 Build statistics:"
-ls -la dist/
+echo "📍 Environment: $NODE_ENV"
+echo "🔌 Port: $PORT"
 
-echo "🌐 Server will be available at http://localhost:${PORT}"
-echo "🔑 Demo credentials:"
-echo "  - Admin: admin/admin123"
-echo "  - Bidder: rahul.kumar/bidder123" 
-echo "  - Finance: priya.sharma/finance123"
+# Build the application
+echo "📦 Building application for production..."
+npm run build
 
-# Start the server
-echo "🚀 Starting production server..."
-node dist/index.js
+# Push database schema if DATABASE_URL is available
+if [ -n "$DATABASE_URL" ]; then
+    echo "🗄️  Updating database schema..."
+    npm run db:push
+else
+    echo "ℹ️  No DATABASE_URL found, using in-memory storage"
+fi
+
+# Start production server
+echo "🎯 Starting production server..."
+echo "🌐 Server will be available at http://localhost:$PORT"
+
+# Start the server with production environment
+NODE_ENV=production node dist/index.js
