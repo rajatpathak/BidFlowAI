@@ -18,6 +18,7 @@ Project Architecture: Clean, simple, and scalable structure with consolidated co
 - **Admin Document Management**: Enhanced admin settings with comprehensive bid document oversight including workflow management, document statistics, and approval controls
 - **Centralized Document Library**: Added folder-based document organization system in admin interface for company documents accessible by bidders and AI systems
 - **Replit Deployment Fix (FINAL SOLUTION - August 1, 2025)**: Successfully resolved Replit deployment error "Run command contains 'dev' which is blocked for security reasons". Created `replit-deploy.js` production deployment script that automatically builds and starts the server without using any dev commands. Production build tested and verified working (816KB JS, 78KB CSS, 140KB server bundle). The solution includes manual configuration instructions since the `.replit` file cannot be programmatically modified. User must manually change the deployment run command from `npm run dev` to `node replit-deploy.js` in Replit deployment settings.
+- **Enhanced VPS Deployment Configuration (August 1, 2025)**: Completely updated VPS deployment configurations with improved Docker setup, optimized PM2 cluster mode, enhanced security with Nginx rate limiting and security headers, automated GitHub Actions deployment pipeline, and comprehensive deployment scripts with health checks and rollback capabilities.
 
 ## System Architecture
 
