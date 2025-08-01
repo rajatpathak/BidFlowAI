@@ -1,14 +1,13 @@
 #!/usr/bin/env node
 
 /**
- * Replit Deployment Script - Optimized for Replit's deployment system
+ * Replit Deployment Script - CommonJS version for compatibility
  * This handles the complete production deployment with health checks
  */
 
-import { spawn, exec } from 'child_process';
-import fs from 'fs';
-import path from 'path';
-import http from 'http';
+const { spawn } = require('child_process');
+const fs = require('fs');
+const http = require('http');
 
 // Production configuration
 const CONFIG = {
@@ -27,7 +26,7 @@ function checkHealth(port = CONFIG.PORT) {
   return new Promise((resolve) => {
     const req = http.get(`http://localhost:${port}/api/health`, (res) => {
       if (res.statusCode === 200) {
-        log('Health check passed - Server is running correctly');
+        log('Health check passed - Server running correctly');
         resolve(true);
       } else {
         log(`Health check failed - Status: ${res.statusCode}`, 'warn');
@@ -49,7 +48,7 @@ function checkHealth(port = CONFIG.PORT) {
 }
 
 async function ensureDirectories() {
-  const dirs = ['dist', 'logs', 'uploads', 'uploads/documents', 'uploads/images'];
+  const dirs = ['dist', 'logs', 'uploads'];
   dirs.forEach(dir => {
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
@@ -87,11 +86,7 @@ async function buildApplication() {
     // Verify build output
     if (fs.existsSync('dist/index.js')) {
       const stats = fs.statSync('dist/index.js');
-      log(`Server bundle created: ${Math.round(stats.size / 1024)}KB`);
-    }
-    
-    if (fs.existsSync('dist/public')) {
-      log('Frontend assets built successfully');
+      log(`Server bundle: ${Math.round(stats.size / 1024)}KB`);
     }
     
   } catch (error) {
@@ -103,23 +98,20 @@ async function buildApplication() {
 async function startServer() {
   log('Starting production server...');
   
-  // Start the server in the background
   const serverProcess = spawn('npm', ['start'], {
     stdio: 'inherit',
-    env: { ...process.env, ...CONFIG },
-    detached: false
+    env: { ...process.env, ...CONFIG }
   });
 
-  // Wait a moment for server to start
+  // Wait for server to start
   await new Promise(resolve => setTimeout(resolve, 3000));
 
-  // Check if server started successfully
+  // Health check
   const healthCheck = await checkHealth();
   if (healthCheck) {
-    log(`🎉 BMS deployed successfully at http://0.0.0.0:${CONFIG.PORT}`);
-    log(`Health endpoint: http://0.0.0.0:${CONFIG.PORT}/api/health`);
-  } else {
-    log('Server started but health check failed', 'warn');
+    log(`🎉 BMS deployed successfully!`);
+    log(`URL: http://0.0.0.0:${CONFIG.PORT}`);
+    log(`Health: http://0.0.0.0:${CONFIG.PORT}/api/health`);
   }
 
   return serverProcess;
@@ -127,28 +119,22 @@ async function startServer() {
 
 async function main() {
   try {
-    log('🚀 Starting BMS Production Deployment');
-    log(`Environment: ${CONFIG.NODE_ENV}`);
-    log(`Port: ${CONFIG.PORT}`);
+    log('🚀 BMS Production Deployment Starting');
+    log(`Environment: ${CONFIG.NODE_ENV}, Port: ${CONFIG.PORT}`);
     
-    // Setup
     await ensureDirectories();
-    
-    // Build
     await buildApplication();
-    
-    // Deploy
     const serverProcess = await startServer();
     
-    // Keep the process running
+    // Graceful shutdown
     process.on('SIGTERM', () => {
-      log('Received SIGTERM, shutting down...');
+      log('Shutting down gracefully...');
       serverProcess.kill('SIGTERM');
       process.exit(0);
     });
 
     process.on('SIGINT', () => {
-      log('Received SIGINT, shutting down...');
+      log('Shutting down gracefully...');
       serverProcess.kill('SIGINT');
       process.exit(0);
     });
@@ -159,7 +145,8 @@ async function main() {
   }
 }
 
-// Start deployment if this file is run directly
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (require.main === module) {
   main();
 }
+
+module.exports = { main };
