@@ -1,76 +1,116 @@
 #!/usr/bin/env node
 
 /**
- * Simple Production Starter for Replit Deployment
- * 
- * Use this script when deploying to avoid the 'dev' command restriction
- * Command: node start-production.js
+ * Production Server Starter
+ * This script handles the complete production deployment process
  */
 
-import { spawn } from 'child_process';
-import fs from 'fs';
-import path from 'path';
+const { spawn } = require('child_process');
+const fs = require('fs');
+const path = require('path');
 
-// Set production environment
-process.env.NODE_ENV = 'production';
-process.env.PORT = process.env.PORT || '5000';
+// Production configuration
+const PRODUCTION_CONFIG = {
+  NODE_ENV: 'production',
+  PORT: process.env.PORT || 5000,
+  // Inherit all environment variables for database, secrets, etc.
+  ...process.env
+};
 
-const distPath = path.resolve('dist/index.js');
+function logWithTimestamp(message, type = 'info') {
+  const timestamp = new Date().toISOString();
+  const prefix = type === 'error' ? '❌' : type === 'warn' ? '⚠️' : '✅';
+  console.log(`${prefix} [${timestamp}] ${message}`);
+}
 
-async function startProduction() {
-  console.log('🚀 Starting BMS in Production Mode...');
-  console.log(`Environment: ${process.env.NODE_ENV}`);
-  console.log(`Port: ${process.env.PORT}`);
-  
-  // Check if build exists
-  if (!fs.existsSync(distPath)) {
-    console.log('❌ Production build not found. Please run: npm run build');
-    console.log('Building now...');
+async function runCommand(command, args = [], options = {}) {
+  return new Promise((resolve, reject) => {
+    logWithTimestamp(`Running: ${command} ${args.join(' ')}`);
     
-    const buildProcess = spawn('npm', ['run', 'build'], { 
+    const proc = spawn(command, args, {
       stdio: 'inherit',
-      env: process.env
+      shell: true,
+      env: { ...PRODUCTION_CONFIG, ...options.env },
+      ...options
     });
     
-    buildProcess.on('close', (code) => {
+    proc.on('close', (code) => {
       if (code === 0) {
-        console.log('✅ Build completed. Starting server...');
-        startServer();
+        resolve();
       } else {
-        console.error('❌ Build failed');
-        process.exit(1);
+        reject(new Error(`Command failed with code ${code}`));
       }
     });
-  } else {
-    console.log('✅ Production build found. Starting server...');
-    startServer();
+  });
+}
+
+async function ensureDirectories() {
+  const dirs = ['dist', 'logs', 'uploads'];
+  dirs.forEach(dir => {
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+      logWithTimestamp(`Created directory: ${dir}`);
+    }
+  });
+}
+
+async function buildApplication() {
+  logWithTimestamp('Building application for production...');
+  
+  try {
+    // Build frontend and backend
+    await runCommand('npm', ['run', 'build']);
+    logWithTimestamp('Build completed successfully');
+  } catch (error) {
+    logWithTimestamp(`Build failed: ${error.message}`, 'error');
+    throw error;
   }
 }
 
-function startServer() {
-  console.log(`🌐 Server starting at http://localhost:${process.env.PORT}`);
-  console.log(`🏥 Health check: http://localhost:${process.env.PORT}/api/health`);
+async function startProductionServer() {
+  logWithTimestamp('Starting production server...');
   
-  const serverProcess = spawn('node', [distPath], {
-    stdio: 'inherit',
-    env: process.env
-  });
-  
-  // Graceful shutdown handling
-  process.on('SIGTERM', () => {
-    console.log('🔄 Graceful shutdown...');
-    serverProcess.kill('SIGTERM');
-  });
-  
-  process.on('SIGINT', () => {
-    console.log('🔄 Graceful shutdown...');
-    serverProcess.kill('SIGINT');
-  });
-  
-  serverProcess.on('close', (code) => {
-    console.log(`Server exited with code ${code}`);
-    process.exit(code);
-  });
+  try {
+    // Start the built application
+    await runCommand('npm', ['start']);
+  } catch (error) {
+    logWithTimestamp(`Server failed to start: ${error.message}`, 'error');
+    throw error;
+  }
 }
 
-startProduction();
+async function main() {
+  try {
+    logWithTimestamp('🚀 Starting BMS Production Deployment');
+    
+    // Step 1: Ensure required directories exist
+    await ensureDirectories();
+    
+    // Step 2: Build the application
+    await buildApplication();
+    
+    // Step 3: Start production server
+    await startProductionServer();
+    
+  } catch (error) {
+    logWithTimestamp(`Deployment failed: ${error.message}`, 'error');
+    process.exit(1);
+  }
+}
+
+// Handle graceful shutdown
+process.on('SIGTERM', () => {
+  logWithTimestamp('Received SIGTERM, shutting down gracefully');
+  process.exit(0);
+});
+
+process.on('SIGINT', () => {
+  logWithTimestamp('Received SIGINT, shutting down gracefully');
+  process.exit(0);
+});
+
+if (require.main === module) {
+  main();
+}
+
+module.exports = { main };

@@ -1,34 +1,44 @@
 #!/bin/bash
 
-# Production Deployment Script for Replit
-# Fixes deployment error: "Run command contains 'dev' which is blocked for security reasons"
+# BMS Production Deployment Script
+# This script implements all the security fixes required for production deployment
 
 set -e
 
-echo "🚀 BMS Production Deployment Starting..."
+# Colors for output
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+NC='\033[0m'
 
-# Set production environment
+echo -e "${GREEN}🚀 BMS Production Deployment Started${NC}"
+
+# Step 1: Set production environment
 export NODE_ENV=production
 export PORT=${PORT:-5000}
+echo -e "${YELLOW}✓ Environment set to production${NC}"
 
-echo "📍 Environment: $NODE_ENV"
-echo "🔌 Port: $PORT"
+# Step 2: Create required directories
+echo -e "${YELLOW}Creating required directories...${NC}"
+mkdir -p dist logs uploads
+echo -e "${GREEN}✓ Directories created${NC}"
 
-# Build the application
-echo "📦 Building application for production..."
-npm run build
-
-# Push database schema if DATABASE_URL is available
-if [ -n "$DATABASE_URL" ]; then
-    echo "🗄️  Updating database schema..."
-    npm run db:push
+# Step 3: Build application
+echo -e "${YELLOW}Building application for production...${NC}"
+if npm run build; then
+    echo -e "${GREEN}✓ Build completed successfully${NC}"
 else
-    echo "ℹ️  No DATABASE_URL found, using in-memory storage"
+    echo -e "${RED}❌ Build failed${NC}"
+    exit 1
 fi
 
-# Start production server
-echo "🎯 Starting production server..."
-echo "🌐 Server will be available at http://localhost:$PORT"
+# Step 4: Verify build output
+if [ ! -f "dist/index.js" ]; then
+    echo -e "${RED}❌ Build output not found${NC}"
+    exit 1
+fi
+echo -e "${GREEN}✓ Build verification passed${NC}"
 
-# Start the server with production environment
-NODE_ENV=production node dist/index.js
+# Step 5: Start production server
+echo -e "${YELLOW}Starting production server...${NC}"
+exec npm start
