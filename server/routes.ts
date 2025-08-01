@@ -1979,6 +1979,22 @@ Provide detailed analysis focusing on extracting email addresses, phone numbers,
     try {
       const { companyName, annualTurnover, headquarters, establishedYear, certifications, businessSectors, projectTypes } = req.body;
       
+      console.log("Company settings request body:", req.body);
+      
+      // Ensure arrays are properly formatted for PostgreSQL
+      const processedData = {
+        companyName,
+        annualTurnover: Number(annualTurnover),
+        headquarters,
+        establishedYear: establishedYear ? Number(establishedYear) : null,
+        // Convert arrays to JSON format for storage in JSON columns
+        certifications: Array.isArray(certifications) ? certifications : [],
+        businessSectors: Array.isArray(businessSectors) ? businessSectors : [],
+        projectTypes: Array.isArray(projectTypes) ? projectTypes : []
+      };
+      
+      console.log("Processed company settings data:", processedData);
+      
       // Check if settings exist
       const [existingSettings] = await db
         .select()
@@ -1991,13 +2007,7 @@ Provide detailed analysis focusing on extracting email addresses, phone numbers,
         // Update existing settings
         [result] = await db.update(companySettings)
           .set({
-            companyName,
-            annualTurnover,
-            headquarters,
-            establishedYear,
-            certifications,
-            businessSectors,
-            projectTypes,
+            ...processedData,
             updatedAt: new Date()
           })
           .where(eq(companySettings.id, existingSettings.id))
@@ -2005,22 +2015,15 @@ Provide detailed analysis focusing on extracting email addresses, phone numbers,
       } else {
         // Create new settings
         [result] = await db.insert(companySettings)
-          .values({
-            companyName,
-            annualTurnover,
-            headquarters,
-            establishedYear,
-            certifications,
-            businessSectors,
-            projectTypes
-          })
+          .values(processedData)
           .returning();
       }
       
+      console.log("Company settings updated successfully:", result);
       res.json(result);
     } catch (error) {
       console.error("Error updating company settings:", error);
-      res.status(500).json({ error: "Failed to update company settings" });
+      res.status(500).json({ error: "Failed to update company settings", details: error.message });
     }
   });
 
