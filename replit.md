@@ -14,6 +14,7 @@ Project Architecture: Clean, simple, and scalable structure with consolidated co
 - **Deployment Ready**: Streamlined codebase for easier server deployment and maintenance
 - **Complete Deployment Suite**: Added comprehensive deployment configurations including Docker, PM2, GitHub Actions, and manual server setup
 - **Production Security**: Enhanced server configuration with security headers, CORS, and graceful shutdown handling
+- **Bid Document Management**: Added comprehensive bid document management system as sub-tab in tender view with create, edit, delete, and workflow capabilities
 
 ## System Architecture
 

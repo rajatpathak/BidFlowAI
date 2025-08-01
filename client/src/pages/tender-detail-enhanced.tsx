@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import BidDocumentManagement from "@/components/BidDocumentManagement";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { useState } from "react";
@@ -620,69 +621,105 @@ export default function TenderDetailEnhancedPage() {
           </TabsContent>
           
           <TabsContent value="documents" className="space-y-6 mt-6">
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle className="flex items-center gap-2">
-                    <File className="h-5 w-5" />
-                    Uploaded Documents
-                  </CardTitle>
-                  {documents.length > 0 && (
-                    <Button
-                      onClick={handleAnalyzeDocuments}
-                      disabled={isAnalyzing || analyzeDocumentsMutation.isPending}
-                      className="bg-purple-600 hover:bg-purple-700"
-                    >
-                      <Brain className="h-4 w-4 mr-2" />
-                      {isAnalyzing ? "Analyzing..." : "Analyze Documents"}
-                    </Button>
-                  )}
-                </div>
-              </CardHeader>
-              <CardContent>
-                {documents.length > 0 ? (
-                  <div className="space-y-3">
-                    {documents.map((doc: any, index: number) => (
-                      <div key={index} className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50">
-                        <div className="flex items-center gap-3">
-                          <File className="h-5 w-5 text-blue-600" />
-                          <div>
-                            <p className="font-medium">{doc.originalName || doc.filename}</p>
-                            <p className="text-sm text-gray-500">
-                              {doc.size ? `${(doc.size / 1024 / 1024).toFixed(2)} MB` : 'Unknown size'} • 
-                              Uploaded {doc.uploadedAt ? new Date(doc.uploadedAt).toLocaleDateString() : 'Recently'}
-                            </p>
+            {/* Sub-tabs for Documents */}
+            <Tabs defaultValue="uploaded" className="w-full">
+              <TabsList className="grid w-full grid-cols-3">
+                <TabsTrigger value="uploaded">Uploaded Documents</TabsTrigger>
+                <TabsTrigger value="bid-documents">Bid Document Management</TabsTrigger>
+                <TabsTrigger value="templates">Document Templates</TabsTrigger>
+              </TabsList>
+
+              {/* Uploaded Documents Sub-tab */}
+              <TabsContent value="uploaded" className="mt-6">
+                <Card>
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="flex items-center gap-2">
+                        <File className="h-5 w-5" />
+                        Uploaded RFP Documents
+                      </CardTitle>
+                      {documents.length > 0 && (
+                        <Button
+                          onClick={handleAnalyzeDocuments}
+                          disabled={isAnalyzing || analyzeDocumentsMutation.isPending}
+                          className="bg-purple-600 hover:bg-purple-700"
+                        >
+                          <Brain className="h-4 w-4 mr-2" />
+                          {isAnalyzing ? "Analyzing..." : "Analyze Documents"}
+                        </Button>
+                      )}
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    {documents.length > 0 ? (
+                      <div className="space-y-3">
+                        {documents.map((doc: any, index: number) => (
+                          <div key={index} className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50">
+                            <div className="flex items-center gap-3">
+                              <File className="h-5 w-5 text-blue-600" />
+                              <div>
+                                <p className="font-medium">{doc.originalName || doc.filename}</p>
+                                <p className="text-sm text-gray-500">
+                                  {doc.size ? `${(doc.size / 1024 / 1024).toFixed(2)} MB` : 'Unknown size'} • 
+                                  Uploaded {doc.uploadedAt ? new Date(doc.uploadedAt).toLocaleDateString() : 'Recently'}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex gap-2">
+                              <Button variant="outline" size="sm" asChild>
+                                <a href={`/api/documents/${doc.id}/download`} target="_blank" rel="noopener noreferrer">
+                                  <Download className="h-4 w-4 mr-2" />
+                                  Download
+                                </a>
+                              </Button>
+                              <Button 
+                                variant="outline" 
+                                size="sm"
+                                onClick={() => handleDeleteDocument(doc.id)}
+                                disabled={deleteDocumentMutation.isPending}
+                                className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
                           </div>
-                        </div>
-                        <div className="flex gap-2">
-                          <Button variant="outline" size="sm" asChild>
-                            <a href={`/api/documents/${doc.id}/download`} target="_blank" rel="noopener noreferrer">
-                              <Download className="h-4 w-4 mr-2" />
-                              Download
-                            </a>
-                          </Button>
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            onClick={() => handleDeleteDocument(doc.id)}
-                            disabled={deleteDocumentMutation.isPending}
-                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-8 text-gray-500">
-                    <File className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-                    <p>No documents uploaded yet</p>
-                    <p className="text-sm">Use the "Start Bidding" button to upload RFP documents</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+                    ) : (
+                      <div className="text-center py-8 text-gray-500">
+                        <File className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                        <p>No documents uploaded yet</p>
+                        <p className="text-sm">Use the "Start Bidding" button to upload RFP documents</p>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              {/* Bid Document Management Sub-tab */}
+              <TabsContent value="bid-documents" className="mt-6">
+                <BidDocumentManagement tenderId={tender.id} />
+              </TabsContent>
+
+              {/* Document Templates Sub-tab */}
+              <TabsContent value="templates" className="mt-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <FileText className="h-5 w-5" />
+                      Available Document Templates
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-center py-8 text-gray-500">
+                      <FileText className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                      <p>Document templates will be loaded here</p>
+                      <p className="text-sm">Use templates to quickly create standard bid documents</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+            </Tabs>
           </TabsContent>
           
           <TabsContent value="ai-analysis" className="space-y-6 mt-6">

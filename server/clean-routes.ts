@@ -264,6 +264,129 @@ export function registerCleanRoutes(app: express.Application) {
     }
   });
 
+  // Bid Document Routes
+  app.get('/api/tenders/:tenderId/bid-documents', async (req, res) => {
+    try {
+      const { tenderId } = req.params;
+      
+      // For demo, return sample bid documents
+      const sampleBidDocuments = [
+        {
+          id: 'bd1',
+          tenderId,
+          documentType: 'Technical Proposal',
+          title: 'Technical Proposal - Server Infrastructure',
+          content: 'Technical proposal content for server infrastructure...',
+          status: 'draft',
+          version: 1,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          createdBy: 'admin'
+        },
+        {
+          id: 'bd2',
+          tenderId,
+          documentType: 'Commercial Proposal',
+          title: 'Commercial Proposal - Pricing Structure',
+          content: 'Commercial proposal with detailed pricing...',
+          status: 'in-review',
+          version: 2,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          createdBy: 'admin',
+          reviewedBy: 'finance_manager',
+          comments: 'Please review pricing structure'
+        }
+      ];
+      
+      res.json(sampleBidDocuments);
+    } catch (error) {
+      console.error('Error fetching bid documents:', error);
+      res.status(500).json({ error: 'Failed to fetch bid documents' });
+    }
+  });
+
+  app.post('/api/tenders/:tenderId/bid-documents', async (req, res) => {
+    try {
+      const { tenderId } = req.params;
+      const { documentType, title, content, status } = req.body;
+      
+      const newBidDocument = {
+        id: `bd_${Date.now()}`,
+        tenderId,
+        documentType,
+        title,
+        content,
+        status: status || 'draft',
+        version: 1,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        createdBy: 'admin'
+      };
+      
+      console.log('Created bid document:', newBidDocument);
+      res.json(newBidDocument);
+    } catch (error) {
+      console.error('Error creating bid document:', error);
+      res.status(500).json({ error: 'Failed to create bid document' });
+    }
+  });
+
+  app.put('/api/bid-documents/:documentId', async (req, res) => {
+    try {
+      const { documentId } = req.params;
+      const { documentType, title, content } = req.body;
+      
+      const updatedBidDocument = {
+        id: documentId,
+        documentType,
+        title,
+        content,
+        status: 'draft',
+        version: 2,
+        updatedAt: new Date().toISOString()
+      };
+      
+      console.log('Updated bid document:', updatedBidDocument);
+      res.json(updatedBidDocument);
+    } catch (error) {
+      console.error('Error updating bid document:', error);
+      res.status(500).json({ error: 'Failed to update bid document' });
+    }
+  });
+
+  app.delete('/api/bid-documents/:documentId', async (req, res) => {
+    try {
+      const { documentId } = req.params;
+      
+      console.log('Deleted bid document:', documentId);
+      res.json({ success: true, message: 'Bid document deleted successfully' });
+    } catch (error) {
+      console.error('Error deleting bid document:', error);
+      res.status(500).json({ error: 'Failed to delete bid document' });
+    }
+  });
+
+  app.get('/api/bid-document-types', async (req, res) => {
+    try {
+      const documentTypes = [
+        { id: 'tech', name: 'Technical Proposal' },
+        { id: 'comm', name: 'Commercial Proposal' },
+        { id: 'comp', name: 'Compliance Statement' },
+        { id: 'exec', name: 'Executive Summary' },
+        { id: 'ref', name: 'Reference Letters' },
+        { id: 'cert', name: 'Certificates & Qualifications' },
+        { id: 'impl', name: 'Implementation Plan' },
+        { id: 'support', name: 'Support & Maintenance' }
+      ];
+      
+      res.json(documentTypes);
+    } catch (error) {
+      console.error('Error fetching document types:', error);
+      res.status(500).json({ error: 'Failed to fetch document types' });
+    }
+  });
+
   // Catch-all for API routes
   app.use('/api/*', (req, res) => {
     res.status(404).json({ error: 'API endpoint not found' });
