@@ -156,6 +156,7 @@ export default function AdminSettingsPage() {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${token}`
         },
+        credentials: 'include', // Include session cookies
         body: JSON.stringify(payload),
       });
       

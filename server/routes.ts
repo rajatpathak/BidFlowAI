@@ -23,7 +23,7 @@ import path from 'path';
 import { promises as fs } from 'fs';
 import { v4 as uuidv4 } from 'uuid';
 import { eq, desc, sql, ne } from 'drizzle-orm';
-import { authenticateToken, optionalAuth, requireRole, generateToken, comparePassword, AuthenticatedRequest } from './auth.js';
+import { authenticateToken, optionalAuth, requireRole, generateToken, generateSessionToken, comparePassword, invalidateSession, AuthenticatedRequest } from './auth.js';
 import { validateRequest, validateQuery, loginSchema, createTenderSchema, updateTenderSchema, assignTenderSchema } from './validation.js';
 import jwt from 'jsonwebtoken';
 import OpenAI from 'openai';
@@ -100,8 +100,8 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
         });
       }
       
-      // Generate JWT token
-      const token = generateToken(user);
+      // Generate session token and store in database
+      const token = await generateSessionToken(user);
       
       res.json({
         message: 'Login successful',
@@ -878,8 +878,21 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
     }
   });
 
-  app.post("/api/auth/logout", (req, res) => {
-    res.json({ message: "Logged out successfully" });
+  app.post("/api/auth/logout", authenticateToken, async (req: AuthenticatedRequest, res) => {
+    try {
+      // Get token from header and invalidate session
+      const authHeader = req.headers.authorization;
+      const token = authHeader && authHeader.split(' ')[1];
+      
+      if (token) {
+        await invalidateSession(token);
+      }
+      
+      res.json({ message: "Logged out successfully" });
+    } catch (error) {
+      console.error('Logout error:', error);
+      res.status(500).json({ message: "Logout failed" });
+    }
   });
 
   // Get activity logs for a specific tender
