@@ -16,7 +16,8 @@ import {
   departments,
   userRoles,
   documents,
-  documentTemplates
+  documentTemplates,
+  companySettings
 } from '../shared/schema.js';
 import path from 'path';
 import { promises as fs } from 'fs';
@@ -1927,6 +1928,86 @@ Provide detailed analysis focusing on extracting email addresses, phone numbers,
     } catch (error) {
       console.error("Error deleting document template:", error);
       res.status(500).json({ error: "Failed to delete document template" });
+    }
+  });
+
+  // Company Settings API routes
+  app.get("/api/company-settings", authenticateToken, async (req, res) => {
+    try {
+      const [settings] = await db
+        .select()
+        .from(companySettings)
+        .limit(1);
+      
+      if (!settings) {
+        // Return default settings structure if none exist
+        return res.json({
+          id: 'default',
+          companyName: '',
+          annualTurnover: 0,
+          headquarters: '',
+          establishedYear: null,
+          certifications: [],
+          businessSectors: [],
+          projectTypes: [],
+          createdAt: null,
+          updatedAt: null
+        });
+      }
+      
+      res.json(settings);
+    } catch (error) {
+      console.error("Error fetching company settings:", error);
+      res.status(500).json({ error: "Failed to fetch company settings" });
+    }
+  });
+
+  app.put("/api/company-settings", authenticateToken, requireRole(['admin']), async (req, res) => {
+    try {
+      const { companyName, annualTurnover, headquarters, establishedYear, certifications, businessSectors, projectTypes } = req.body;
+      
+      // Check if settings exist
+      const [existingSettings] = await db
+        .select()
+        .from(companySettings)
+        .limit(1);
+      
+      let result;
+      
+      if (existingSettings) {
+        // Update existing settings
+        [result] = await db.update(companySettings)
+          .set({
+            companyName,
+            annualTurnover,
+            headquarters,
+            establishedYear,
+            certifications,
+            businessSectors,
+            projectTypes,
+            updatedAt: new Date()
+          })
+          .where(eq(companySettings.id, existingSettings.id))
+          .returning();
+      } else {
+        // Create new settings
+        [result] = await db.insert(companySettings)
+          .values({
+            companyName,
+            annualTurnover,
+            headquarters,
+            establishedYear,
+            certifications,
+            businessSectors,
+            projectTypes
+          })
+          .returning();
+      }
+      
+      res.json(result);
+    } catch (error) {
+      console.error("Error updating company settings:", error);
+      res.status(500).json({ error: "Failed to update company settings" });
     }
   });
 

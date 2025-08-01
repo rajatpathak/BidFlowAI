@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -27,14 +27,14 @@ import { useToast } from "@/hooks/use-toast";
 type CompanySettings = {
   id: string;
   companyName: string;
-  turnoverCriteria: string;
+  annualTurnover: number;
   headquarters: string | null;
   establishedYear: number | null;
   certifications: string[] | null;
   businessSectors: string[] | null;
   projectTypes: string[] | null;
+  createdAt: Date | null;
   updatedAt: Date | null;
-  updatedBy: string | null;
 };
 
 type ExcelUpload = {
@@ -62,9 +62,14 @@ type DocumentTemplate = {
 };
 
 const companySettingsFormSchema = insertCompanySettingsSchema.extend({
+  annualTurnover: z.coerce.number().min(1, "Annual turnover is required"),
   certifications: z.string().optional(),
   businessSectors: z.string().optional(),
   projectTypes: z.string().optional(),
+}).omit({ 
+  id: true,
+  createdAt: true,
+  updatedAt: true 
 });
 
 const documentTemplateFormSchema = z.object({
@@ -98,7 +103,7 @@ export default function AdminSettingsPage() {
     resolver: zodResolver(companySettingsFormSchema),
     defaultValues: {
       companyName: companySettings?.companyName || "",
-      turnoverCriteria: companySettings?.turnoverCriteria || "",
+      annualTurnover: companySettings?.annualTurnover || 0,
       headquarters: companySettings?.headquarters || "",
       establishedYear: companySettings?.establishedYear || undefined,
       certifications: companySettings?.certifications?.join(", ") || "",
@@ -119,11 +124,11 @@ export default function AdminSettingsPage() {
   });
 
   // Update form when data loads
-  useState(() => {
+  useEffect(() => {
     if (companySettings) {
       settingsForm.reset({
         companyName: companySettings.companyName,
-        turnoverCriteria: companySettings.turnoverCriteria,
+        annualTurnover: companySettings.annualTurnover,
         headquarters: companySettings.headquarters || "",
         establishedYear: companySettings.establishedYear || undefined,
         certifications: companySettings.certifications?.join(", ") || "",
@@ -131,7 +136,7 @@ export default function AdminSettingsPage() {
         projectTypes: companySettings.projectTypes?.join(", ") || "",
       });
     }
-  });
+  }, [companySettings, settingsForm]);
 
   const updateSettingsMutation = useMutation({
     mutationFn: async (data: z.infer<typeof companySettingsFormSchema>) => {
@@ -370,14 +375,17 @@ export default function AdminSettingsPage() {
 
                     <FormField
                       control={settingsForm.control}
-                      name="turnoverCriteria"
+                      name="annualTurnover"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Turnover Criteria</FormLabel>
+                          <FormLabel>Annual Turnover (₹)</FormLabel>
                           <FormControl>
                             <Input 
-                              placeholder="e.g., 5 cr" 
+                              type="number"
+                              placeholder="e.g., 50000000" 
                               {...field}
+                              value={field.value || ""}
+                              onChange={(e) => field.onChange(e.target.value ? parseInt(e.target.value) : 0)}
                             />
                           </FormControl>
                           <FormMessage />

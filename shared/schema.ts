@@ -191,8 +191,11 @@ export const companySettings = pgTable("company_settings", {
   id: uuid("id").primaryKey().defaultRandom(),
   companyName: text("company_name").notNull(),
   annualTurnover: bigint("annual_turnover", { mode: "number" }).notNull(), // in cents
+  headquarters: text("headquarters"),
+  establishedYear: integer("established_year"),
   certifications: json("certifications").default([]),
   businessSectors: json("business_sectors").default([]),
+  projectTypes: json("project_types").default([]),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
