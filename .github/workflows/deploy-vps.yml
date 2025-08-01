@@ -1,0 +1,185 @@
+name: Deploy BMS to VPS
+
+on:
+  push:
+    branches: [ main, production ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Build application
+      run: npm run build
+      
+    - name: Deploy to VPS
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ secrets.VPS_HOST }}
+        username: ${{ secrets.VPS_USERNAME }}
+        key: ${{ secrets.VPS_SSH_KEY }}
+        port: ${{ secrets.VPS_PORT || 22 }}
+        script: |
+          set -e
+          
+          # Configuration
+          APP_DIR="/var/www/bms-production"
+          SERVICE_NAME="bms-app"
+          
+          echo "🚀 Starting BMS deployment..."
+          
+          # Create app directory if not exists
+          sudo mkdir -p $APP_DIR
+          sudo chown $USER:$USER $APP_DIR
+          
+          # Navigate to app directory
+          cd $APP_DIR
+          
+          # Stop existing services
+          echo "⏹️ Stopping existing services..."
+          pm2 stop $SERVICE_NAME || true
+          sudo systemctl stop nginx || true
+          
+          # Backup current version
+          if [ -d "current" ]; then
+            echo "📦 Creating backup..."
+            rm -rf backup || true
+            mv current backup
+          fi
+          
+          # Clone latest code
+          echo "📥 Cloning latest code..."
+          git clone https://github.com/${{ github.repository }}.git current
+          cd current
+          
+          # Install dependencies
+          echo "📦 Installing dependencies..."
+          npm ci --production
+          
+          # Build application
+          echo "🏗️ Building application..."
+          npm run build
+          
+          # Create logs directory
+          mkdir -p logs uploads
+          
+          # Create environment file
+          echo "⚙️ Setting up environment..."
+          cat > .env << EOF
+          NODE_ENV=production
+          PORT=5000
+          DATABASE_URL=${{ secrets.DATABASE_URL }}
+          JWT_SECRET=${{ secrets.JWT_SECRET }}
+          OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
+          EOF
+          
+          # Update PM2 ecosystem
+          echo "🔄 Updating PM2 configuration..."
+          pm2 delete $SERVICE_NAME || true
+          pm2 start ecosystem.config.js --env production
+          pm2 save
+          
+          # Setup nginx if not exists
+          if [ ! -f "/etc/nginx/sites-available/bms" ]; then
+            echo "🌐 Setting up Nginx..."
+            sudo tee /etc/nginx/sites-available/bms > /dev/null << 'NGINX_EOF'
+          server {
+              listen 80;
+              server_name _;
+              
+              # Security headers
+              add_header X-Frame-Options DENY;
+              add_header X-Content-Type-Options nosniff;
+              add_header X-XSS-Protection "1; mode=block";
+              
+              # Gzip compression
+              gzip on;
+              gzip_vary on;
+              gzip_min_length 1024;
+              gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript;
+              
+              # Static files
+              location /uploads/ {
+                  alias /var/www/bms-production/current/uploads/;
+                  expires 1y;
+                  add_header Cache-Control "public, immutable";
+              }
+              
+              # API routes
+              location /api/ {
+                  proxy_pass http://localhost:5000;
+                  proxy_http_version 1.1;
+                  proxy_set_header Upgrade $http_upgrade;
+                  proxy_set_header Connection 'upgrade';
+                  proxy_set_header Host $host;
+                  proxy_set_header X-Real-IP $remote_addr;
+                  proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                  proxy_set_header X-Forwarded-Proto $scheme;
+                  proxy_cache_bypass $http_upgrade;
+                  proxy_read_timeout 300s;
+                  proxy_connect_timeout 75s;
+              }
+              
+              # Frontend routes
+              location / {
+                  proxy_pass http://localhost:5000;
+                  proxy_http_version 1.1;
+                  proxy_set_header Upgrade $http_upgrade;
+                  proxy_set_header Connection 'upgrade';
+                  proxy_set_header Host $host;
+                  proxy_set_header X-Real-IP $remote_addr;
+                  proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                  proxy_set_header X-Forwarded-Proto $scheme;
+                  proxy_cache_bypass $http_upgrade;
+              }
+          }
+          NGINX_EOF
+            
+            sudo ln -sf /etc/nginx/sites-available/bms /etc/nginx/sites-enabled/
+            sudo rm -f /etc/nginx/sites-enabled/default
+            sudo nginx -t
+          fi
+          
+          # Start nginx
+          echo "🌐 Starting Nginx..."
+          sudo systemctl start nginx
+          sudo systemctl enable nginx
+          
+          # Health check
+          echo "🔍 Performing health check..."
+          sleep 10
+          
+          if curl -f http://localhost:5000/api/health > /dev/null 2>&1; then
+            echo "✅ Deployment successful! API is responding."
+            echo "🌐 Application is running at: http://$(curl -s ifconfig.me || echo 'your-server-ip')"
+          else
+            echo "❌ Health check failed. Rolling back..."
+            pm2 stop $SERVICE_NAME
+            if [ -d "../backup" ]; then
+              cd ..
+              rm -rf current
+              mv backup current
+              cd current
+              pm2 start ecosystem.config.js --env production
+            fi
+            exit 1
+          fi
+          
+          # Cleanup old backups
+          cd $APP_DIR
+          find . -maxdepth 1 -name "backup*" -type d -mtime +7 -exec rm -rf {} \;
+          
+          echo "🎉 BMS deployment completed successfully!"
