@@ -1,9 +1,17 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRoute, useLocation } from "wouter";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
+import { useState } from "react";
 import { 
   ArrowLeft, 
   ExternalLink, 
@@ -15,8 +23,22 @@ import {
   Target, 
   CheckCircle,
   XCircle,
-  Info
+  Info,
+  PlayCircle,
+  AlertTriangle,
+  Upload,
+  Download,
+  File,
+  Trash2,
+  Brain,
+  Clock,
+  CheckSquare,
+  Users,
+  Calculator,
+  Phone,
+  Settings
 } from "lucide-react";
+import { AIAnalysisDisplay } from "@/components/ai-analysis-display";
 
 interface TenderDetail {
   id: string;
@@ -28,6 +50,9 @@ interface TenderDetail {
   status: string;
   source: string;
   aiScore: number;
+  assignedTo?: string;
+  assigned_to?: string; // backend field name
+  assignedToName?: string;
   requirements: Array<{
     location: string;
     reference: string;
@@ -50,11 +75,216 @@ interface TenderDetail {
 export default function TenderDetailEnhancedPage() {
   const [, navigate] = useLocation();
   const [match, params] = useRoute("/tender/:id");
+  const [showBiddingDialog, setShowBiddingDialog] = useState(false);
+  const [showNotRelevantDialog, setShowNotRelevantDialog] = useState(false);
+  const [notRelevantReason, setNotRelevantReason] = useState("");
+  const [selectedFiles, setSelectedFiles] = useState<FileList | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const { toast } = useToast();
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
   
   const { data: tender, isLoading } = useQuery<TenderDetail>({
     queryKey: [`/api/tenders/${params?.id}`],
     enabled: !!params?.id,
   });
+
+  // Fetch uploaded documents
+  const { data: documents = [] } = useQuery({
+    queryKey: [`/api/tenders/${params?.id}/documents`],
+    enabled: !!params?.id,
+  });
+
+  // Fetch AI analysis
+  const { data: aiAnalysis, isLoading: aiAnalysisLoading } = useQuery({
+    queryKey: [`/api/tenders/${params?.id}/ai-analysis`],
+    enabled: !!params?.id && documents.length > 0,
+  });
+
+  // Start bidding mutation
+  const startBiddingMutation = useMutation({
+    mutationFn: async (data: { tenderId: string; files: FileList }) => {
+      const formData = new FormData();
+      Array.from(data.files).forEach((file) => {
+        formData.append('documents', file);
+      });
+      
+      const response = await fetch(`/api/tenders/${data.tenderId}/documents`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: formData
+      });
+      
+      if (!response.ok) throw new Error('Failed to upload documents');
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Bidding Started",
+        description: "RFP documents uploaded successfully. You can now start preparing your bid.",
+      });
+      setShowBiddingDialog(false);
+      setSelectedFiles(null);
+      queryClient.invalidateQueries({ queryKey: [`/api/tenders/${params?.id}`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/tenders/${params?.id}/documents`] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Upload Failed",
+        description: error.message || "Failed to upload documents",
+        variant: "destructive"
+      });
+    }
+  });
+
+  // Delete document mutation
+  const deleteDocumentMutation = useMutation({
+    mutationFn: async (documentId: string) => {
+      const response = await fetch(`/api/documents/${documentId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+      
+      if (!response.ok) throw new Error('Failed to delete document');
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Document Deleted",
+        description: "Document has been removed successfully.",
+      });
+      queryClient.invalidateQueries({ queryKey: [`/api/tenders/${params?.id}/documents`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/tenders/${params?.id}/ai-analysis`] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Delete Failed",
+        description: error.message || "Failed to delete document",
+        variant: "destructive"
+      });
+    }
+  });
+
+  // Analyze documents mutation
+  const analyzeDocumentsMutation = useMutation({
+    mutationFn: async (tenderId: string) => {
+      const response = await fetch(`/api/tenders/${tenderId}/analyze-documents`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+      
+      if (!response.ok) throw new Error('Failed to analyze documents');
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Analysis Complete",
+        description: "AI analysis of documents has been completed successfully.",
+      });
+      queryClient.invalidateQueries({ queryKey: [`/api/tenders/${params?.id}/ai-analysis`] });
+      setIsAnalyzing(false);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Analysis Failed",
+        description: error.message || "Failed to analyze documents",
+        variant: "destructive"
+      });
+      setIsAnalyzing(false);
+    }
+  });
+
+  // Not relevant submission mutation
+  const notRelevantMutation = useMutation({
+    mutationFn: async (data: { tenderId: string; reason: string }) => {
+      const response = await fetch(`/api/tenders/${data.tenderId}/not-relevant`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({ reason: data.reason })
+      });
+      
+      if (!response.ok) throw new Error('Failed to mark tender as not relevant');
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Success",
+        description: "Tender marked as not relevant successfully",
+      });
+      setShowNotRelevantDialog(false);
+      setNotRelevantReason("");
+      queryClient.invalidateQueries({ queryKey: [`/api/tenders/${params?.id}`] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to mark tender as not relevant",
+        variant: "destructive"
+      });
+    }
+  });
+
+  // Handler functions
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSelectedFiles(e.target.files);
+  };
+
+  const handleStartBiddingSubmit = () => {
+    if (!selectedFiles || selectedFiles.length === 0) {
+      toast({
+        title: "Error",
+        description: "Please select at least one RFP document to upload",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (!tender) return;
+
+    startBiddingMutation.mutate({
+      tenderId: tender.id,
+      files: selectedFiles
+    });
+  };
+
+  const handleNotRelevantSubmit = () => {
+    if (!notRelevantReason.trim()) {
+      toast({
+        title: "Error",
+        description: "Please provide a reason for marking this tender as not relevant",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (!tender) return;
+
+    notRelevantMutation.mutate({
+      tenderId: tender.id,
+      reason: notRelevantReason.trim()
+    });
+  };
+
+  const handleDeleteDocument = (documentId: string) => {
+    if (confirm('Are you sure you want to delete this document?')) {
+      deleteDocumentMutation.mutate(documentId);
+    }
+  };
+
+  const handleAnalyzeDocuments = () => {
+    if (!params?.id) return;
+    setIsAnalyzing(true);
+    analyzeDocumentsMutation.mutate(params.id);
+  };
 
   if (isLoading) {
     return (
@@ -178,10 +408,56 @@ export default function TenderDetailEnhancedPage() {
                 </Button>
               </div>
             )}
+
+            {/* Action Buttons for Assigned Tenders */}
+            {user?.role === 'senior_bidder' && tender.status === 'assigned' && (tender.assignedTo === user?.id || tender.assigned_to === user?.id) && (
+              <div className="mb-6 flex gap-4">
+                <Button 
+                  size="lg" 
+                  onClick={() => setShowBiddingDialog(true)}
+                  className="bg-green-600 hover:bg-green-700"
+                >
+                  <PlayCircle className="h-5 w-5 mr-2" />
+                  Start Bidding
+                </Button>
+                <Button 
+                  size="lg" 
+                  variant="outline"
+                  onClick={() => setShowNotRelevantDialog(true)}
+                  className="border-red-300 text-red-600 hover:bg-red-50"
+                >
+                  <AlertTriangle className="h-5 w-5 mr-2" />
+                  Not Relevant
+                </Button>
+              </div>
+            )}
+
+            {/* Assignment Info */}
+            {tender.assignedTo && (
+              <div className="mb-6 p-4 bg-blue-50 rounded-lg">
+                <div className="flex items-center gap-2">
+                  <Target className="h-5 w-5 text-blue-600" />
+                  <span className="font-medium text-blue-900">
+                    Assigned to: {tender.assignedToName || 'Unknown User'}
+                  </span>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 
-        {/* Comprehensive Details Grid */}
+        {/* Tabbed Content */}
+        <Tabs defaultValue="details" className="w-full">
+          <TabsList className="grid w-full grid-cols-5">
+            <TabsTrigger value="details">Details</TabsTrigger>
+            <TabsTrigger value="documents">Uploaded Documents</TabsTrigger>
+            <TabsTrigger value="ai-analysis">AI Analysis</TabsTrigger>
+            <TabsTrigger value="activity">Activity Logs</TabsTrigger>
+            <TabsTrigger value="prepared">Prepared Documents</TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="details" className="space-y-6 mt-6">
+            {/* Comprehensive Details Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Reference Information */}
           <Card>
@@ -341,8 +617,252 @@ export default function TenderDetailEnhancedPage() {
           </Card>
         </div>
 
-        {/* Activity Logs */}
-        <ActivityLogsSection tenderId={tender.id} />
+          </TabsContent>
+          
+          <TabsContent value="documents" className="space-y-6 mt-6">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2">
+                    <File className="h-5 w-5" />
+                    Uploaded Documents
+                  </CardTitle>
+                  {documents.length > 0 && (
+                    <Button
+                      onClick={handleAnalyzeDocuments}
+                      disabled={isAnalyzing || analyzeDocumentsMutation.isPending}
+                      className="bg-purple-600 hover:bg-purple-700"
+                    >
+                      <Brain className="h-4 w-4 mr-2" />
+                      {isAnalyzing ? "Analyzing..." : "Analyze Documents"}
+                    </Button>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent>
+                {documents.length > 0 ? (
+                  <div className="space-y-3">
+                    {documents.map((doc: any, index: number) => (
+                      <div key={index} className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50">
+                        <div className="flex items-center gap-3">
+                          <File className="h-5 w-5 text-blue-600" />
+                          <div>
+                            <p className="font-medium">{doc.originalName || doc.filename}</p>
+                            <p className="text-sm text-gray-500">
+                              {doc.size ? `${(doc.size / 1024 / 1024).toFixed(2)} MB` : 'Unknown size'} • 
+                              Uploaded {doc.uploadedAt ? new Date(doc.uploadedAt).toLocaleDateString() : 'Recently'}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button variant="outline" size="sm" asChild>
+                            <a href={`/api/documents/${doc.id}/download`} target="_blank" rel="noopener noreferrer">
+                              <Download className="h-4 w-4 mr-2" />
+                              Download
+                            </a>
+                          </Button>
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => handleDeleteDocument(doc.id)}
+                            disabled={deleteDocumentMutation.isPending}
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-gray-500">
+                    <File className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                    <p>No documents uploaded yet</p>
+                    <p className="text-sm">Use the "Start Bidding" button to upload RFP documents</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+          
+          <TabsContent value="ai-analysis" className="space-y-6 mt-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Brain className="h-5 w-5" />
+                  AI Document Analysis
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {aiAnalysisLoading || isAnalyzing ? (
+                  <div className="text-center py-8">
+                    <Brain className="h-12 w-12 mx-auto mb-4 text-purple-500 animate-pulse" />
+                    <p className="text-lg font-medium">Analyzing Documents...</p>
+                    <p className="text-sm text-gray-500">AI is extracting key information from uploaded documents</p>
+                  </div>
+                ) : aiAnalysis ? (
+                  <AIAnalysisDisplay analysis={aiAnalysis} />
+                ) : documents.length > 0 ? (
+                  <div className="text-center py-8 text-gray-500">
+                    <Brain className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                    <p>Click "Analyze Documents" to get AI insights</p>
+                    <p className="text-sm">AI will extract key tender information from uploaded documents</p>
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-gray-500">
+                    <Brain className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                    <p>No documents to analyze</p>
+                    <p className="text-sm">Upload RFP documents first to get AI analysis</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+          
+          <TabsContent value="activity" className="space-y-6 mt-6">
+            <ActivityLogsSection tenderId={tender.id} />
+          </TabsContent>
+          
+          <TabsContent value="prepared" className="space-y-6 mt-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <FileText className="h-5 w-5" />
+                  Prepared Documents
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-center py-8 text-gray-500">
+                  <FileText className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                  <p>No prepared documents yet</p>
+                  <p className="text-sm">Documents prepared for this tender will appear here</p>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+
+        {/* Start Bidding Dialog */}
+        <Dialog open={showBiddingDialog} onOpenChange={setShowBiddingDialog}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Upload className="h-5 w-5 text-green-600" />
+                Start Bidding Process
+              </DialogTitle>
+            </DialogHeader>
+            
+            <div className="space-y-4">
+              <div className="text-sm text-gray-600">
+                Upload RFP documents to begin the bidding process for this tender:
+                <div className="font-medium mt-2 text-gray-900">
+                  {tender?.title}
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="documents">Select RFP Documents</Label>
+                <Input
+                  id="documents"
+                  type="file"
+                  multiple
+                  accept=".pdf,.doc,.docx,.xls,.xlsx"
+                  onChange={handleFileSelect}
+                  className="cursor-pointer"
+                />
+                <div className="text-xs text-gray-500">
+                  Accepted formats: PDF, DOC, DOCX, XLS, XLSX
+                </div>
+              </div>
+
+              {selectedFiles && selectedFiles.length > 0 && (
+                <div className="space-y-2">
+                  <Label>Selected Files:</Label>
+                  <div className="space-y-1">
+                    {Array.from(selectedFiles).map((file, index) => (
+                      <div key={index} className="text-sm text-gray-600 bg-gray-50 p-2 rounded">
+                        📎 {file.name} ({(file.size / 1024 / 1024).toFixed(2)} MB)
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            <DialogFooter>
+              <Button 
+                variant="outline" 
+                onClick={() => {
+                  setShowBiddingDialog(false);
+                  setSelectedFiles(null);
+                }}
+              >
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleStartBiddingSubmit}
+                disabled={startBiddingMutation.isPending}
+                className="bg-green-600 hover:bg-green-700"
+              >
+                {startBiddingMutation.isPending ? "Uploading..." : "Start Bidding"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Not Relevant Dialog */}
+        <Dialog open={showNotRelevantDialog} onOpenChange={setShowNotRelevantDialog}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5 text-red-600" />
+                Mark as Not Relevant
+              </DialogTitle>
+            </DialogHeader>
+            
+            <div className="space-y-4">
+              <div className="text-sm text-gray-600">
+                Please provide a reason for marking this tender as not relevant:
+                <div className="font-medium mt-2 text-gray-900">
+                  {tender?.title}
+                </div>
+                <div className="text-xs mt-1 text-gray-500">
+                  This will help improve future tender matching.
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="reason">Reason for not relevant</Label>
+                <Textarea
+                  id="reason"
+                  placeholder="e.g., Outside our expertise area, Budget too low, Technical requirements don't match..."
+                  value={notRelevantReason}
+                  onChange={(e) => setNotRelevantReason(e.target.value)}
+                  className="min-h-[100px]"
+                />
+              </div>
+            </div>
+            
+            <DialogFooter>
+              <Button 
+                variant="outline" 
+                onClick={() => {
+                  setShowNotRelevantDialog(false);
+                  setNotRelevantReason("");
+                }}
+              >
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleNotRelevantSubmit}
+                disabled={!notRelevantReason.trim() || notRelevantMutation.isPending}
+                className="bg-red-600 hover:bg-red-700"
+              >
+                {notRelevantMutation.isPending ? "Submitting..." : "Mark Not Relevant"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );

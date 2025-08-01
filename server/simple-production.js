@@ -121,8 +121,8 @@ app.post('/api/auth/login', async (req, res) => {
     // Demo credentials check
     let isValidPassword = false;
     if ((username === 'admin' && password === 'admin123') ||
-        (username === 'rahul.kumar' && password === 'bidder123') ||
-        (username === 'priya.sharma' && password === 'finance123')) {
+        (username === 'senior_bidder' && password === 'bidder123') ||
+        (username === 'finance_manager' && password === 'finance123')) {
       isValidPassword = true;
     } else if (user.password === password) {
       isValidPassword = true;
@@ -266,6 +266,73 @@ app.get('/api/tenders', async (req, res) => {
     res.json(tenders);
   } catch (error) {
     console.error('Tenders error:', error);
+    res.json([]);
+  }
+});
+
+// Mark tender as not relevant
+app.post('/api/tenders/:id/not-relevant', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { reason } = req.body;
+    
+    await sql`
+      UPDATE tenders 
+      SET status = 'not_relevant', updated_at = NOW()
+      WHERE id = ${id}
+    `;
+    
+    res.json({ success: true, message: 'Tender marked as not relevant' });
+  } catch (error) {
+    console.error('Not relevant error:', error);
+    res.status(500).json({ error: 'Failed to mark tender as not relevant' });
+  }
+});
+
+// Assign tender to bidder
+app.post('/api/tenders/:id/assign', async (req, res) => {
+  try {
+    const { assignedTo, assignedBy, notes, priority, budget } = req.body;
+    const tenderId = req.params.id;
+    
+    console.log('Assignment request:', { tenderId, assignedTo, assignedBy });
+    
+    // Update the tender's assigned_to field and status
+    await sql`
+      UPDATE tenders 
+      SET assigned_to = ${assignedTo}, 
+          status = 'assigned', 
+          updated_at = NOW()
+      WHERE id = ${tenderId}
+    `;
+    
+    res.json({ 
+      success: true, 
+      message: 'Tender assigned successfully',
+      assignedTo
+    });
+  } catch (error) {
+    console.error('Assignment error:', error);
+    res.status(500).json({ error: 'Failed to assign tender', details: error.message });
+  }
+});
+
+// Get documents for tender
+app.get('/api/tenders/:id/documents', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const documents = await sql`
+      SELECT id, tender_id as "tenderId", filename, original_name as "originalName", 
+             mime_type as "mimeType", size, uploaded_at as "uploadedAt"
+      FROM documents 
+      WHERE tender_id = ${id}
+      ORDER BY uploaded_at DESC
+    `;
+    
+    res.json(documents || []);
+  } catch (error) {
+    console.error('Documents error:', error);
     res.json([]);
   }
 });

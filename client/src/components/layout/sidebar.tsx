@@ -1,6 +1,6 @@
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { 
@@ -23,21 +23,25 @@ import {
   Shield,
   History,
   Bell,
-  AlertTriangle
+  AlertTriangle,
+  Lightbulb
 } from "lucide-react";
 
 const navigation = [
   { name: "Dashboard", href: "/", icon: BarChart3 },
   { name: "Active Tenders", href: "/active-tenders", icon: FileText },
   { name: "Assigned Tenders", href: "/assigned-tenders", icon: Bell },
+  { name: "Not Relevant", href: "/not-relevant-tenders", icon: AlertTriangle },
   { name: "Tender Results", href: "/tender-results", icon: Trophy },
   { name: "Missed Opportunities", href: "/missed-opportunities", icon: AlertTriangle },
   { name: "Create Bid", href: "/create-bid", icon: Plus },
   { name: "Meetings", href: "/meetings", icon: Calendar },
   { name: "Finance", href: "/finance", icon: DollarSign },
   { name: "AI Insights", href: "/ai-insights", icon: Brain },
-  { name: "User Management", href: "/user-management", icon: UserCog },
-  { name: "Admin Settings", href: "/admin-settings", icon: Cog },
+  { name: "AI Recommendations", href: "/ai-recommendations", icon: Lightbulb },
+  { name: "User Management", href: "/user-management", icon: UserCog, adminOnly: true },
+  { name: "Not Relevant Requests", href: "/admin/not-relevant-requests", icon: Shield, adminOnly: true },
+  { name: "Admin Settings", href: "/admin-settings", icon: Cog, adminOnly: true },
   { name: "Analytics", href: "/analytics", icon: PieChart },
   { name: "Settings", href: "/settings", icon: Settings },
 ];
@@ -47,8 +51,8 @@ export default function Sidebar() {
   const { user, logout, hasPermission } = useAuth();
 
   return (
-    <div className="hidden lg:flex lg:flex-shrink-0">
-      <div className="flex flex-col w-64 bg-white border-r border-gray-200">
+    <div className="hidden lg:flex lg:flex-shrink-0" style={{ zIndex: 10 }}>
+      <div className="flex flex-col w-64 bg-white border-r border-gray-200" style={{ pointerEvents: 'auto' }}>
         {/* Logo Header */}
         <div className="flex items-center justify-center h-16 px-4 border-b border-gray-200">
           <div className="flex items-center space-x-2">
@@ -89,8 +93,7 @@ export default function Sidebar() {
             const isActive = location === item.href;
             
             // Filter navigation based on user role
-            if (item.href === "/user-management" && user?.role !== "admin") return null;
-            if (item.href === "/admin-settings" && user?.role !== "admin") return null;
+            if (item.adminOnly && user?.role !== "admin") return null;
             if (item.href === "/finance" && user?.role !== "finance_manager" && user?.role !== "admin") return null;
             if (item.href === "/assigned-tenders" && user?.role !== "senior_bidder" && user?.role !== "junior_bidder" && user?.role !== "bidder") return null;
             
@@ -99,11 +102,17 @@ export default function Sidebar() {
                 key={item.name}
                 href={item.href}
                 className={cn(
-                  "flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors",
+                  "flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors cursor-pointer",
+                  "hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-primary",
                   isActive
                     ? "text-white bg-primary"
-                    : "text-gray-700 hover:bg-gray-100"
+                    : "text-gray-700"
                 )}
+                style={{ pointerEvents: 'auto' }}
+                onClick={(e) => {
+                  console.log('Menu item clicked:', item.name, item.href);
+                  // Let wouter handle the navigation
+                }}
               >
                 <Icon className="w-5 h-5 mr-3" />
                 {item.name}

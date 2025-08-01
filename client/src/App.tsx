@@ -11,6 +11,7 @@ import Sidebar from "@/components/layout/sidebar";
 import Dashboard from "@/pages/dashboard";
 import CreateBid from "@/pages/create-bid";
 import AIInsights from "@/pages/ai-insights";
+import RecommendationDashboard from "@/components/ai/recommendation-dashboard";
 import Finance from "@/pages/finance";
 import Meetings from "@/pages/meetings";
 import UserManagement from "@/pages/user-management";
@@ -21,6 +22,8 @@ import TenderDetail from "@/pages/tender-detail-enhanced";
 import TenderDetailPage from "@/pages/tender-detail";
 import MissedOpportunities from "@/pages/missed-opportunities";
 import AssignedTenders from "@/pages/assigned-tenders";
+import AdminNotRelevantRequests from "@/pages/admin-not-relevant-requests";
+import NotRelevantTenders from "@/pages/not-relevant-tenders";
 import UploadDemo from "@/pages/upload-demo";
 import Login from "@/pages/login";
 import Unauthorized from "@/pages/unauthorized";
@@ -62,10 +65,13 @@ function Router() {
               <Route path="/active-tenders" component={() => <ProtectedRoute requiredPermission="view_tenders"><ActiveTenders /></ProtectedRoute>} />
               <Route path="/tender/:id" component={() => <ProtectedRoute requiredPermission="view_tenders"><TenderDetail /></ProtectedRoute>} />
               <Route path="/assigned-tenders" component={() => <ProtectedRoute requiredPermission="create_bids"><AssignedTenders /></ProtectedRoute>} />
+              <Route path="/not-relevant-tenders" component={() => <ProtectedRoute requiredPermission="view_tenders"><NotRelevantTenders /></ProtectedRoute>} />
+              <Route path="/admin/not-relevant-requests" component={() => <ProtectedRoute requiredRole="admin"><AdminNotRelevantRequests /></ProtectedRoute>} />
               <Route path="/tender-results" component={() => <ProtectedRoute requiredPermission="view_tenders"><TenderResults /></ProtectedRoute>} />
               <Route path="/missed-opportunities" component={() => <ProtectedRoute requiredPermission="view_tenders"><MissedOpportunities /></ProtectedRoute>} />
               <Route path="/create-bid" component={() => <ProtectedRoute requiredPermission="create_bids"><CreateBid /></ProtectedRoute>} />
               <Route path="/ai-insights" component={() => <ProtectedRoute requiredPermission="use_ai_insights"><AIInsights /></ProtectedRoute>} />
+              <Route path="/ai-recommendations" component={() => <ProtectedRoute requiredPermission="use_ai_insights"><RecommendationDashboard /></ProtectedRoute>} />
               <Route path="/finance" component={() => <ProtectedRoute requiredPermission="view_finance"><Finance /></ProtectedRoute>} />
               <Route path="/meetings" component={() => <ProtectedRoute><Meetings /></ProtectedRoute>} />
               <Route path="/user-management" component={() => <ProtectedRoute requiredRole="admin"><UserManagement /></ProtectedRoute>} />

@@ -29,6 +29,12 @@ export const tenders = pgTable("tenders", {
   assignedTo: text("assigned_to"), // username or role of assigned bidder
   link: text("link"), // URL to tender details
   submittedAt: timestamp("submitted_at"),
+  notRelevantReason: text("not_relevant_reason"),
+  notRelevantRequestedBy: uuid("not_relevant_requested_by").references(() => users.id),
+  notRelevantRequestedAt: timestamp("not_relevant_requested_at"),
+  notRelevantApprovedBy: uuid("not_relevant_approved_by").references(() => users.id),
+  notRelevantApprovedAt: timestamp("not_relevant_approved_at"),
+  notRelevantStatus: text("not_relevant_status").default("none"), // none, pending, approved, rejected
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -185,8 +191,11 @@ export const companySettings = pgTable("company_settings", {
   id: uuid("id").primaryKey().defaultRandom(),
   companyName: text("company_name").notNull(),
   annualTurnover: bigint("annual_turnover", { mode: "number" }).notNull(), // in cents
+  headquarters: text("headquarters"),
+  establishedYear: integer("established_year"),
   certifications: json("certifications").default([]),
   businessSectors: json("business_sectors").default([]),
+  projectTypes: json("project_types").default([]),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -236,6 +245,18 @@ export const activityLogs = pgTable("activity_logs", {
   action: text("action").notNull(),
   details: json("details").default({}),
   created_at: timestamp("created_at").defaultNow(),
+});
+
+export const documentTemplates = pgTable("document_templates", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: text("name").notNull(),
+  description: text("description"),
+  category: text("category").notNull().default("participation"), // participation, technical, commercial, etc.
+  mandatory: boolean("mandatory").default(false),
+  format: text("format"), // PDF, DOC, XLS, etc.
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  createdBy: uuid("created_by").references(() => users.id),
 });
 
 // Type exports
@@ -299,6 +320,9 @@ export type InsertEnhancedTenderResult = typeof enhancedTenderResults.$inferInse
 export type ActivityLog = typeof activityLogs.$inferSelect;
 export type InsertActivityLog = typeof activityLogs.$inferInsert;
 
+export type DocumentTemplate = typeof documentTemplates.$inferSelect;
+export type InsertDocumentTemplate = typeof documentTemplates.$inferInsert;
+
 // Zod schemas for validation
 export const insertUserSchema = createInsertSchema(users);
 export const insertTenderSchema = createInsertSchema(tenders);
@@ -316,6 +340,7 @@ export const insertDepartmentSchema = createInsertSchema(departments);
 export const insertRoleSchema = createInsertSchema(roles);
 export const insertUserRoleSchema = createInsertSchema(userRoles);
 export const insertCompanySettingsSchema = createInsertSchema(companySettings);
+export const insertDocumentTemplateSchema = createInsertSchema(documentTemplates);
 
 // Extended types for dashboard analytics
 export interface DashboardStats {
