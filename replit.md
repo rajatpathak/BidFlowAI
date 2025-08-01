@@ -70,18 +70,23 @@ Fixed the deployment error: "Run command contains 'dev' which is blocked for sec
 
 **Root Cause**: The .replit configuration was using `npm run dev` for deployment, which is blocked in production.
 
-**Solution Applied**: Created comprehensive production-ready deployment scripts:
+**FINAL SOLUTION**: Since the .replit file cannot be edited directly, you need to update the deployment configuration manually:
 
-1. **Primary Solution**: `replit-deployment.js`
-   - Automatically builds application if needed
-   - Sets NODE_ENV=production
-   - Handles database schema setup
-   - Starts production server with proper error handling
-   - Includes graceful shutdown
+1. **For Replit Deployments**: Change the run command in the Replit deployment settings from:
+   ```
+   npm run dev
+   ```
+   To one of these production-ready commands:
+   ```
+   node replit-deployment.js
+   node start-production.js
+   node production-start.js
+   ```
 
-2. **Alternative Solutions**:
-   - `server/production.ts` - Dedicated production server with security headers
-   - `npm start` - Direct production startup
+2. **Production Scripts Available**:
+   - `replit-deployment.js` - Full-featured deployment with build checks
+   - `start-production.js` - ES module compatible startup  
+   - `production-start.js` - Clean, minimal production startup
 
 ### Production Build Process
 - **Build Command**: `npm run build`
