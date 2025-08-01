@@ -34,13 +34,41 @@ import OpenAI from 'openai';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
-// Setup multer for file uploads
+// Setup multer for file uploads with proper filename handling
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    const uploadDir = 'uploads/';
+    // Ensure upload directory exists
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
+  },
+  filename: function (req, file, cb) {
+    // Generate unique filename with timestamp and original extension
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    const ext = path.extname(file.originalname);
+    cb(null, `image-${uniqueSuffix}${ext}`);
+  }
+});
+
 const upload = multer({
-  dest: 'uploads/',
+  storage: storage,
   limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+  fileFilter: function (req, file, cb) {
+    // Check if file is an image
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed'));
+    }
+  }
 });
 
 export function registerRoutes(app: express.Application, storage: IStorage) {
+  // Serve uploaded files statically
+  app.use('/uploads', express.static('uploads'));
+  
   // Add API route logging for debugging
   app.use('/api/*', (req, res, next) => {
     console.log(`🔄 API Request: ${req.method} ${req.path}`);
@@ -1953,7 +1981,12 @@ Provide detailed analysis focusing on extracting email addresses, phone numbers,
   // Image upload endpoint for templates
   app.post('/api/upload-images', upload.array('images'), async (req, res) => {
     try {
-      if (!req.files || !Array.isArray(req.files)) {
+      console.log('Upload request received');
+      console.log('Files:', req.files);
+      console.log('Body:', req.body);
+      
+      if (!req.files || !Array.isArray(req.files) || req.files.length === 0) {
+        console.log('No files found in request');
         return res.status(400).json({ error: 'No images uploaded' });
       }
 
@@ -1967,6 +2000,7 @@ Provide detailed analysis focusing on extracting email addresses, phone numbers,
         url: `/uploads/${file.filename}`,
       }));
 
+      console.log('Uploaded images:', uploadedImages);
       res.json(uploadedImages);
     } catch (error) {
       console.error('Error uploading images:', error);
