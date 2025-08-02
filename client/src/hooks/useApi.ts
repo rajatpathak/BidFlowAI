@@ -55,13 +55,42 @@ export function useApiMutation<TData = any, TVariables = any>(
 
 // Specific hooks for common operations
 export function useTenders(filters?: Record<string, any>) {
-  const queryKey = filters ? ['/api/tenders', JSON.stringify(filters)] : ['/api/tenders'];
-  return useApiQuery<any[]>(queryKey);
+  const queryKey = filters ? ['/api/tenders', 'with-filters', JSON.stringify(filters)] : ['/api/tenders'];
+  
+  return useApiQuery<any[]>(queryKey, {
+    queryFn: async () => {
+      let url = '/api/tenders';
+      if (filters) {
+        const searchParams = new URLSearchParams();
+        Object.entries(filters).forEach(([key, value]) => {
+          if (value && value !== '') {
+            searchParams.append(key, value);
+          }
+        });
+        if (searchParams.toString()) {
+          url += '?' + searchParams.toString();
+        }
+      }
+      
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error('Failed to fetch tenders');
+      }
+      return response.json();
+    }
+  });
 }
 
 export function useTender(id: string) {
   return useApiQuery<any>(['/api/tenders', id], {
     enabled: !!id,
+    queryFn: async () => {
+      const response = await fetch(`/api/tenders/${id}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch tender');
+      }
+      return response.json();
+    }
   });
 }
 
