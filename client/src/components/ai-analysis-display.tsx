@@ -47,11 +47,23 @@ export function AIAnalysisDisplay({ analysis }: AIAnalysisDisplayProps) {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                 {analysis.DocumentsProcessed.map((doc: any, index: number) => (
                   <div key={index} className="flex items-center gap-2 text-sm">
-                    <FileText className="h-4 w-4 text-blue-600" />
+                    {doc.status === 'Error' ? (
+                      <AlertTriangle className="h-4 w-4 text-red-600" />
+                    ) : (
+                      <FileText className="h-4 w-4 text-green-600" />
+                    )}
                     <span className="truncate">{doc.name}</span>
-                    <Badge variant="outline" className="text-xs">
-                      {doc.type} • {doc.size}
-                    </Badge>
+                    <div className="flex gap-1">
+                      <Badge variant="outline" className="text-xs">
+                        {doc.type}
+                      </Badge>
+                      <Badge 
+                        variant={doc.status === 'Error' ? 'destructive' : 'default'} 
+                        className="text-xs"
+                      >
+                        {doc.status === 'Error' ? 'Error' : doc.size}
+                      </Badge>
+                    </div>
                   </div>
                 ))}
               </div>

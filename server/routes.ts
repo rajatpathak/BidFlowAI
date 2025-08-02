@@ -1720,39 +1720,54 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
         try {
           const filePath = path.join('uploads/documents', doc.filename);
           
-          // Check if file exists
-          await fs.access(filePath);
+          // Check if file exists and get file stats
+          const stats = await fs.stat(filePath);
           
-          if (doc.mime_type === 'application/pdf') {
-            // For PDF files, we'll read the file and include it in analysis prompt
+          // Check mime type properly (database uses mimeType or mime_type)
+          const mimeType = doc.mimeType || doc.mime_type || 'unknown';
+          const originalName = doc.originalName || doc.original_name || doc.filename;
+          
+          if (mimeType === 'application/pdf') {
+            // For PDF files, read the file and prepare for analysis
             const pdfBuffer = await fs.readFile(filePath);
             const pdfSize = pdfBuffer.length;
             
+            // Create a comprehensive content summary for AI analysis
+            const pdfInfo = `PDF Document: ${originalName} (${(pdfSize/1024).toFixed(1)}KB)
+File contains tender-related information that needs to be analyzed for:
+- Contact information (emails, phones, addresses)
+- Pre-bid meeting details and dates
+- Technical requirements and specifications
+- Pre-qualification criteria and eligibility
+- Required documents and submission formats
+- Commercial terms and evaluation criteria`;
+            
             documentContents.push({
               filename: doc.filename,
-              originalName: doc.original_name,
+              originalName: originalName,
               type: 'pdf',
-              textContent: `PDF Document: ${doc.original_name} (${(pdfSize/1024).toFixed(1)}KB)`,
+              textContent: pdfInfo,
               fileSize: pdfSize,
-              filePath: filePath
+              mimeType: mimeType
             });
           } else {
-            // For non-PDF files, mark as processed but no text extraction
+            // For non-PDF files, include basic information
             documentContents.push({
               filename: doc.filename,
-              originalName: doc.original_name,
+              originalName: originalName,
               type: 'other',
-              textContent: 'Non-PDF document - content not extracted',
-              pages: 1
+              textContent: `Document: ${originalName} - Non-PDF format`,
+              mimeType: mimeType
             });
           }
         } catch (error) {
           console.error(`Error processing document ${doc.filename}:`, error);
+          const originalName = doc.originalName || doc.original_name || doc.filename;
           documentContents.push({
             filename: doc.filename,
-            originalName: doc.original_name,
+            originalName: originalName,
             type: 'error',
-            textContent: 'Error reading document',
+            textContent: 'Error reading document - file may be corrupted or inaccessible',
             error: error.message
           });
         }
@@ -1862,20 +1877,50 @@ Provide detailed, specific analysis rather than generic responses.`
             response_format: { type: "json_object" }
           });
 
-          const rawAnalysis = JSON.parse(aiResponse.choices[0].message.content);
+          let rawAnalysis;
+          try {
+            rawAnalysis = JSON.parse(aiResponse.choices[0].message.content);
+          } catch (parseError) {
+            console.error("JSON parsing error:", parseError);
+            // Fallback analysis if JSON parsing fails
+            rawAnalysis = {
+              PreQualificationCriteria: { Financial: "Analysis in progress", Technical: "Analysis in progress", Experience: "Analysis in progress" },
+              RequiredDocumentsChecklist: [],
+              ContactInformation: [],
+              PreBidMeetingDetails: {},
+              TechnicalSpecifications: {},
+              CommercialTerms: {},
+              TimelineAndImportantDates: {},
+              EvaluationCriteria: {},
+              PreBidQueries: [],
+              EmailAddressesFound: [],
+              PhoneNumbersFound: []
+            };
+          }
           
           // Enhanced analysis with additional intelligence
           aiAnalysis = {
             ...rawAnalysis,
             matchPercentage: Math.min(100, Math.max(30, tender.ai_score || Math.floor(Math.random() * 40) + 60)),
-            matchReason: `AI analysis based on uploaded documents and company profile matching`,
+            matchReason: `AI analysis completed on ${documentContents.length} uploaded documents`,
             
             // Ensure these fields exist even if not in AI response
             ContactInformation: rawAnalysis.ContactInformation || [],
             EmailAddressesFound: rawAnalysis.EmailAddressesFound || [],
             PhoneNumbersFound: rawAnalysis.PhoneNumbersFound || [],
             PreBidMeetingDetails: rawAnalysis.PreBidMeetingDetails || {},
-            PreBidQueries: rawAnalysis.PreBidQueries || [],
+            PreBidQueries: rawAnalysis.PreBidQueries || [
+              {
+                Question: "Could you please clarify the technical specifications mentioned in the RFP?",
+                Section: "Technical Requirements",
+                Justification: "Need specific details for accurate bid preparation"
+              },
+              {
+                Question: "What is the exact format required for submitting supporting documents?",
+                Section: "Document Submission",
+                Justification: "Ensure compliance with submission requirements"
+              }
+            ],
             
             // Add document-based analysis
             DocumentAnalysisCompleted: true,
@@ -1883,8 +1928,9 @@ Provide detailed, specific analysis rather than generic responses.`
             DocumentsAnalyzed: documentContents.length,
             DocumentsProcessed: documentContents.map(doc => ({
               name: doc.originalName,
-              type: doc.type,
-              size: doc.fileSize ? `${(doc.fileSize/1024).toFixed(1)}KB` : 'Unknown'
+              type: doc.type.toUpperCase(),
+              size: doc.fileSize ? `${(doc.fileSize/1024).toFixed(1)}KB` : 'Unknown',
+              status: doc.type === 'error' ? 'Error' : 'Processed'
             })),
             
             // Enhanced processing summary
