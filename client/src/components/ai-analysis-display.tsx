@@ -1,6 +1,8 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle, Shield, FileText, Phone, Settings, Calculator, Target, AlertTriangle, Clock, Users, CheckSquare } from "lucide-react";
+import { CheckCircle, Shield, FileText, Phone, Settings, Calculator, Target, AlertTriangle, Clock, Users, CheckSquare, Mail, MapPin, Calendar, MessageSquare, Send, Copy } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
 
 interface AIAnalysisDisplayProps {
   analysis: any;
@@ -242,6 +244,242 @@ export function AIAnalysisDisplay({ analysis }: AIAnalysisDisplayProps) {
                   )}
                 </div>
               ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Contact Information */}
+      {analysis.ContactInformation && analysis.ContactInformation.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Users className="h-5 w-5 text-blue-600" />
+              Contact Information
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {analysis.ContactInformation.map((contact: any, index: number) => (
+                <div key={index} className="p-4 border rounded-lg bg-gray-50">
+                  <div className="space-y-2">
+                    <h4 className="font-semibold text-gray-900">{contact.Name || contact.name}</h4>
+                    {contact.Designation && (
+                      <p className="text-sm text-gray-600">{contact.Designation}</p>
+                    )}
+                    {contact.Department && (
+                      <p className="text-sm text-blue-600">{contact.Department}</p>
+                    )}
+                    <div className="space-y-1">
+                      {contact.Email && (
+                        <div className="flex items-center gap-2">
+                          <Mail className="h-4 w-4 text-green-600" />
+                          <span className="text-sm font-mono">{contact.Email}</span>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => navigator.clipboard.writeText(contact.Email)}
+                            className="h-6 w-6 p-0"
+                          >
+                            <Copy className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      )}
+                      {contact.Phone && (
+                        <div className="flex items-center gap-2">
+                          <Phone className="h-4 w-4 text-purple-600" />
+                          <span className="text-sm font-mono">{contact.Phone}</span>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => navigator.clipboard.writeText(contact.Phone)}
+                            className="h-6 w-6 p-0"
+                          >
+                            <Copy className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      )}
+                      {contact.Address && (
+                        <div className="flex items-start gap-2">
+                          <MapPin className="h-4 w-4 text-red-600 mt-0.5" />
+                          <span className="text-sm">{contact.Address}</span>
+                        </div>
+                      )}
+                    </div>
+                    {contact.Purpose && (
+                      <div className="mt-2 pt-2 border-t">
+                        <Badge variant="outline" className="text-xs">
+                          {contact.Purpose}
+                        </Badge>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Email Addresses Found */}
+      {analysis.EmailAddressesFound && analysis.EmailAddressesFound.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Mail className="h-5 w-5 text-green-600" />
+              Email Addresses Extracted ({analysis.EmailAddressesFound.length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              {analysis.EmailAddressesFound.map((email: string, index: number) => (
+                <div key={index} className="flex items-center gap-2 p-2 bg-green-50 rounded">
+                  <Mail className="h-4 w-4 text-green-600" />
+                  <span className="text-sm font-mono flex-1">{email}</span>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => navigator.clipboard.writeText(email)}
+                    className="h-6 w-6 p-0"
+                  >
+                    <Copy className="h-3 w-3" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Phone Numbers Found */}
+      {analysis.PhoneNumbersFound && analysis.PhoneNumbersFound.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Phone className="h-5 w-5 text-purple-600" />
+              Phone Numbers Extracted ({analysis.PhoneNumbersFound.length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              {analysis.PhoneNumbersFound.map((phone: string, index: number) => (
+                <div key={index} className="flex items-center gap-2 p-2 bg-purple-50 rounded">
+                  <Phone className="h-4 w-4 text-purple-600" />
+                  <span className="text-sm font-mono flex-1">{phone}</span>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => navigator.clipboard.writeText(phone)}
+                    className="h-6 w-6 p-0"
+                  >
+                    <Copy className="h-3 w-3" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Pre-bid Meeting Details */}
+      {analysis.PreBidMeetingDetails && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Calendar className="h-5 w-5 text-orange-600" />
+              Pre-bid Meeting Details
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {Object.entries(analysis.PreBidMeetingDetails).map(([key, value]) => (
+                <div key={key} className="p-3 bg-orange-50 rounded-lg">
+                  <p className="font-medium text-orange-900">{key.replace(/([A-Z])/g, ' $1').trim()}</p>
+                  <p className="text-sm text-orange-700 mt-1">
+                    {value === 'Not specified' || !value ? (
+                      <span className="text-gray-500 italic">Not specified</span>
+                    ) : (
+                      String(value)
+                    )}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Pre-bid Queries */}
+      {analysis.PreBidQueries && analysis.PreBidQueries.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <MessageSquare className="h-5 w-5 text-indigo-600" />
+              Suggested Pre-bid Queries
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {analysis.PreBidQueries.map((query: any, index: number) => (
+                <div key={index} className="p-4 border rounded-lg bg-indigo-50">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <h4 className="font-medium text-indigo-900 mb-2">
+                        Query #{index + 1}
+                        {query.Section && (
+                          <Badge variant="outline" className="ml-2 text-xs">
+                            {query.Section}
+                          </Badge>
+                        )}
+                      </h4>
+                      <p className="text-sm text-indigo-800 mb-2">{query.Question}</p>
+                      {query.Justification && (
+                        <p className="text-xs text-indigo-600 italic">{query.Justification}</p>
+                      )}
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => navigator.clipboard.writeText(query.Question)}
+                      className="ml-2"
+                    >
+                      <Copy className="h-3 w-3 mr-1" />
+                      Copy
+                    </Button>
+                  </div>
+                </div>
+              ))}
+              
+              {/* Email All Queries Button */}
+              <div className="pt-4 border-t">
+                <Button 
+                  className="w-full bg-indigo-600 hover:bg-indigo-700"
+                  onClick={() => {
+                    const allQueries = analysis.PreBidQueries.map((q: any, i: number) => 
+                      `${i + 1}. ${q.Question} ${q.Section ? `(Section: ${q.Section})` : ''}`
+                    ).join('\n\n');
+                    
+                    const emailSubject = `Pre-bid Queries - ${(analysis as any).tenderTitle || 'Tender'}`;
+                    const emailBody = `Dear Sir/Madam,\n\nWe have the following queries regarding the tender:\n\n${allQueries}\n\nKindly clarify at your earliest convenience.\n\nRegards,\n[Your Name]\n[Company Name]`;
+                    
+                    const emails = analysis.ContactInformation
+                      ?.filter((c: any) => c.Email)
+                      ?.map((c: any) => c.Email)
+                      ?.join(',') || analysis.EmailAddressesFound?.[0] || '';
+                    
+                    if (emails) {
+                      window.open(`mailto:${emails}?subject=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(emailBody)}`);
+                    } else {
+                      // Fallback to copying queries to clipboard if no emails found
+                      navigator.clipboard.writeText(`Pre-bid Queries:\n\n${allQueries}`);
+                      alert('No email addresses found. Queries copied to clipboard.');
+                    }
+                  }}
+                >
+                  <Send className="h-4 w-4 mr-2" />
+                  Email All Queries
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>
