@@ -1,6 +1,7 @@
 import express from "express";
 import * as XLSX from 'xlsx';
 import fs from "fs";
+import { promises as fsPromises } from "fs";
 import multer from "multer";
 import { createServer } from "http";
 import { IStorage } from "./storage.js";
@@ -639,7 +640,7 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
       
       // Delete file from filesystem
       try {
-        await fs.unlink(path.join('uploads/documents', document.filename));
+        await fsPromises.unlink(path.join('uploads/documents', document.filename));
       } catch (fileError) {
         console.warn("File not found on disk:", document.filename);
       }
@@ -673,7 +674,7 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
       const filePath = path.join(process.cwd(), 'uploads', document.filename);
       
       try {
-        await fs.access(filePath);
+        await fsPromises.access(filePath);
         res.setHeader('Content-Disposition', `attachment; filename="${document.originalName}"`);
         res.setHeader('Content-Type', document.mimeType);
         res.sendFile(filePath);
@@ -1598,7 +1599,7 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
         const filePath = path.join('uploads/documents', filename);
         
         // Move file to permanent location
-        await fs.rename(file.path, filePath);
+        await fsPromises.rename(file.path, filePath);
         
         // Insert document record
         const [document] = await db.insert(documents).values({
@@ -1666,7 +1667,7 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
       
       // Check if file exists
       try {
-        await fs.access(filePath);
+        await fsPromises.access(filePath);
       } catch {
         return res.status(404).json({ error: "File not found on disk" });
       }
@@ -1718,10 +1719,10 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
       
       for (const doc of documentsResult) {
         try {
-          const filePath = path.join('uploads/documents', doc.filename);
+          const filePath = path.join('uploads', doc.filename);
           
           // Check if file exists and get file stats
-          const stats = await fs.stat(filePath);
+          const stats = await fsPromises.stat(filePath);
           
           // Check mime type properly (database uses mimeType or mime_type)
           const mimeType = doc.mimeType || doc.mime_type || 'unknown';
@@ -1729,7 +1730,7 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
           
           if (mimeType === 'application/pdf') {
             // For PDF files, read the file and prepare for analysis
-            const pdfBuffer = await fs.readFile(filePath);
+            const pdfBuffer = await fsPromises.readFile(filePath);
             const pdfSize = pdfBuffer.length;
             
             // Create a comprehensive content summary for AI analysis
