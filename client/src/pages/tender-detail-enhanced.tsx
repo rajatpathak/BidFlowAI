@@ -742,8 +742,19 @@ export default function TenderDetailEnhancedPage() {
                 ) : documents.length > 0 ? (
                   <div className="text-center py-8 text-gray-500">
                     <Brain className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-                    <p>Click "Analyze Documents" to get AI insights</p>
-                    <p className="text-sm">AI will extract key tender information from uploaded documents</p>
+                    <p className="mb-4">Click "Analyze Documents" to get AI insights</p>
+                    <p className="text-sm mb-6">AI will extract key tender information from uploaded documents</p>
+                    <Button 
+                      onClick={() => {
+                        setIsAnalyzing(true);
+                        analyzeDocumentsMutation.mutate(tender.id);
+                      }}
+                      disabled={analyzeDocumentsMutation.isPending || isAnalyzing}
+                      className="bg-purple-600 hover:bg-purple-700"
+                    >
+                      <Brain className="h-4 w-4 mr-2" />
+                      {isAnalyzing ? 'Analyzing...' : 'Analyze Documents'}
+                    </Button>
                   </div>
                 ) : (
                   <div className="text-center py-8 text-gray-500">

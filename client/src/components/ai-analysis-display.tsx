@@ -32,6 +32,185 @@ export function AIAnalysisDisplay({ analysis }: AIAnalysisDisplayProps) {
         </CardContent>
       </Card>
 
+      {/* Technical Specifications */}
+      {analysis.TechnicalSpecifications && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Settings className="h-5 w-5 text-blue-600" />
+              Technical Specifications
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {Object.entries(analysis.TechnicalSpecifications).map(([key, value]) => (
+                <div key={key} className="p-4 bg-blue-50 rounded-lg">
+                  <p className="font-medium text-blue-900">{key.replace(/([A-Z])/g, ' $1').trim()}</p>
+                  <p className="text-sm text-blue-700 mt-1">{String(value)}</p>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Bidding Strategy Recommendations */}
+      {analysis.BiddingStrategyRecommendations && analysis.BiddingStrategyRecommendations.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Target className="h-5 w-5 text-green-600" />
+              Bidding Strategy Recommendations
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {analysis.BiddingStrategyRecommendations.map((strategy: string, index: number) => (
+                <div key={index} className="flex items-start gap-3 p-3 bg-green-50 rounded-lg">
+                  <div className="w-2 h-2 bg-green-500 rounded-full mt-2 flex-shrink-0"></div>
+                  <p className="text-sm text-green-800">{strategy}</p>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Pre-Qualification Criteria */}
+      {analysis.PreQualificationCriteria && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Shield className="h-5 w-5 text-orange-600" />
+              Pre-Qualification Criteria
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {Object.entries(analysis.PreQualificationCriteria).map(([category, details]) => (
+                <div key={category} className="p-4 border rounded-lg">
+                  <h4 className="font-semibold text-orange-900 mb-2 capitalize">
+                    {category.replace(/([A-Z])/g, ' $1').trim()}
+                  </h4>
+                  {typeof details === 'object' && details !== null ? (
+                    <div className="space-y-2">
+                      {Object.entries(details as any).map(([key, value]) => (
+                        <div key={key} className="text-sm">
+                          <span className="font-medium text-gray-700">{key.replace(/([A-Z])/g, ' $1').trim()}: </span>
+                          <span className="text-gray-600">{String(value)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-600">{String(details)}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Timeline and Important Dates */}
+      {analysis.TimelineAndImportantDates && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Clock className="h-5 w-5 text-purple-600" />
+              Timeline & Important Dates
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {Object.entries(analysis.TimelineAndImportantDates).map(([key, value]) => (
+                <div key={key} className="p-3 bg-purple-50 rounded-lg">
+                  <p className="font-medium text-purple-900">{key.replace(/([A-Z])/g, ' $1').trim()}</p>
+                  <p className="text-sm text-purple-700 mt-1">
+                    {value === 'Not specified' ? (
+                      <span className="text-gray-500 italic">Not specified</span>
+                    ) : (
+                      String(value)
+                    )}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Commercial Terms */}
+      {analysis.CommercialTerms && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Calculator className="h-5 w-5 text-indigo-600" />
+              Commercial Terms
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {Object.entries(analysis.CommercialTerms).map(([key, value]) => (
+                <div key={key} className="p-4 bg-indigo-50 rounded-lg">
+                  <p className="font-medium text-indigo-900">{key.replace(/([A-Z])/g, ' $1').trim()}</p>
+                  <p className="text-sm text-indigo-700 mt-1">{String(value)}</p>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Evaluation Criteria */}
+      {analysis.EvaluationCriteria && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <CheckSquare className="h-5 w-5 text-teal-600" />
+              Evaluation Criteria
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {Object.entries(analysis.EvaluationCriteria).map(([key, value]) => (
+                <div key={key} className="p-4 bg-teal-50 rounded-lg">
+                  <p className="font-medium text-teal-900">{key.replace(/([A-Z])/g, ' $1').trim()}</p>
+                  <p className="text-sm text-teal-700 mt-1">{String(value)}</p>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Performance Guarantees */}
+      {analysis.PerformanceGuaranteesAndWarranties && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Shield className="h-5 w-5 text-emerald-600" />
+              Performance Guarantees & Warranties
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {Object.entries(analysis.PerformanceGuaranteesAndWarranties).map(([key, value]) => (
+                <div key={key} className="p-4 bg-emerald-50 rounded-lg">
+                  <p className="font-medium text-emerald-900">{key.replace(/([A-Z])/g, ' $1').trim()}</p>
+                  <p className="text-sm text-emerald-700 mt-1">
+                    {value === 'Not specified' ? (
+                      <span className="text-gray-500 italic">Not specified</span>
+                    ) : (
+                      String(value)
+                    )}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Pre-Qualification Criteria */}
       {(analysis.preQualificationCriteria || analysis.eligibilityCriteria) && (analysis.preQualificationCriteria || analysis.eligibilityCriteria).length > 0 && (
         <Card>
@@ -69,7 +248,7 @@ export function AIAnalysisDisplay({ analysis }: AIAnalysisDisplayProps) {
       )}
 
       {/* Required Documents */}
-      {analysis.requiredDocuments && analysis.requiredDocuments.length > 0 && (
+      {(analysis.requiredDocuments || analysis.RequiredDocumentsChecklist) && (analysis.requiredDocuments || analysis.RequiredDocumentsChecklist).length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg">
@@ -79,16 +258,16 @@ export function AIAnalysisDisplay({ analysis }: AIAnalysisDisplayProps) {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {analysis.requiredDocuments.map((doc: any, index: number) => (
+              {(analysis.requiredDocuments || analysis.RequiredDocumentsChecklist).map((doc: any, index: number) => (
                 <div key={index} className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
-                  <div className={`mt-1 w-3 h-3 rounded-full ${doc.mandatory ? 'bg-red-500' : 'bg-yellow-500'}`}></div>
+                  <div className={`mt-1 w-3 h-3 rounded-full ${(doc.mandatory || doc.Mandatory) ? 'bg-red-500' : 'bg-yellow-500'}`}></div>
                   <div className="flex-1">
-                    <p className="font-medium">{doc.document}</p>
-                    <p className="text-sm text-gray-600">{doc.description}</p>
+                    <p className="font-medium">{doc.document || doc.Document}</p>
+                    {doc.description && <p className="text-sm text-gray-600">{doc.description}</p>}
                     {doc.format && <p className="text-xs text-gray-500 mt-1">Format: {doc.format}</p>}
                   </div>
-                  <Badge variant={doc.mandatory ? 'destructive' : 'secondary'}>
-                    {doc.mandatory ? 'Mandatory' : 'Optional'}
+                  <Badge variant={(doc.mandatory || doc.Mandatory) ? 'destructive' : 'secondary'}>
+                    {(doc.mandatory || doc.Mandatory) ? 'Mandatory' : 'Optional'}
                   </Badge>
                 </div>
               ))}
