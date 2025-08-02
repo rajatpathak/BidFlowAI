@@ -27,7 +27,8 @@ export class ActivityLogger {
     try {
       // Get username from createdBy (could be ID or name)
       const userResult = await db.execute(sql`
-        SELECT name FROM users WHERE id = ${createdBy} OR name = ${createdBy} LIMIT 1
+        SELECT name FROM users WHERE 
+        (id::text = ${createdBy} OR name = ${createdBy}) LIMIT 1
       `);
       const userName = userResult[0]?.name || createdBy || 'System User';
 
@@ -35,7 +36,7 @@ export class ActivityLogger {
       switch (activityType) {
         case 'tender_assigned':
           const assignedToResult = await db.execute(sql`
-            SELECT name FROM users WHERE id = ${details?.assignedTo} LIMIT 1
+            SELECT name FROM users WHERE id::text = ${details?.assignedTo} LIMIT 1
           `);
           const assignedToName = assignedToResult[0]?.name || 'Unknown User';
           return `Tender assigned to ${assignedToName} by ${userName}`;
