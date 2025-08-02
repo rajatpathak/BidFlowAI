@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TenderTable } from "@/components/tenders/tender-table";
 import { TenderAssignmentDialog } from "@/components/tender-assignment-dialog";
-import { FileSpreadsheet, FileText, Target, Building2, DollarSign } from "lucide-react";
+import { FileSpreadsheet, FileText, Target, Building2, DollarSign, Plus, Upload, Search, Filter } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -15,6 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import AppLayout from "@/components/layout/AppLayout";
 
 // Upload Tenders Component
 function UploadTendersComponent() {
@@ -589,103 +590,128 @@ export default function ActiveTendersPage() {
     eligible: tenders.filter(t => t.aiScore >= 70).length,
   };
 
+  const breadcrumbs = [
+    { label: "Tenders" },
+    { label: "Active Tenders" }
+  ];
+
+  const actions = (
+    <div className="flex items-center space-x-3">
+      <Button variant="outline" className="hover-scale">
+        <Upload className="h-4 w-4 mr-2" />
+        Upload Tenders
+      </Button>
+      <Button className="bg-gradient-primary hover:scale-105 transition-transform shadow-lg">
+        <Plus className="h-4 w-4 mr-2" />
+        Create Tender
+      </Button>
+    </div>
+  );
+
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 p-6">
-        <div className="max-w-7xl mx-auto">
-          <div className="animate-pulse space-y-6">
-            <div className="h-8 bg-gray-200 rounded w-1/3"></div>
-            <div className="grid grid-cols-4 gap-4">
-              {[1,2,3,4].map(i => (
-                <div key={i} className="h-24 bg-gray-200 rounded"></div>
-              ))}
-            </div>
-            <div className="h-96 bg-gray-200 rounded"></div>
+      <AppLayout title="Active Tenders" description="Loading tender opportunities..." breadcrumbs={breadcrumbs}>
+        <div className="animate-pulse space-y-6">
+          <div className="h-8 bg-gray-200 rounded w-1/3"></div>
+          <div className="grid grid-cols-4 gap-4">
+            {[1,2,3,4].map(i => (
+              <div key={i} className="h-24 bg-gray-200 rounded"></div>
+            ))}
           </div>
+          <div className="h-96 bg-gray-200 rounded"></div>
         </div>
-      </div>
+      </AppLayout>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-7xl mx-auto space-y-6">
-        {/* Header */}
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">Active Tenders</h1>
-            <p className="text-gray-600">Manage GeM and Non-GeM tender opportunities</p>
-          </div>
-        </div>
+    <AppLayout 
+      title="Active Tenders" 
+      description="Manage GeM and Non-GeM tender opportunities with AI-powered insights"
+      breadcrumbs={breadcrumbs}
+      actions={actions}
+    >
+      <div className="space-y-8">
 
         {/* Statistics Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Card>
-            <CardContent className="p-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 animate-slide-up">
+          <Card className="hover-lift bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 border-blue-200 dark:border-blue-800">
+            <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600">Total Tenders</p>
-                  <p className="text-2xl font-bold text-blue-600">{stats.total}</p>
+                  <p className="text-sm text-blue-600 dark:text-blue-400 font-medium">Total Tenders</p>
+                  <p className="text-3xl font-bold text-blue-700 dark:text-blue-300">{stats.total}</p>
                 </div>
-                <FileText className="h-8 w-8 text-blue-500" />
+                <div className="w-12 h-12 bg-blue-500 rounded-xl flex items-center justify-center shadow-lg">
+                  <FileText className="h-6 w-6 text-white" />
+                </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card>
-            <CardContent className="p-4">
+          <Card className="hover-lift bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 border-green-200 dark:border-green-800">
+            <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600">GeM Tenders</p>
-                  <p className="text-2xl font-bold text-green-600">{stats.gem}</p>
+                  <p className="text-sm text-green-600 dark:text-green-400 font-medium">GeM Tenders</p>
+                  <p className="text-3xl font-bold text-green-700 dark:text-green-300">{stats.gem}</p>
                 </div>
-                <Target className="h-8 w-8 text-green-500" />
+                <div className="w-12 h-12 bg-green-500 rounded-xl flex items-center justify-center shadow-lg">
+                  <Target className="h-6 w-6 text-white" />
+                </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card>
-            <CardContent className="p-4">
+          <Card className="hover-lift bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-900/20 dark:to-orange-800/20 border-orange-200 dark:border-orange-800">
+            <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600">Non-GeM Tenders</p>
-                  <p className="text-2xl font-bold text-orange-600">{stats.nonGem}</p>
+                  <p className="text-sm text-orange-600 dark:text-orange-400 font-medium">Non-GeM Tenders</p>
+                  <p className="text-3xl font-bold text-orange-700 dark:text-orange-300">{stats.nonGem}</p>
                 </div>
-                <Building2 className="h-8 w-8 text-orange-500" />
+                <div className="w-12 h-12 bg-orange-500 rounded-xl flex items-center justify-center shadow-lg">
+                  <Building2 className="h-6 w-6 text-white" />
+                </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card>
-            <CardContent className="p-4">
+          <Card className="hover-lift bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 border-purple-200 dark:border-purple-800">
+            <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600">Eligible (≥70%)</p>
-                  <p className="text-2xl font-bold text-purple-600">{stats.eligible}</p>
+                  <p className="text-sm text-purple-600 dark:text-purple-400 font-medium">Eligible (≥70%)</p>
+                  <p className="text-3xl font-bold text-purple-700 dark:text-purple-300">{stats.eligible}</p>
                 </div>
-                <DollarSign className="h-8 w-8 text-purple-500" />
+                <div className="w-12 h-12 bg-purple-500 rounded-xl flex items-center justify-center shadow-lg">
+                  <DollarSign className="h-6 w-6 text-white" />
+                </div>
               </div>
             </CardContent>
           </Card>
         </div>
 
         {/* Search & Settings */}
-        <Card>
-          <CardContent className="p-4">
+        <Card className="animate-slide-up hover-lift bg-white dark:bg-gray-800 shadow-lg" style={{ animationDelay: "200ms" }}>
+          <CardContent className="p-6">
             <div className="flex gap-4 items-center">
-              <Input
-                placeholder="Search tenders by title, organization, location, or reference..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="flex-1"
-              />
-              <div className="flex items-center space-x-2 whitespace-nowrap">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                  placeholder="Search tenders by title, organization, location, or reference..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10 h-12 text-sm bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-700 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+              <div className="flex items-center space-x-3 whitespace-nowrap bg-gray-50 dark:bg-gray-900 px-4 py-3 rounded-lg">
                 <Switch
                   id="show-missed-opportunities"
                   checked={showMissedOpportunities}
                   onCheckedChange={setShowMissedOpportunities}
                 />
-                <Label htmlFor="show-missed-opportunities" className="text-sm font-medium">
+                <Label htmlFor="show-missed-opportunities" className="text-sm font-medium text-gray-700 dark:text-gray-300">
                   Show Missed Opportunities
                 </Label>
               </div>
@@ -694,7 +720,7 @@ export default function ActiveTendersPage() {
         </Card>
 
         {/* Tabs for GeM and Non-GeM Tenders */}
-        <Tabs defaultValue="gem-tenders" className="w-full">
+        <Tabs defaultValue="gem-tenders" className="w-full animate-slide-up" style={{ animationDelay: "400ms" }}>
           <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="gem-tenders">GeM Tenders ({gemTenders.length})</TabsTrigger>
             <TabsTrigger value="non-gem-tenders">Non-GeM Tenders ({nonGemTenders.length})</TabsTrigger>
@@ -855,6 +881,6 @@ export default function ActiveTendersPage() {
           </DialogContent>
         </Dialog>
       </div>
-    </div>
+    </AppLayout>
   );
 }
