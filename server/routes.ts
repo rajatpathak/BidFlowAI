@@ -725,7 +725,7 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
           t.updated_at as "updatedAt",
           u.name as "assignedToName"
         FROM tenders t 
-        LEFT JOIN users u ON t.assigned_to = u.id
+        LEFT JOIN users u ON (t.assigned_to = u.id::text OR t.assigned_to = u.name)
         ${includeMissedOpportunities === 'true' ? sql`` : sql`WHERE t.status != 'missed_opportunity'`}
         ORDER BY t.deadline
       `);
@@ -1472,7 +1472,7 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
       const result = await db.execute(sql`
         SELECT al.*, u.name as created_by_name 
         FROM activity_logs al
-        LEFT JOIN users u ON al.created_by = u.name OR al.created_by = u.id
+        LEFT JOIN users u ON (al.created_by = u.name OR al.created_by::text = u.id::text)
         WHERE al.tender_id = ${id}
         ORDER BY al.created_at DESC
       `);
@@ -1492,7 +1492,7 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
       const result = await db.execute(sql`
         SELECT t.*, u.name as assigned_to_name 
         FROM tenders t 
-        LEFT JOIN users u ON t.assigned_to = u.id
+        LEFT JOIN users u ON (t.assigned_to = u.id::text OR t.assigned_to = u.name)
         WHERE t.id = ${id}
       `);
       
