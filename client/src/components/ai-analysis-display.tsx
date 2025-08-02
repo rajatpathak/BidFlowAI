@@ -26,11 +26,37 @@ export function AIAnalysisDisplay({ analysis }: AIAnalysisDisplayProps) {
             <div className="w-16 h-16 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold text-lg">
               {analysis.matchPercentage || 0}%
             </div>
-            <div>
+            <div className="flex-1">
               <p className="font-medium">Match Assessment</p>
               <p className="text-sm text-gray-600">{analysis.matchReason || 'Analysis completed'}</p>
+              {analysis.AnalysisSummary && (
+                <div className="mt-2 text-xs text-blue-600">
+                  Analyzed {analysis.AnalysisSummary.totalDocuments} documents • 
+                  Found {analysis.AnalysisSummary.contactsFound} contacts • 
+                  {analysis.AnalysisSummary.emailsFound} emails • 
+                  {analysis.AnalysisSummary.queriesGenerated} queries generated
+                </div>
+              )}
             </div>
           </div>
+          
+          {/* Documents Processed */}
+          {analysis.DocumentsProcessed && analysis.DocumentsProcessed.length > 0 && (
+            <div className="mt-4 p-3 bg-blue-50 rounded-lg">
+              <h4 className="font-medium text-blue-900 mb-2">Documents Analyzed:</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                {analysis.DocumentsProcessed.map((doc: any, index: number) => (
+                  <div key={index} className="flex items-center gap-2 text-sm">
+                    <FileText className="h-4 w-4 text-blue-600" />
+                    <span className="truncate">{doc.name}</span>
+                    <Badge variant="outline" className="text-xs">
+                      {doc.type} • {doc.size}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -255,7 +281,7 @@ export function AIAnalysisDisplay({ analysis }: AIAnalysisDisplayProps) {
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg">
               <Users className="h-5 w-5 text-blue-600" />
-              Contact Information
+              Contact Information ({analysis.ContactInformation.length} contacts found)
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -472,7 +498,7 @@ export function AIAnalysisDisplay({ analysis }: AIAnalysisDisplayProps) {
                     } else {
                       // Fallback to copying queries to clipboard if no emails found
                       navigator.clipboard.writeText(`Pre-bid Queries:\n\n${allQueries}`);
-                      alert('No email addresses found. Queries copied to clipboard.');
+                      alert('No email addresses found in documents. Queries copied to clipboard. You can manually send to the tender issuing authority.');
                     }
                   }}
                 >

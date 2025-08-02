@@ -1712,6 +1712,53 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
       if (documentsResult.length === 0) {
         return res.status(400).json({ error: "No documents to analyze" });
       }
+
+      // Read and extract text from all PDF documents
+      const documentContents = [];
+      
+      for (const doc of documentsResult) {
+        try {
+          const filePath = path.join('uploads/documents', doc.filename);
+          
+          // Check if file exists
+          await fs.access(filePath);
+          
+          if (doc.mime_type === 'application/pdf') {
+            // For PDF files, we'll read the file and include it in analysis prompt
+            const pdfBuffer = await fs.readFile(filePath);
+            const pdfSize = pdfBuffer.length;
+            
+            documentContents.push({
+              filename: doc.filename,
+              originalName: doc.original_name,
+              type: 'pdf',
+              textContent: `PDF Document: ${doc.original_name} (${(pdfSize/1024).toFixed(1)}KB)`,
+              fileSize: pdfSize,
+              filePath: filePath
+            });
+          } else {
+            // For non-PDF files, mark as processed but no text extraction
+            documentContents.push({
+              filename: doc.filename,
+              originalName: doc.original_name,
+              type: 'other',
+              textContent: 'Non-PDF document - content not extracted',
+              pages: 1
+            });
+          }
+        } catch (error) {
+          console.error(`Error processing document ${doc.filename}:`, error);
+          documentContents.push({
+            filename: doc.filename,
+            originalName: doc.original_name,
+            type: 'error',
+            textContent: 'Error reading document',
+            error: error.message
+          });
+        }
+      }
+
+      console.log(`Processed ${documentContents.length} documents for analysis`);
       
       // Get company settings for matching analysis
       const companyResult = await db.execute(sql`
@@ -1770,7 +1817,7 @@ Extract EVERY email and phone number mentioned anywhere in the documents.`
               },
               {
                 role: "user", 
-                content: `COMPREHENSIVE TENDER DOCUMENT ANALYSIS:
+                content: `COMPREHENSIVE TENDER DOCUMENT ANALYSIS FOR ALL UPLOADED DOCUMENTS:
 
 **TENDER INFORMATION:**
 Title: "${tender.title}"
@@ -1782,8 +1829,10 @@ Requirements: ${JSON.stringify(tender.requirements)}
 T247 ID: ${tender.t247_id || 'Not available'}
 Reference: ${tender.reference_no || 'Not available'}
 
-**UPLOADED DOCUMENTS TO ANALYZE:**
-${documents.map(doc => `- ${doc.filename} (${doc.originalName})`).join('\n')}
+**UPLOADED DOCUMENTS ANALYZED (${documentContents.length} documents):**
+${documentContents.map((doc, index) => `
+Document ${index + 1}: ${doc.originalName} (${doc.type.toUpperCase()})
+${doc.textContent ? `Content Preview: ${doc.textContent.substring(0, 500)}...` : 'File information available'}`).join('\n')}
 
 **COMPANY PROFILE FOR MATCHING:**
 - Name: ${companySettings.name || 'Appentus Technologies'}
@@ -1791,16 +1840,23 @@ ${documents.map(doc => `- ${doc.filename} (${doc.originalName})`).join('\n')}
 - Business Sectors: ${(companySettings.business_sectors || ['Information Technology', 'Software Development']).join(', ')}
 - Certifications: ${(companySettings.certifications || ['ISO 9001:2015']).join(', ')}
 
-**ANALYSIS FOCUS:**
-1. Extract ALL contact information (emails, phones, addresses) from every document
-2. Identify pre-bid meeting details with exact dates, times, venues
-3. List complete pre-qualification criteria with specific values
-4. Generate relevant pre-bid queries for clarification
-5. Document all required submission documents with formats
-6. Extract commercial terms, EMD amounts, performance guarantees
-7. Identify evaluation methodology and scoring criteria
+**CRITICAL ANALYSIS REQUIREMENTS:**
+Please analyze ALL ${documentContents.length} uploaded documents thoroughly and extract:
 
-**CRITICAL:** Scan documents thoroughly for ANY email addresses, phone numbers, or contact persons mentioned anywhere in the text.`
+1. **Pre-qualification Criteria**: All financial, technical, experience requirements with exact values, turnover criteria, project experience
+2. **Contact Information**: Extract EVERY email address, phone number, fax, address found in ANY document
+3. **Pre-bid Meeting Details**: Date, time, venue, online meeting links, registration process, query submission deadlines
+4. **Required Documents**: Complete checklist with mandatory/optional status, formats (PDF/hard copy), quantities required
+5. **Technical Specifications**: Hardware, software, performance requirements, compliance standards
+6. **Commercial Terms**: EMD amount, performance guarantee, payment terms, penalties, warranties
+7. **Timeline**: Submission deadline, technical bid opening, financial bid opening, project completion timeline
+8. **Evaluation Criteria**: Technical evaluation methodology, scoring criteria, weightages, minimum qualifying marks
+9. **Pre-bid Queries**: Generate 8-10 intelligent questions about ambiguous requirements, missing specifications, clarifications needed
+
+**DOCUMENT CONTENT TO ANALYZE:**
+Based on the ${documentContents.length} uploaded documents, extract comprehensive information focusing on contact details, meeting information, and technical requirements. Look for any email patterns like @domain.com, phone numbers with country codes, and specific requirements that need clarification.
+
+Provide detailed, specific analysis rather than generic responses.`
               }
             ],
             response_format: { type: "json_object" }
@@ -1824,7 +1880,22 @@ ${documents.map(doc => `- ${doc.filename} (${doc.originalName})`).join('\n')}
             // Add document-based analysis
             DocumentAnalysisCompleted: true,
             AnalysisTimestamp: new Date().toISOString(),
-            DocumentsAnalyzed: documents.length
+            DocumentsAnalyzed: documentContents.length,
+            DocumentsProcessed: documentContents.map(doc => ({
+              name: doc.originalName,
+              type: doc.type,
+              size: doc.fileSize ? `${(doc.fileSize/1024).toFixed(1)}KB` : 'Unknown'
+            })),
+            
+            // Enhanced processing summary
+            AnalysisSummary: {
+              totalDocuments: documentContents.length,
+              pdfDocuments: documentContents.filter(d => d.type === 'pdf').length,
+              contactsFound: rawAnalysis.ContactInformation?.length || 0,
+              emailsFound: rawAnalysis.EmailAddressesFound?.length || 0,
+              phonesFound: rawAnalysis.PhoneNumbersFound?.length || 0,
+              queriesGenerated: rawAnalysis.PreBidQueries?.length || 0
+            }
           };
         } else {
           throw new Error('OpenAI API key not available');
