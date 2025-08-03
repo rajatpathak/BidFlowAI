@@ -48,7 +48,9 @@ export default function DynamicTenderTable() {
   };
 
   const handleFilterChange = (key: keyof TenderFilters, value: string) => {
-    setFilters(prev => ({ ...prev, [key]: value }));
+    // Convert "all" back to empty string for API compatibility
+    const filterValue = value === "all" ? "" : value;
+    setFilters(prev => ({ ...prev, [key]: filterValue }));
   };
 
   const clearFilters = () => {
@@ -142,12 +144,12 @@ export default function DynamicTenderTable() {
             </div>
           </div>
           
-          <Select value={filters.status} onValueChange={(value) => handleFilterChange('status', value)}>
+          <Select value={filters.status || "all"} onValueChange={(value) => handleFilterChange('status', value)}>
             <SelectTrigger className="w-[140px]">
               <SelectValue placeholder="Status" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">All Status</SelectItem>
+              <SelectItem value="all">All Status</SelectItem>
               <SelectItem value="active">Active</SelectItem>
               <SelectItem value="draft">Draft</SelectItem>
               <SelectItem value="submitted">Submitted</SelectItem>
@@ -156,12 +158,12 @@ export default function DynamicTenderTable() {
             </SelectContent>
           </Select>
 
-          <Select value={filters.source} onValueChange={(value) => handleFilterChange('source', value)}>
+          <Select value={filters.source || "all"} onValueChange={(value) => handleFilterChange('source', value)}>
             <SelectTrigger className="w-[120px]">
               <SelectValue placeholder="Source" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">All Sources</SelectItem>
+              <SelectItem value="all">All Sources</SelectItem>
               <SelectItem value="gem">GeM</SelectItem>
               <SelectItem value="non_gem">Non-GeM</SelectItem>
               <SelectItem value="portal">Portal</SelectItem>

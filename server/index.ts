@@ -87,11 +87,13 @@ app.use((req, res, next) => {
   // Add API error handler before static serving
   app.use(apiErrorHandler);
 
-  // Re-enable Vite integration for full frontend functionality
-  if (app.get("env") === "development") {
-    await setupVite(app, server);
-  } else {
+  // Setup static serving or Vite dev mode
+  if (process.env.NODE_ENV === "production") {
+    // Production: serve static files and handle client-side routing
     serveStatic(app);
+  } else {
+    // Development: use Vite dev server
+    await setupVite(app, server);
   }
 
   // ALWAYS serve the app on the port specified in the environment variable PORT
