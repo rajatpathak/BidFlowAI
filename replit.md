@@ -8,7 +8,9 @@ Preferred communication style: Simple, everyday language.
 Project Architecture: Clean, simple, and scalable structure with consolidated codebase for easier deployment and maintenance.
 
 ## Recent Changes (August 3, 2025)
-- **Excel Upload Functionality Completely Fixed (August 3, 2025)**: Successfully resolved all Excel upload issues by fixing XLSX library import errors, created working simple Excel processor with proper XLSX support, and implemented real-time progress tracking via Server-Sent Events.
+- **Real-time Progress Bar with Detailed Statistics (August 3, 2025)**: Implemented comprehensive real-time progress tracking showing detailed tender import statistics including GeM/Non-GeM counts, duplicates skipped, and failed records with animated visual feedback and Server-Sent Events integration.
+- **Excel Upload Functionality Completely Fixed (August 3, 2025)**: Successfully resolved all Excel upload issues by fixing XLSX library import errors, created working Excel processor with proper XLSX support, and implemented real-time progress tracking via Server-Sent Events.
+- **Tender List Action Buttons Restored (August 3, 2025)**: Fully restored tender list functionality with assign, mark not relevant, external link, view details, and delete buttons with proper dialog modals and user role permissions.
 - **Frontend Page Loading Fixed (August 3, 2025)**: Fixed React component crashes by creating simplified active-tenders page with correct imports, resolving "Something went wrong" errors and enabling proper page functionality.
 - **Upload System Enhanced (August 3, 2025)**: Implemented comprehensive upload system supporting both Excel (.xlsx, .xls) and CSV files with duplicate detection, real-time progress updates, and automatic data refresh.
 - **Production Deployment Scripts (August 3, 2025)**: Created production deployment scripts that properly build and copy static files for server hosting.

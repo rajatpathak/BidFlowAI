@@ -36,7 +36,16 @@ interface Tender {
 function UploadTendersComponent() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadProgress, setUploadProgress] = useState({
+    processed: 0,
+    duplicates: 0,
+    total: 0,
+    percentage: 0,
+    gemAdded: 0,
+    nonGemAdded: 0,
+    errors: 0,
+    completed: false
+  });
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -79,7 +88,16 @@ function UploadTendersComponent() {
         try {
           const progressData = JSON.parse(event.data);
           console.log('Progress update:', progressData);
-          setUploadProgress(progressData.percentage || 0);
+          setUploadProgress({
+            processed: progressData.processed || 0,
+            duplicates: progressData.duplicates || 0,
+            total: progressData.total || 0,
+            percentage: progressData.percentage || 0,
+            gemAdded: progressData.gemAdded || 0,
+            nonGemAdded: progressData.nonGemAdded || 0,
+            errors: progressData.errors || 0,
+            completed: progressData.completed || false
+          });
           
           if (progressData.completed) {
             eventSource.close();
@@ -108,7 +126,7 @@ function UploadTendersComponent() {
       
       // Ensure progress reaches 100%
       setTimeout(() => {
-        setUploadProgress(100);
+        setUploadProgress(prev => ({ ...prev, percentage: 100, completed: true }));
         eventSource.close();
       }, 1000);
       
@@ -130,7 +148,16 @@ function UploadTendersComponent() {
       });
     } finally {
       setIsUploading(false);
-      setTimeout(() => setUploadProgress(0), 3000);
+      setTimeout(() => setUploadProgress({
+        processed: 0,
+        duplicates: 0,
+        total: 0,
+        percentage: 0,
+        gemAdded: 0,
+        nonGemAdded: 0,
+        errors: 0,
+        completed: false
+      }), 3000);
     }
   };
 
@@ -153,16 +180,40 @@ function UploadTendersComponent() {
             />
           </div>
           
-          {uploadProgress > 0 && (
+          {(uploadProgress.percentage > 0 || isUploading) && (
             <div className="space-y-3">
               <div className="flex justify-between text-sm">
                 <span>Upload Progress</span>
-                <span>{uploadProgress}%</span>
+                <span>{uploadProgress.percentage}%</span>
               </div>
-              <Progress value={uploadProgress} />
-              <div className="text-xs text-muted-foreground">
-                Processing Excel file...
+              <Progress value={uploadProgress.percentage} />
+              <div className="grid grid-cols-4 gap-2 text-xs">
+                <div className="text-green-600">
+                  <div className="font-medium">{uploadProgress.gemAdded}</div>
+                  <div>GeM</div>
+                </div>
+                <div className="text-blue-600">
+                  <div className="font-medium">{uploadProgress.nonGemAdded}</div>
+                  <div>Non-GeM</div>
+                </div>
+                <div className="text-yellow-600">
+                  <div className="font-medium">{uploadProgress.duplicates}</div>
+                  <div>Skipped</div>
+                </div>
+                <div className="text-red-600">
+                  <div className="font-medium">{uploadProgress.errors}</div>
+                  <div>Failed</div>
+                </div>
               </div>
+              {isUploading && (
+                <div className="text-xs text-blue-600 text-center">
+                  {uploadProgress.gemAdded > 0 && `${uploadProgress.gemAdded} GeM • `}
+                  {uploadProgress.nonGemAdded > 0 && `${uploadProgress.nonGemAdded} Non-GeM • `}
+                  {uploadProgress.duplicates > 0 && `${uploadProgress.duplicates} skipped • `}
+                  {uploadProgress.errors > 0 && `${uploadProgress.errors} failed • `}
+                  Processing...
+                </div>
+              )}
             </div>
           )}
           

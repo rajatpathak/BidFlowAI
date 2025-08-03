@@ -60,25 +60,25 @@ export async function processWorkingExcelUpload(filePath, originalName, uploaded
                 continue;
               }
               
-              // Insert new tender
+              // Insert new tender with proper null handling
               const tenderData = {
                 title: row.title || 'Untitled Tender',
                 organization: row.organization || 'Unknown Organization',
-                description: row.description || null,
+                description: row.description || 'No description available',
                 value: parseFloat(row.value) || 0,
                 deadline: new Date(row.deadline || Date.now()),
                 location: row.location || 'Not specified',
                 status: 'active',
                 source: row.source?.toLowerCase() === 'gem' ? 'gem' : 'non_gem',
                 aiScore: parseInt(row.aiscore || row.ai_score || '0') || 0,
-                requirements: row.requirements ? JSON.stringify([{ reference: row.requirements }]) : null,
-                documents: null,
-                assignedTo: null,
-                submissionDeadline: null,
-                submissionDetails: null,
-                resultStatus: null,
-                resultDetails: null,
-                resultDate: null,
+                requirements: row.requirements ? JSON.stringify([{ reference: row.requirements }]) : JSON.stringify([]),
+                documents: JSON.stringify([]),
+                assignedTo: '',
+                submissionDeadline: new Date(),
+                submissionDetails: '',
+                resultStatus: 'pending',
+                resultDetails: '',
+                resultDate: new Date(),
                 createdAt: new Date(),
                 updatedAt: new Date()
               };
@@ -205,25 +205,25 @@ async function processAsCSV(filePath, originalName, uploadedBy, progressCallback
         continue;
       }
       
-      // Insert new tender
+      // Insert new tender with proper null handling
       const tenderData = {
         title: row.title || 'Untitled Tender',
         organization: row.organization || 'Unknown Organization',
-        description: row.description || null,
+        description: row.description || 'No description available',
         value: parseFloat(row.value) || 0,
         deadline: new Date(row.deadline || Date.now()),
         location: row.location || 'Not specified',
         status: 'active',
         source: row.source?.toLowerCase() === 'gem' ? 'gem' : 'non_gem',
         aiScore: parseInt(row.aiscore || row.ai_score || '0') || 0,
-        requirements: row.requirements ? JSON.stringify([{ reference: row.requirements }]) : null,
-        documents: null,
-        assignedTo: null,
-        submissionDeadline: null,
-        submissionDetails: null,
-        resultStatus: null,
-        resultDetails: null,
-        resultDate: null,
+        requirements: row.requirements ? JSON.stringify([{ reference: row.requirements }]) : JSON.stringify([]),
+        documents: JSON.stringify([]),
+        assignedTo: '',
+        submissionDeadline: new Date(),
+        submissionDetails: '',
+        resultStatus: 'pending',
+        resultDetails: '',
+        resultDate: new Date(),
         createdAt: new Date(),
         updatedAt: new Date()
       };
