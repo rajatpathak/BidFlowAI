@@ -32,7 +32,7 @@ import { authenticateToken, optionalAuth, requireRole, generateToken, generateSe
 import { validateRequest, validateQuery, loginSchema, createTenderSchema, updateTenderSchema, assignTenderSchema } from './validation.js';
 import jwt from 'jsonwebtoken';
 import OpenAI from 'openai';
-import { processSimpleExcelUpload } from "./simple-excel-processor.js";
+import { processWorkingExcelUpload } from "./working-excel-processor.js";
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
@@ -286,7 +286,7 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
       } else if (fileExtension === '.xlsx' || fileExtension === '.xls') {
         // Use simple Excel processor
         try {
-          const result = await processSimpleExcelUpload(req.file.path, req.file.originalname, uploadedBy, (progress: any) => {
+          const result = await processWorkingExcelUpload(req.file.path, req.file.originalname, uploadedBy, (progress: any) => {
             uploadProgress.set(sessionId, progress);
             uploadClients.get(sessionId)?.forEach(client => {
               client.write(`data: ${JSON.stringify(progress)}\n\n`);
@@ -306,18 +306,21 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
           });
           
           // Send final progress update to SSE clients
-          uploadClients.get(sessionId)?.forEach(client => {
-            client.write(`data: ${JSON.stringify({
-              processed: result.processed,
-              duplicates: result.duplicates,
-              total: result.total,
-              percentage: 100,
-              completed: true,
-              gemAdded: result.gemAdded,
-              nonGemAdded: result.nonGemAdded,
-              errors: result.errors
-            })}\n\n`);
-          });
+          const clients = uploadClients.get(sessionId);
+          if (clients) {
+            clients.forEach(client => {
+              client.write(`data: ${JSON.stringify({
+                processed: result.processed,
+                duplicates: result.duplicates,
+                total: result.total,
+                percentage: 100,
+                completed: true,
+                gemAdded: result.gemAdded,
+                nonGemAdded: result.nonGemAdded,
+                errors: result.errors
+              })}\n\n`);
+            });
+          }
           
           return res.json({
             message: "Tenders imported successfully",

@@ -16,19 +16,34 @@ export async function processSimpleExcelUpload(filePath, originalName, uploadedB
     
     if (fileExtension === '.xlsx' || fileExtension === '.xls') {
       // Use XLSX for Excel files
-      const XLSX = await import('xlsx');
-      const workbook = XLSX.readFile(filePath);
-      const sheetName = workbook.SheetNames[0];
-      const worksheet = workbook.Sheets[sheetName];
-      const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-      
-      if (jsonData.length > 0) {
-        headers = jsonData[0].map(h => String(h).trim().toLowerCase());
-        // Convert rows to lines format
-        for (let i = 1; i < jsonData.length; i++) {
-          const values = jsonData[i] || [];
-          const line = values.map(v => String(v || '').trim()).join(',');
-          if (line.trim()) lines.push(line);
+      try {
+        const XLSX = require('xlsx');
+        console.log('XLSX library loaded, version:', XLSX.version);
+        
+        const workbook = XLSX.readFile(filePath);
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+        
+        console.log('Excel data extracted:', jsonData.length, 'rows');
+        
+        if (jsonData.length > 0) {
+          headers = jsonData[0].map(h => String(h).trim().toLowerCase());
+          // Convert rows to lines format
+          for (let i = 1; i < jsonData.length; i++) {
+            const values = jsonData[i] || [];
+            const line = values.map(v => String(v || '').trim()).join(',');
+            if (line.trim()) lines.push(line);
+          }
+        }
+      } catch (xlsxError) {
+        console.log('Excel processing error:', xlsxError);
+        // Fallback to treating as CSV
+        const fileContent = fs.readFileSync(filePath, 'utf-8');
+        lines = fileContent.split('\n').filter(line => line.trim());
+        if (lines.length > 0) {
+          headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+          lines = lines.slice(1);
         }
       }
     } else {
