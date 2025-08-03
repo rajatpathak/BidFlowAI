@@ -4,7 +4,7 @@ import path from 'path';
 import fs from 'fs';
 import { db } from './db.js';
 import { documentTemplates, companySettings, tenders, excelUploads, users, companyDocuments } from '../shared/schema.js';
-import { eq, desc } from 'drizzle-orm';
+import { eq, desc, ne } from 'drizzle-orm';
 import jwt from 'jsonwebtoken';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
@@ -295,14 +295,41 @@ export function registerCleanRoutes(app: express.Application) {
     }
   });
 
-  // Tenders Routes
+  // Tenders Routes (Fixed to handle type casting properly)
   app.get('/api/tenders', async (req, res) => {
     try {
-      const allTenders = await db.select().from(tenders);
-      res.json(allTenders);
+      const { includeMissedOpportunities } = req.query;
+      
+      // Use drizzle ORM select with conditional where clause
+      const baseQuery = db.select().from(tenders);
+      
+      let result;
+      if (includeMissedOpportunities === 'true') {
+        result = await baseQuery.orderBy(tenders.deadline);
+      } else {
+        result = await baseQuery.where(ne(tenders.status, 'missed_opportunity')).orderBy(tenders.deadline);
+      }
+      
+      console.log(`Clean routes tenders query result type:`, typeof result);
+      console.log(`Clean routes result is array:`, Array.isArray(result));
+      console.log(`Clean routes found ${result?.length || 0} tenders`);
+      
+      // Ensure result is always an array
+      const tendersArray = Array.isArray(result) ? result : [];
+      
+      // Process requirements field to ensure it's properly formatted
+      const tendersWithNames = tendersArray.map(row => ({
+        ...row,
+        requirements: Array.isArray(row.requirements) ? row.requirements : 
+                     (typeof row.requirements === 'string' ? 
+                      (row.requirements.startsWith('[') ? JSON.parse(row.requirements) : []) : 
+                      [])
+      }));
+      
+      res.json(tendersWithNames);
     } catch (error) {
-      console.error('Error fetching tenders:', error);
-      res.status(500).json({ error: 'Failed to fetch tenders' });
+      console.error('Clean routes tenders fetch error:', error);
+      res.status(500).json({ error: 'Failed to fetch tenders', details: error.message });
     }
   });
 
