@@ -4,7 +4,7 @@ import { Request, Response, NextFunction } from 'express';
 import { db } from './db.js';
 import { users, userSessions } from '../shared/schema.js';
 import { eq, and, gte, sql } from 'drizzle-orm';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'crypto';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 const JWT_EXPIRES_IN = '7d';
@@ -21,7 +21,7 @@ export interface AuthenticatedRequest extends Request {
 
 // Generate session token and store in database
 export async function generateSessionToken(user: any): Promise<string> {
-  const sessionId = uuidv4();
+  const sessionId = randomUUID();
   const token = jwt.sign(
     {
       sessionId,

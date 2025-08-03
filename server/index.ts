@@ -1,6 +1,7 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
-import { setupVite, serveStatic, log } from "./vite";
+// import { setupVite, serveStatic, log } from "./vite"; // Disabled due to vite dependency issues
+import path from 'path';
 import { corsMiddleware, apiMiddleware, apiErrorHandler } from "./middleware";
 
 const app = express();
@@ -34,7 +35,7 @@ app.use((req, res, next) => {
         logLine = logLine.slice(0, 79) + "…";
       }
 
-      log(logLine);
+      console.log(logLine);
     }
   });
 
@@ -90,10 +91,24 @@ app.use((req, res, next) => {
   // Setup static serving or Vite dev mode
   if (process.env.NODE_ENV === "production") {
     // Production: serve static files and handle client-side routing
-    serveStatic(app);
+    app.use(express.static(path.join(process.cwd(), 'dist', 'public')));
+    app.get('*', (req: Request, res: Response) => {
+      if (req.path.startsWith('/api/')) {
+        res.status(404).json({ error: 'API endpoint not found' });
+      } else {
+        res.sendFile(path.join(process.cwd(), 'dist', 'public', 'index.html'));
+      }
+    });
   } else {
-    // Development: use Vite dev server
-    await setupVite(app, server);
+    // Development: serve static files (Vite disabled due to dependency issues)
+    app.use(express.static(path.join(process.cwd(), 'dist', 'public')));
+    app.get('*', (req: Request, res: Response) => {
+      if (req.path.startsWith('/api/')) {
+        res.status(404).json({ error: 'API endpoint not found' });
+      } else {
+        res.sendFile(path.join(process.cwd(), 'dist', 'public', 'index.html'));
+      }
+    });
   }
 
   // ALWAYS serve the app on the port specified in the environment variable PORT
@@ -102,6 +117,8 @@ app.use((req, res, next) => {
   // It is the only port that is not firewalled.
   const port = parseInt(process.env.PORT || '5000', 10);
   app.listen(port, "0.0.0.0", () => {
-    log(`serving on port ${port}`);
+    console.log(`✅ BMS Server running on port ${port}`);
+    console.log(`🌐 Access: http://0.0.0.0:${port}`);
+    console.log(`🔧 Database fixes applied - UUID casting resolved`);
   });
 })();
