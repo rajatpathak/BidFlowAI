@@ -109,8 +109,16 @@ export async function processExcelFileFixed(filePath, sessionId, progressCallbac
           0
         );
         
-        // Determine source based on sheet name
-        const source = (row._sheetName && row._sheetName.toLowerCase().includes('gem')) ? 'gem' : 'non_gem';
+        // Determine source based on sheet name - fix GeM detection
+        let source = 'non_gem';
+        if (row._sheetName) {
+          const sheetLower = row._sheetName.toLowerCase();
+          // Check for "gem" but NOT "non-gem" 
+          if (sheetLower.includes('gem') && !sheetLower.includes('non-gem') && !sheetLower.includes('non gem')) {
+            source = 'gem';
+          }
+        }
+        console.log(`🔍 Sheet: "${row._sheetName}" -> Source: ${source}`);
         
         const link = cleanValue(
           row.link || row.Link || row.LINK ||

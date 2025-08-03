@@ -315,20 +315,26 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
           });
           
           // Send final progress update to SSE clients
-          const clients = uploadClients.get(sessionId);
-          if (clients) {
-            clients.forEach(client => {
-              client.write(`data: ${JSON.stringify({
-                processed: result.processed,
-                duplicates: result.duplicates,
-                total: result.total,
-                percentage: 100,
-                completed: true,
-                gemAdded: result.gemAdded,
-                nonGemAdded: result.nonGemAdded,
-                errors: result.errors
-              })}\n\n`);
-            });
+          try {
+            const clients = uploadClients.get(sessionId);
+            if (clients && Array.isArray(clients)) {
+              clients.forEach(client => {
+                if (client && typeof client.write === 'function') {
+                  client.write(`data: ${JSON.stringify({
+                    processed: result.processed,
+                    duplicates: result.duplicates,
+                    total: result.total,
+                    percentage: 100,
+                    completed: true,
+                    gemAdded: result.gemAdded,
+                    nonGemAdded: result.nonGemAdded,
+                    errors: result.errors
+                  })}\n\n`);
+                }
+              });
+            }
+          } catch (sseError) {
+            console.warn('Final SSE broadcast error:', sseError.message);
           }
           
           return res.json({
