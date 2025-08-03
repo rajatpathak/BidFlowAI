@@ -32,6 +32,7 @@ import { authenticateToken, optionalAuth, requireRole, generateToken, generateSe
 import { validateRequest, validateQuery, loginSchema, createTenderSchema, updateTenderSchema, assignTenderSchema } from './validation.js';
 import jwt from 'jsonwebtoken';
 import OpenAI from 'openai';
+import { processSimpleExcelUpload } from "./simple-excel-processor.js";
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
@@ -283,40 +284,54 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
           rows.push(row);
         }
       } else if (fileExtension === '.xlsx' || fileExtension === '.xls') {
-        // Excel processing - try to import xlsx library
+        // Use simple Excel processor
         try {
-          const XLSX = await import('xlsx');
-          const workbook = XLSX.readFile(req.file.path);
-          const sheetName = workbook.SheetNames[0];
-          const worksheet = workbook.Sheets[sheetName];
-          const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-          
-          if (jsonData.length > 0) {
-            headers = jsonData[0].map((h: any) => String(h).trim().toLowerCase());
-            for (let i = 1; i < jsonData.length; i++) {
-              const values = jsonData[i] || [];
-              const row: any = {};
-              headers.forEach((header, index) => {
-                row[header] = values[index] ? String(values[index]).trim() : '';
-              });
-              rows.push(row);
-            }
-          }
-        } catch (xlsxError) {
-          console.error('XLSX processing failed, falling back to CSV:', xlsxError);
-          // Fallback to CSV processing
-          const fileContent = fs.readFileSync(req.file.path, 'utf-8');
-          const lines = fileContent.split('\n').filter(line => line.trim());
-          headers = lines[0].split(',').map(h => h.trim().toLowerCase());
-          
-          for (let i = 1; i < lines.length; i++) {
-            const values = lines[i].split(',').map(v => v.trim());
-            const row: any = {};
-            headers.forEach((header, index) => {
-              row[header] = values[index] || '';
+          const result = await processSimpleExcelUpload(req.file.path, req.file.originalname, uploadedBy, (progress: any) => {
+            uploadProgress.set(sessionId, progress);
+            uploadClients.get(sessionId)?.forEach(client => {
+              client.write(`data: ${JSON.stringify(progress)}\n\n`);
             });
-            rows.push(row);
-          }
+          });
+          
+          // Update final progress
+          uploadProgress.set(sessionId, { 
+            processed: result.processed, 
+            duplicates: result.duplicates, 
+            total: result.total, 
+            percentage: 100, 
+            completed: true,
+            gemAdded: result.gemAdded, 
+            nonGemAdded: result.nonGemAdded, 
+            errors: result.errors 
+          });
+          
+          // Send final progress update to SSE clients
+          uploadClients.get(sessionId)?.forEach(client => {
+            client.write(`data: ${JSON.stringify({
+              processed: result.processed,
+              duplicates: result.duplicates,
+              total: result.total,
+              percentage: 100,
+              completed: true,
+              gemAdded: result.gemAdded,
+              nonGemAdded: result.nonGemAdded,
+              errors: result.errors
+            })}\n\n`);
+          });
+          
+          return res.json({
+            message: "Tenders imported successfully",
+            tendersProcessed: result.processed,
+            duplicatesSkipped: result.duplicates,
+            sheetsProcessed: 1,
+            errorsEncountered: result.errors,
+            gemAdded: result.gemAdded,
+            nonGemAdded: result.nonGemAdded,
+            sessionId
+          });
+        } catch (xlsxError) {
+          console.error('Excel processing failed:', xlsxError);
+          throw new Error('Failed to process Excel file');
         }
       } else {
         throw new Error('Unsupported file type. Please upload CSV or Excel files.');

@@ -8,12 +8,36 @@ export async function processSimpleExcelUpload(filePath, originalName, uploadedB
   try {
     console.log(`Processing file: ${filePath}`);
     
-    // Read the uploaded file
-    const fileContent = fs.readFileSync(filePath, 'utf-8');
+    const path = await import('path');
+    const fileExtension = path.extname(filePath).toLowerCase();
     
-    // Simple CSV parsing
-    const lines = fileContent.split('\n').filter(line => line.trim());
-    const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+    let lines = [];
+    let headers = [];
+    
+    if (fileExtension === '.xlsx' || fileExtension === '.xls') {
+      // Use XLSX for Excel files
+      const XLSX = await import('xlsx');
+      const workbook = XLSX.readFile(filePath);
+      const sheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+      const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+      
+      if (jsonData.length > 0) {
+        headers = jsonData[0].map(h => String(h).trim().toLowerCase());
+        // Convert rows to lines format
+        for (let i = 1; i < jsonData.length; i++) {
+          const values = jsonData[i] || [];
+          const line = values.map(v => String(v || '').trim()).join(',');
+          if (line.trim()) lines.push(line);
+        }
+      }
+    } else {
+      // CSV processing
+      const fileContent = fs.readFileSync(filePath, 'utf-8');
+      lines = fileContent.split('\n').filter(line => line.trim());
+      headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+      lines = lines.slice(1); // Remove header line
+    }
     
     let processed = 0;
     let duplicates = 0;
