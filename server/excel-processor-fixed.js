@@ -133,7 +133,11 @@ export async function processExcelFileFixed(filePath, sessionId, progressCallbac
         };
 
         if (progressCallback) {
-          progressCallback(progress);
+          try {
+            progressCallback(progress);
+          } catch (callbackError) {
+            console.warn('Progress callback error:', callbackError.message);
+          }
         }
 
         // Small delay to prevent overwhelming the system
@@ -160,7 +164,11 @@ export async function processExcelFileFixed(filePath, sessionId, progressCallbac
     };
 
     if (progressCallback) {
-      progressCallback(finalProgress);
+      try {
+        progressCallback(finalProgress);
+      } catch (callbackError) {
+        console.warn('Final progress callback error:', callbackError.message);
+      }
     }
 
     console.log(`🎉 Processing complete: ${gemAdded} GeM, ${nonGemAdded} Non-GeM, ${duplicates} duplicates, ${errors} errors`);

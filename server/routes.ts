@@ -288,9 +288,18 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
         try {
           const result = await processExcelFileFixed(req.file.path, sessionId, (progress: any) => {
             uploadProgress.set(sessionId, progress);
-            uploadClients.get(sessionId)?.forEach(client => {
-              client.write(`data: ${JSON.stringify(progress)}\n\n`);
-            });
+            try {
+              const clients = uploadClients.get(sessionId);
+              if (clients && Array.isArray(clients)) {
+                clients.forEach(client => {
+                  if (client && typeof client.write === 'function') {
+                    client.write(`data: ${JSON.stringify(progress)}\n\n`);
+                  }
+                });
+              }
+            } catch (sseError) {
+              console.warn('SSE broadcast error:', sseError.message);
+            }
           });
           
           // Update final progress
