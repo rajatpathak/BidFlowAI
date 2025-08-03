@@ -18,7 +18,7 @@ import Finance from "@/pages/finance";
 import Meetings from "@/pages/meetings";
 import UserManagement from "@/pages/user-management";
 import AdminSettings from "@/pages/admin-settings";
-import ActiveTenders from "@/pages/active-tenders-new";
+import ActiveTenders from "@/pages/active-tenders-simple";
 import TenderResults from "@/pages/tender-results";
 import TenderDetail from "@/pages/tender-detail-enhanced";
 import TenderDetailPage from "@/pages/tender-detail";
