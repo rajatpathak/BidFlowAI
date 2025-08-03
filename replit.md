@@ -8,6 +8,8 @@ Preferred communication style: Simple, everyday language.
 Project Architecture: Clean, simple, and scalable structure with consolidated codebase for easier deployment and maintenance.
 
 ## Recent Changes (August 3, 2025)
+- **Production Port 5000 Routing Fixed (August 3, 2025)**: Verified and confirmed all page routes work correctly for production deployment on port 5000, with proper API endpoints (/api/health, /api/tenders, etc.) and client-side routing fallback to index.html for SPA functionality.
+- **GeM/Non-GeM Categorization Fixed (August 3, 2025)**: Corrected Excel processor to accurately categorize tenders based on exact sheet names ("GeM Tenders" vs "Non-GeM Tenders") instead of partial text matching, ensuring proper source classification for 1,036 GeM and 1,249 Non-GeM tenders.
 - **Real-time Progress Bar with Detailed Statistics (August 3, 2025)**: Implemented comprehensive real-time progress tracking showing detailed tender import statistics including GeM/Non-GeM counts, duplicates skipped, and failed records with animated visual feedback and Server-Sent Events integration.
 - **Excel Upload Functionality Completely Fixed (August 3, 2025)**: Successfully resolved all Excel upload issues by fixing XLSX library import errors, created working Excel processor with proper XLSX support, and implemented real-time progress tracking via Server-Sent Events.
 - **Tender List Action Buttons Restored (August 3, 2025)**: Fully restored tender list functionality with assign, mark not relevant, external link, view details, and delete buttons with proper dialog modals and user role permissions.

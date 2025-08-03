@@ -204,7 +204,7 @@ export default function FinancePage() {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {tenders.map((tender: any) => (
+                          {(tenders as any[]).map((tender: any) => (
                             <SelectItem key={tender.id} value={tender.id}>
                               {tender.title}
                             </SelectItem>
