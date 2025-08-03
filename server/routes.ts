@@ -26,7 +26,8 @@ import {
   bidPackages
 } from '../shared/schema.js';
 import path from 'path';
-import { v4 as uuidv4 } from 'uuid';
+// UUID generation using crypto module instead of uuid package
+import { randomUUID } from 'crypto';
 import { eq, desc, sql, ne } from 'drizzle-orm';
 import { authenticateToken, optionalAuth, requireRole, generateToken, generateSessionToken, comparePassword, invalidateSession, AuthenticatedRequest } from './auth.js';
 import { validateRequest, validateQuery, loginSchema, createTenderSchema, updateTenderSchema, assignTenderSchema } from './validation.js';
@@ -1038,7 +1039,7 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
         await db.execute(sql`
           INSERT INTO activity_logs (id, tender_id, action, details, created_at, user_id)
           VALUES (
-            ${uuidv4()},
+            ${randomUUID()},
             ${id},
             'prebid_queries_sent',
             ${JSON.stringify({ 
@@ -1774,7 +1775,7 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
       const uploadedDocs = [];
       
       for (const file of files) {
-        const docId = uuidv4();
+        const docId = randomUUID();
         const filename = `${docId}_${file.originalname}`;
         const filePath = path.join('uploads/documents', filename);
         
@@ -1800,7 +1801,7 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
       
       await db.execute(sql`
         INSERT INTO activity_logs (id, tender_id, activity_type, description, created_by, created_at)
-        VALUES (${uuidv4()}, ${tenderId}, 'document_uploaded', ${activityDescription}, 'bidder-uuid-003', NOW())
+        VALUES (${randomUUID()}, ${tenderId}, 'document_uploaded', ${activityDescription}, 'bidder-uuid-003', NOW())
       `);
 
       res.json({ 
@@ -2253,7 +2254,7 @@ Provide detailed, specific analysis rather than generic responses.`
       }
       
       // Store analysis result - using simple insert with generated ID
-      const analysisId = uuidv4();
+      const analysisId = randomUUID();
       await db.execute(sql`
         INSERT INTO ai_recommendations (id, tender_id, type, title, description, priority, metadata, created_at)
         VALUES (
