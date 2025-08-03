@@ -109,16 +109,18 @@ export async function processExcelFileFixed(filePath, sessionId, progressCallbac
           0
         );
         
-        // Determine source based on sheet name - fix GeM detection
-        let source = 'non_gem';
-        if (row._sheetName) {
-          const sheetLower = row._sheetName.toLowerCase();
-          // Check for "gem" but NOT "non-gem" 
-          if (sheetLower.includes('gem') && !sheetLower.includes('non-gem') && !sheetLower.includes('non gem')) {
-            source = 'gem';
-          }
+        // Determine source based on exact sheet name
+        let source = 'non_gem'; // Default
+        if (row._sheetName === 'GeM Tenders') {
+          source = 'gem';
+        } else if (row._sheetName === 'Non-GeM Tenders') {
+          source = 'non_gem';
         }
-        console.log(`🔍 Sheet: "${row._sheetName}" -> Source: ${source}`);
+        
+        // Debug log for first few entries only
+        if (i < 5) {
+          console.log(`🔍 Sheet: "${row._sheetName}" -> Source: ${source}`);
+        }
         
         const link = cleanValue(
           row.link || row.Link || row.LINK ||
