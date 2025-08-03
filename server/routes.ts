@@ -32,6 +32,7 @@ import { authenticateToken, optionalAuth, requireRole, generateToken, generateSe
 import { validateRequest, validateQuery, loginSchema, createTenderSchema, updateTenderSchema, assignTenderSchema } from './validation.js';
 import jwt from 'jsonwebtoken';
 import OpenAI from 'openai';
+import { processExcelFileFixed } from './excel-processor-fixed.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
@@ -53,7 +54,8 @@ const storage = multer.diskStorage({
   }
 });
 
-const upload = multer({
+// Multer config for images only
+const uploadImages = multer({
   storage: storage,
   limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
   fileFilter: function (req, file, cb) {
@@ -62,6 +64,26 @@ const upload = multer({
       cb(null, true);
     } else {
       cb(new Error('Only image files are allowed'));
+    }
+  }
+});
+
+// Multer config for Excel files (tender uploads)
+const uploadExcel = multer({
+  storage: storage,
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+  fileFilter: function (req, file, cb) {
+    // Check if file is Excel or CSV
+    const allowedTypes = [
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
+      'application/vnd.ms-excel', // .xls
+      'text/csv' // .csv
+    ];
+    
+    if (allowedTypes.includes(file.mimetype) || file.originalname.endsWith('.xlsx') || file.originalname.endsWith('.xls') || file.originalname.endsWith('.csv')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only Excel (.xlsx, .xls) and CSV files are allowed'));
     }
   }
 });
@@ -223,7 +245,7 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
   });
 
   // Upload tenders via Excel file (Active Tenders)
-  app.post("/api/upload-tenders", upload.single('file'), async (req, res) => {
+  app.post("/api/upload-tenders", uploadExcel.single('file'), async (req, res) => {
     try {
       if (!req.file) {
         return res.status(400).json({ error: "No file uploaded" });
@@ -239,32 +261,196 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
         gemAdded: 0, nonGemAdded: 0, errors: 0 
       });
 
-      // Use simple Excel processor with progress callback
-      const { processSimpleExcelUpload } = await import('./simple-excel-processor.js');
+      // Handle both Excel and CSV files
+      const fs = await import('fs');
+      const path = await import('path');
+      const fileExtension = path.extname(req.file.originalname).toLowerCase();
       
-      console.log(`SSE clients for session ${sessionId}:`, uploadClients.has(sessionId));
+      let rows: any[] = [];
+      let headers: string[] = [];
       
-      const result = await processSimpleExcelUpload(
-        req.file.path, 
-        req.file.originalname, 
-        uploadedBy,
-        (progress) => {
-          console.log(`Sending progress update for session ${sessionId}:`, progress);
-          uploadProgress.set(sessionId, progress);
-          
-          // Send progress to connected clients via SSE
-          const client = uploadClients.get(sessionId);
-          if (client && !client.destroyed) {
-            try {
-              client.write(`data: ${JSON.stringify(progress)}\n\n`);
-            } catch (error) {
-              console.error('Error sending progress update:', error);
-            }
-          } else {
-            console.log('No active SSE client found for session:', sessionId);
-          }
+      if (fileExtension === '.csv') {
+        // CSV processing
+        const fileContent = fs.readFileSync(req.file.path, 'utf-8');
+        const lines = fileContent.split('\n').filter(line => line.trim());
+        headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+        
+        for (let i = 1; i < lines.length; i++) {
+          const values = lines[i].split(',').map(v => v.trim());
+          const row: any = {};
+          headers.forEach((header, index) => {
+            row[header] = values[index] || '';
+          });
+          rows.push(row);
         }
-      );
+      } else if (fileExtension === '.xlsx' || fileExtension === '.xls') {
+        // Use simple Excel processor
+        try {
+          const result = await processExcelFileFixed(req.file.path, sessionId, (progress: any) => {
+            uploadProgress.set(sessionId, progress);
+            try {
+              const clients = uploadClients.get(sessionId);
+              if (clients && Array.isArray(clients)) {
+                clients.forEach(client => {
+                  if (client && typeof client.write === 'function') {
+                    client.write(`data: ${JSON.stringify(progress)}\n\n`);
+                  }
+                });
+              }
+            } catch (sseError) {
+              console.warn('SSE broadcast error:', sseError.message);
+            }
+          });
+          
+          // Update final progress
+          uploadProgress.set(sessionId, { 
+            processed: result.processed, 
+            duplicates: result.duplicates, 
+            total: result.total, 
+            percentage: 100, 
+            completed: true,
+            gemAdded: result.gemAdded, 
+            nonGemAdded: result.nonGemAdded, 
+            errors: result.errors 
+          });
+          
+          // Send final progress update to SSE clients
+          const clients = uploadClients.get(sessionId);
+          if (clients) {
+            clients.forEach(client => {
+              client.write(`data: ${JSON.stringify({
+                processed: result.processed,
+                duplicates: result.duplicates,
+                total: result.total,
+                percentage: 100,
+                completed: true,
+                gemAdded: result.gemAdded,
+                nonGemAdded: result.nonGemAdded,
+                errors: result.errors
+              })}\n\n`);
+            });
+          }
+          
+          return res.json({
+            message: "Tenders imported successfully",
+            tendersProcessed: result.processed,
+            duplicatesSkipped: result.duplicates,
+            sheetsProcessed: 1,
+            errorsEncountered: result.errors,
+            gemAdded: result.gemAdded,
+            nonGemAdded: result.nonGemAdded,
+            sessionId
+          });
+        } catch (xlsxError) {
+          console.error('Excel processing failed:', xlsxError);
+          throw new Error('Failed to process Excel file');
+        }
+      } else {
+        throw new Error('Unsupported file type. Please upload CSV or Excel files.');
+      }
+      
+      let processed = 0;
+      let duplicates = 0;
+      let gemAdded = 0;
+      let nonGemAdded = 0;
+      let errors = 0;
+      
+      // Process each data row
+      for (let i = 0; i < rows.length; i++) {
+        try {
+          const row = rows[i];
+          
+          // Skip empty rows
+          if (!row.title && !row.organization) continue;
+          
+          // Check for duplicates using direct database query
+          const existingTender = await db.execute(sql`
+            SELECT id FROM tenders 
+            WHERE title = ${row.title} AND organization = ${row.organization}
+            LIMIT 1
+          `);
+          const isDuplicate = existingTender.length > 0;
+          
+          if (isDuplicate) {
+            duplicates++;
+            continue;
+          }
+          
+          // Insert new tender
+          const tenderData = {
+            title: row.title || 'Untitled Tender',
+            organization: row.organization || 'Unknown Organization',
+            description: row.description || null,
+            value: parseFloat(row.value) || 0,
+            deadline: new Date(row.deadline || Date.now() + 30 * 24 * 60 * 60 * 1000),
+            status: row.status || 'active',
+            source: row.source || 'manual',
+            aiScore: null,
+            requirements: {},
+            documents: [],
+            location: row.location || null,
+            category: row.category || null,
+            contactEmail: row.contact_email || null,
+            contactPhone: row.contact_phone || null,
+            publishedDate: new Date(),
+            submissionMethod: row.submission_method || 'online'
+          };
+          
+          await db.insert(tenders).values(tenderData);
+          
+          processed++;
+          if (row.source === 'gem') {
+            gemAdded++;
+          } else {
+            nonGemAdded++;
+          }
+          
+          // Send progress update every 10 rows or final row
+          if (i % 10 === 0 || i === rows.length - 1) {
+            const progress = {
+              processed,
+              duplicates,
+              total: rows.length,
+              percentage: Math.round(((i + 1) / rows.length) * 100),
+              gemAdded,
+              nonGemAdded,
+              errors
+            };
+            
+            uploadProgress.set(sessionId, progress);
+            const client = uploadClients.get(sessionId);
+            if (client && !client.destroyed) {
+              try {
+                client.write(`data: ${JSON.stringify(progress)}\n\n`);
+                console.log(`Sent progress update: ${progress.percentage}% (${processed} processed)`);
+              } catch (error) {
+                console.error('Error sending progress update:', error);
+              }
+            }
+          }
+          
+        } catch (error) {
+          console.error(`Error processing row ${i + 1}:`, error);
+          errors++;
+        }
+      }
+      
+      // Clean up uploaded file
+      try {
+        fs.unlinkSync(req.file.path);
+      } catch (error) {
+        console.error('Error deleting uploaded file:', error);
+      }
+      
+      const result = {
+        success: true,
+        tendersProcessed: processed,
+        duplicatesSkipped: duplicates,
+        gemAdded,
+        nonGemAdded,
+        errorsEncountered: errors,
+        totalRows: rows.length
+      };
 
       // Send final completion and clean up
       const finalProgress = { 
@@ -292,14 +478,14 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
       }, 30000);
 
       if (!result.success) {
-        return res.status(500).json({ error: result.error || "Failed to process Excel file" });
+        return res.status(500).json({ error: "Failed to process Excel file" });
       }
 
       res.json({
         message: "Tenders imported successfully",
         tendersProcessed: result.tendersProcessed || 0,
         duplicatesSkipped: result.duplicatesSkipped || 0,
-        sheetsProcessed: result.sheetsProcessed || 0,
+        sheetsProcessed: 1,
         errorsEncountered: result.errorsEncountered || 0,
         gemAdded: result.gemAdded || 0,
         nonGemAdded: result.nonGemAdded || 0,
@@ -317,7 +503,7 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
       // Query the database directly using raw SQL with correct column names
       const result = await db.execute(sql`
         SELECT 
-          id, file_name, uploaded_by, entries_added, entries_duplicate, 
+          id, filename, uploaded_by, entries_added, entries_duplicate, 
           total_entries, sheets_processed, status, uploaded_at
         FROM excel_uploads 
         ORDER BY uploaded_at DESC 
@@ -332,7 +518,7 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
   });
 
   // Upload tender results via Excel file  
-  app.post("/api/tender-results-imports", upload.single('file'), async (req, res) => {
+  app.post("/api/tender-results-imports", uploadExcel.single('file'), async (req, res) => {
     try {
       if (!req.file) {
         return res.status(400).json({ error: "No file uploaded" });
@@ -381,7 +567,7 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
       
       // Get tender title for activity log
       const tenderResult = await db.execute(sql`SELECT title FROM tenders WHERE id = ${id}`);
-      const tenderTitle = tenderResult.rows[0]?.title || 'Unknown Tender';
+      const tenderTitle = tenderResult[0]?.title || 'Unknown Tender';
       
       // Add activity log before deletion
       await db.execute(sql`
@@ -562,7 +748,7 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
   });
 
   // Upload documents for tender (RFP documents)
-  app.post("/api/tenders/:id/documents", upload.array('documents', 10), async (req, res) => {
+  app.post("/api/tenders/:id/documents", uploadImages.array('documents', 10), async (req, res) => {
     try {
       const { id } = req.params;
       const uploadedFiles = req.files as Express.Multer.File[];
@@ -2196,7 +2382,7 @@ Provide detailed, specific analysis rather than generic responses.`
   });
 
   // Image upload endpoint for templates
-  app.post('/api/upload-images', upload.array('images'), async (req, res) => {
+  app.post('/api/upload-images', uploadImages.array('images'), async (req, res) => {
     try {
       console.log('Upload request received');
       console.log('Files:', req.files);
@@ -2327,7 +2513,7 @@ Provide detailed, specific analysis rather than generic responses.`
     }
   });
 
-  app.post("/api/document-repository", authenticateToken, upload.single('document'), async (req, res) => {
+  app.post("/api/document-repository", authenticateToken, uploadImages.single('document'), async (req, res) => {
     try {
       if (!req.file) {
         return res.status(400).json({ error: "No file uploaded" });
@@ -2359,7 +2545,7 @@ Provide detailed, specific analysis rather than generic responses.`
   });
 
   // RFP Document Routes
-  app.post("/api/rfp-documents", authenticateToken, upload.single('rfp'), async (req, res) => {
+  app.post("/api/rfp-documents", authenticateToken, uploadImages.single('rfp'), async (req, res) => {
     try {
       if (!req.file) {
         return res.status(400).json({ error: "No RFP file uploaded" });

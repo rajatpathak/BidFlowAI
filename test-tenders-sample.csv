@@ -1,0 +1,7 @@
+title,organization,description,value,deadline,source,link
+Test GeM Tender 1,Government Organization A,Supply of office equipment,50000,2025-02-15,gem,https://gem.gov.in/tender1
+Test Non-GeM Tender 1,Private Company B,IT Services Contract,75000,2025-02-20,non_gem,https://company.com/tender1
+Test GeM Tender 2,Ministry of Defence,Construction Materials,120000,2025-03-01,gem,https://gem.gov.in/tender2
+Test Non-GeM Tender 2,State Government,Software Development,95000,2025-02-28,non_gem,https://state.gov.in/tender2
+Duplicate Test Tender,Government Organization A,Supply of office equipment,50000,2025-02-15,gem,https://gem.gov.in/tender1
+Test GeM Tender 3,Railway Department,Track Maintenance,200000,2025-03-15,gem,https://gem.gov.in/tender3
