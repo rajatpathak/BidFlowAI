@@ -35,13 +35,32 @@ export async function processExcelFileFixed(filePath, sessionId, progressCallbac
       throw new Error('File not found');
     }
 
-    // Read Excel file
+    // Read Excel file and process all tender sheets
     const workbook = XLSX.readFile(filePath);
-    const sheetName = workbook.SheetNames[0];
-    const worksheet = workbook.Sheets[sheetName];
-    const rawData = XLSX.utils.sheet_to_json(worksheet);
+    console.log(`📊 Available sheets: ${workbook.SheetNames.join(', ')}`);
+    
+    let allData = [];
+    for (const sheetName of workbook.SheetNames) {
+      if (sheetName.toLowerCase().includes('tender')) {
+        const worksheet = workbook.Sheets[sheetName];
+        const sheetData = XLSX.utils.sheet_to_json(worksheet);
+        console.log(`📋 Sheet "${sheetName}": ${sheetData.length} rows`);
+        
+        // Add sheet info to each row
+        const dataWithSheet = sheetData.map(row => ({ ...row, _sheetName: sheetName }));
+        allData = [...allData, ...dataWithSheet];
+      }
+    }
+    
+    const rawData = allData;
 
     console.log(`📊 Found ${rawData.length} rows in Excel file`);
+    
+    // Debug: Show first few rows to understand structure
+    if (rawData.length > 0) {
+      console.log('📋 First row keys:', Object.keys(rawData[0]));
+      console.log('📋 Sample data:', rawData[0]);
+    }
 
     let processed = 0;
     let duplicates = 0;
@@ -56,27 +75,71 @@ export async function processExcelFileFixed(filePath, sessionId, progressCallbac
         const row = rawData[i];
         processed++;
 
-        // Clean and validate all fields
-        const title = cleanValue(row.title || row.Title || row.TITLE, 'string', 'Untitled Tender');
-        const organization = cleanValue(row.organization || row.Organization || row.ORGANIZATION, 'string', 'Unknown Organization');
-        const description = cleanValue(row.description || row.Description || row.DESCRIPTION, 'string', 'No description available');
-        const value = cleanValue(row.value || row.Value || row.VALUE, 'number', 0);
-        const source = cleanValue(row.source || row.Source || row.SOURCE, 'string', 'non_gem').toLowerCase();
-        const link = cleanValue(row.link || row.Link || row.LINK || row.url || row.URL, 'string', '');
+        // Clean and validate all fields with actual Excel field names
+        const title = cleanValue(
+          row['TENDER BRIEF'] || row.title || row.Title || row.TITLE || 
+          row['Tender Title'] || row['tender_title'] || 
+          row.name || row.Name || row.tenderTitle,
+          'string', 
+          `Tender ${i + 1}`
+        );
+        
+        const organization = cleanValue(
+          row.Organization || row.organization || row.ORGANIZATION ||
+          row['Organization Name'] || row.dept || row.department ||
+          row.buyer || row.Buyer || row.ministry,
+          'string', 
+          'Unknown Organization'
+        );
+        
+        const description = cleanValue(
+          row['TENDER BRIEF'] || row.description || row.Description || row.DESCRIPTION ||
+          row.details || row.Details || row.summary ||
+          row.scope || row.Scope,
+          'string', 
+          'No description available'
+        );
+        
+        const value = cleanValue(
+          row['ESTIMATED COST'] || row.value || row.Value || row.VALUE ||
+          row.amount || row.Amount || row.price ||
+          row.tender_value || row['Tender Value'] ||
+          row.estimated_value,
+          'number', 
+          0
+        );
+        
+        // Determine source based on sheet name
+        const source = (row._sheetName && row._sheetName.toLowerCase().includes('gem')) ? 'gem' : 'non_gem';
+        
+        const link = cleanValue(
+          row.link || row.Link || row.LINK ||
+          row.url || row.URL || row.tender_url ||
+          row['Tender URL'] || row.web_link,
+          'string', 
+          ''
+        );
 
-        // Handle deadline
+        // Handle deadline with actual Excel field names
         let deadline = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // Default 30 days from now
-        if (row.deadline || row.Deadline || row.DEADLINE) {
-          const deadlineValue = cleanValue(row.deadline || row.Deadline || row.DEADLINE, 'date');
+        const deadlineField = row.Deadline || row.deadline || row.DEADLINE ||
+                             row.due_date || row['Due Date'] || row.submission_date ||
+                             row['Submission Date'] || row.end_date || row['End Date'];
+        
+        if (deadlineField) {
+          const deadlineValue = cleanValue(deadlineField, 'date');
           if (deadlineValue) deadline = deadlineValue;
         }
 
-        // Check for duplicates by title and organization
-        const existingTender = await db
-          .select()
-          .from(tenders)
-          .where(eq(tenders.title, title))
-          .limit(1);
+        // Check for duplicates by title and organization (skip if generic title)
+        let existingTender = [];
+        if (title !== 'Untitled Tender' && !title.startsWith('Tender ')) {
+          existingTender = await db
+            .select()
+            .from(tenders)
+            .where(eq(tenders.title, title))
+            .limit(1);
+        }
 
         if (existingTender.length > 0) {
           duplicates++;

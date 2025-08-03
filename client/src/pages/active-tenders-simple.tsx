@@ -112,10 +112,16 @@ function UploadTendersComponent() {
         eventSource.close();
       };
 
-      const response = await fetch('/api/upload-tenders', {
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Upload timeout - please try again')), 60000)
+      );
+      
+      const uploadPromise = fetch('/api/upload-tenders', {
         method: 'POST',
         body: formData,
       });
+      
+      const response = await Promise.race([uploadPromise, timeoutPromise]);
 
       if (!response.ok) {
         eventSource.close();
