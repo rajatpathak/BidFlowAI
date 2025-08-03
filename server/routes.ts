@@ -896,42 +896,49 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
     try {
       const { includeMissedOpportunities } = req.query;
       
-      // Use SQL execute method that works consistently
-      const whereClause = includeMissedOpportunities === 'true' ? '' : `WHERE t.status != 'missed_opportunity'`;
+      // Use proper drizzle query instead of raw SQL to ensure consistent result structure
+      let query = db.select({
+        id: tenders.id,
+        title: tenders.title,
+        organization: tenders.organization,
+        description: tenders.description,
+        value: tenders.value,
+        deadline: tenders.deadline,
+        status: tenders.status,
+        source: tenders.source,
+        aiScore: tenders.aiScore,
+        assignedTo: tenders.assignedTo,
+        requirements: tenders.requirements,
+        link: tenders.link,
+        createdAt: tenders.createdAt,
+        updatedAt: tenders.updatedAt,
+        assignedToName: users.name
+      })
+      .from(tenders)
+      .leftJoin(users, eq(tenders.assignedTo, users.id))
+      .orderBy(tenders.deadline);
       
-      const result = await db.execute(sql`
-        SELECT 
-          t.id, 
-          t.title, 
-          t.organization, 
-          t.description,
-          t.value, 
-          t.deadline, 
-          t.status, 
-          t.source, 
-          t.ai_score as "aiScore", 
-          t.assigned_to as "assignedTo",
-          t.requirements, 
-          t.link, 
-          t.created_at as "createdAt", 
-          t.updated_at as "updatedAt",
-          u.name as "assignedToName"
-        FROM tenders t 
-        LEFT JOIN users u ON (t.assigned_to = u.id::text OR t.assigned_to = u.name)
-        ${includeMissedOpportunities === 'true' ? sql`` : sql`WHERE t.status != 'missed_opportunity'`}
-        ORDER BY t.deadline
-      `);
+      // Add where clause if not including missed opportunities
+      if (includeMissedOpportunities !== 'true') {
+        query = query.where(ne(tenders.status, 'missed_opportunity'));
+      }
+      
+      const result = await query;
       
       console.log(`API tenders query result type:`, typeof result);
       console.log(`Result is array:`, Array.isArray(result));
-      console.log(`Found ${result.length || (result.rows && result.rows.length) || 0} tenders`);
+      console.log(`Found ${result?.length || 0} tenders`);
       
-      // Handle result structure - it should be an array directly
-      const rows = Array.isArray(result) ? result : [];
+      // Ensure result is always an array
+      const tendersArray = Array.isArray(result) ? result : [];
       
-      const tendersWithNames = rows.map(row => ({
+      // Process requirements field to ensure it's properly formatted
+      const tendersWithNames = tendersArray.map(row => ({
         ...row,
-        requirements: typeof row.requirements === 'string' ? JSON.parse(row.requirements) : row.requirements
+        requirements: Array.isArray(row.requirements) ? row.requirements : 
+                     (typeof row.requirements === 'string' ? 
+                      (row.requirements.startsWith('[') ? JSON.parse(row.requirements) : []) : 
+                      [])
       }));
       
       res.json(tendersWithNames);
