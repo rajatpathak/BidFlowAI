@@ -1,0 +1,79 @@
+api/tenders:1   Failed to load resource: the server responded with a status of 500 (Internal Server Error)
+api/tenders:1   Failed to load resource: the server responded with a status of 500 (Internal Server Error)
+api/tenders:1   Failed to load resource: the server responded with a status of 500 (Internal Server Error)
+api/tenders:1   Failed to load resource: the server responded with a status of 500 (Internal Server Error)
+api/tenders:1   Failed to load resource: the server responded with a status of 500 (Internal Server Error)
+api/tenders:1   Failed to load resource: the server responded with a status of 500 (Internal Server Error)
+index-CuYxNKVA.js:40  TypeError: k.filter is not a function
+    at E (index-CuYxNKVA.js:500:19909)
+    at Az (index-CuYxNKVA.js:500:20181)
+    at Vp (index-CuYxNKVA.js:38:17027)
+    at sf (index-CuYxNKVA.js:40:3139)
+    at V1 (index-CuYxNKVA.js:40:44833)
+    at F1 (index-CuYxNKVA.js:40:39790)
+    at T4 (index-CuYxNKVA.js:40:39718)
+    at ou (index-CuYxNKVA.js:40:39570)
+    at pf (index-CuYxNKVA.js:40:35934)
+    at ay (index-CuYxNKVA.js:40:36738)
+nf @ index-CuYxNKVA.js:40
+index-CuYxNKVA.js:443  ErrorBoundary caught an error: TypeError: k.filter is not a function
+    at E (index-CuYxNKVA.js:500:19909)
+    at Az (index-CuYxNKVA.js:500:20181)
+    at Vp (index-CuYxNKVA.js:38:17027)
+    at sf (index-CuYxNKVA.js:40:3139)
+    at V1 (index-CuYxNKVA.js:40:44833)
+    at F1 (index-CuYxNKVA.js:40:39790)
+    at T4 (index-CuYxNKVA.js:40:39718)
+    at ou (index-CuYxNKVA.js:40:39570)
+    at pf (index-CuYxNKVA.js:40:35934)
+    at ay (index-CuYxNKVA.js:40:36738) Object
+componentDidCatch @ index-CuYxNKVA.js:443
+[NEW] Explain Console errors by using Copilot in Edge: click
+         
+         to explain an error. 
+        Learn more
+        Don't show again
+index-CuYxNKVA.js:40  TypeError: k.filter is not a function
+    at E (index-CuYxNKVA.js:500:19909)
+    at Az (index-CuYxNKVA.js:500:20181)
+    at Vp (index-CuYxNKVA.js:38:17027)
+    at V1 (index-CuYxNKVA.js:40:44058)
+    at F1 (index-CuYxNKVA.js:40:39790)
+    at T4 (index-CuYxNKVA.js:40:39718)
+    at ou (index-CuYxNKVA.js:40:39570)
+    at pf (index-CuYxNKVA.js:40:35934)
+    at M1 (index-CuYxNKVA.js:40:34883)
+    at k (index-CuYxNKVA.js:25:1584)
+nf @ index-CuYxNKVA.js:40
+a.componentDidCatch.n.callback @ index-CuYxNKVA.js:40
+$g @ index-CuYxNKVA.js:38
+sy @ index-CuYxNKVA.js:40
+R1 @ index-CuYxNKVA.js:40
+C4 @ index-CuYxNKVA.js:40
+E4 @ index-CuYxNKVA.js:40
+Gi @ index-CuYxNKVA.js:40
+M1 @ index-CuYxNKVA.js:40
+k @ index-CuYxNKVA.js:25
+U @ index-CuYxNKVA.js:25
+index-CuYxNKVA.js:443  ErrorBoundary caught an error: TypeError: k.filter is not a function
+    at E (index-CuYxNKVA.js:500:19909)
+    at Az (index-CuYxNKVA.js:500:20181)
+    at Vp (index-CuYxNKVA.js:38:17027)
+    at V1 (index-CuYxNKVA.js:40:44058)
+    at F1 (index-CuYxNKVA.js:40:39790)
+    at T4 (index-CuYxNKVA.js:40:39718)
+    at ou (index-CuYxNKVA.js:40:39570)
+    at pf (index-CuYxNKVA.js:40:35934)
+    at M1 (index-CuYxNKVA.js:40:34883)
+    at k (index-CuYxNKVA.js:25:1584) {componentStack: '\n    at Az (http://147.93.28.195:5000/assets/index…000/assets/index-CuYxNKVA.js:443:61848)\n    at Yz'}
+componentDidCatch @ index-CuYxNKVA.js:443
+a.componentDidCatch.n.callback @ index-CuYxNKVA.js:40
+$g @ index-CuYxNKVA.js:38
+sy @ index-CuYxNKVA.js:40
+R1 @ index-CuYxNKVA.js:40
+C4 @ index-CuYxNKVA.js:40
+E4 @ index-CuYxNKVA.js:40
+Gi @ index-CuYxNKVA.js:40
+M1 @ index-CuYxNKVA.js:40
+k @ index-CuYxNKVA.js:25
+U @ index-CuYxNKVA.js:25
