@@ -7,9 +7,13 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
-import { Upload, Search, Filter, FileText, Target, Building2, ExternalLink, MapPin, Calendar, Eye } from "lucide-react";
+import { Upload, Search, Filter, FileText, Target, Building2, ExternalLink, MapPin, Calendar, Eye, UserPlus, AlertTriangle, MoreHorizontal, Edit, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import AppLayout from "@/components/layout/AppLayout";
 
@@ -150,12 +154,15 @@ function UploadTendersComponent() {
           </div>
           
           {uploadProgress > 0 && (
-            <div className="space-y-2">
+            <div className="space-y-3">
               <div className="flex justify-between text-sm">
                 <span>Upload Progress</span>
                 <span>{uploadProgress}%</span>
               </div>
               <Progress value={uploadProgress} />
+              <div className="text-xs text-muted-foreground">
+                Processing Excel file...
+              </div>
             </div>
           )}
           
@@ -182,11 +189,22 @@ function UploadTendersComponent() {
 export default function ActiveTendersPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
+  const [selectedTenderId, setSelectedTenderId] = useState<string | null>(null);
+  const [assigneeUserId, setAssigneeUserId] = useState("");
+  const [notRelevantReason, setNotRelevantReason] = useState("");
+  const [showAssignDialog, setShowAssignDialog] = useState(false);
+  const [showNotRelevantDialog, setShowNotRelevantDialog] = useState(false);
   const itemsPerPage = 20;
 
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  // Fetch users for assignment dropdown
+  const { data: users = [] } = useQuery({
+    queryKey: ["/api/users"],
+    queryFn: () => fetch('/api/users').then(res => res.json())
+  });
 
   const { data: tenders = [], isLoading } = useQuery<Tender[]>({
     queryKey: ["/api/tenders"],
@@ -224,6 +242,83 @@ export default function ActiveTendersPage() {
     gem: gemTenders.length,
     nonGem: nonGemTenders.length,
     eligible: tenders.filter(t => t.aiScore >= 70).length,
+  };
+
+  // Handle tender assignment
+  const handleAssign = async () => {
+    if (!selectedTenderId || !assigneeUserId) return;
+    
+    try {
+      const response = await fetch('/api/assign-tender', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tenderId: selectedTenderId,
+          assigneeUserId,
+          assignedBy: user?.id
+        })
+      });
+
+      if (response.ok) {
+        toast({ title: "Success", description: "Tender assigned successfully" });
+        queryClient.invalidateQueries({ queryKey: ["/api/tenders"] });
+        setShowAssignDialog(false);
+        setSelectedTenderId(null);
+        setAssigneeUserId("");
+      } else {
+        throw new Error('Assignment failed');
+      }
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to assign tender", variant: "destructive" });
+    }
+  };
+
+  // Handle mark as not relevant
+  const handleNotRelevant = async () => {
+    if (!selectedTenderId || !notRelevantReason) return;
+
+    try {
+      const response = await fetch(`/api/tenders/${selectedTenderId}/not-relevant`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          reason: notRelevantReason,
+          submittedBy: user?.id
+        })
+      });
+
+      if (response.ok) {
+        toast({ title: "Success", description: "Tender marked as not relevant" });
+        queryClient.invalidateQueries({ queryKey: ["/api/tenders"] });
+        setShowNotRelevantDialog(false);
+        setSelectedTenderId(null);
+        setNotRelevantReason("");
+      } else {
+        throw new Error('Failed to mark as not relevant');
+      }
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to mark tender", variant: "destructive" });
+    }
+  };
+
+  // Handle tender deletion
+  const handleDelete = async (tenderId: string) => {
+    if (!confirm('Are you sure you want to delete this tender?')) return;
+
+    try {
+      const response = await fetch(`/api/tenders/${tenderId}`, {
+        method: 'DELETE'
+      });
+
+      if (response.ok) {
+        toast({ title: "Success", description: "Tender deleted successfully" });
+        queryClient.invalidateQueries({ queryKey: ["/api/tenders"] });
+      } else {
+        throw new Error('Delete failed');
+      }
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to delete tender", variant: "destructive" });
+    }
   };
 
   const breadcrumbs = [
@@ -376,15 +471,102 @@ export default function ActiveTendersPage() {
                           </Badge>
                         </TableCell>
                         <TableCell>
-                          <div className="flex items-center space-x-2">
-                            <Button variant="outline" size="sm">
+                          <div className="flex items-center space-x-1">
+                            <Button variant="outline" size="sm" title="View Details">
                               <Eye className="h-4 w-4" />
                             </Button>
+                            
+                            <Dialog open={showAssignDialog && selectedTenderId === tender.id} onOpenChange={setShowAssignDialog}>
+                              <DialogTrigger asChild>
+                                <Button 
+                                  variant="outline" 
+                                  size="sm" 
+                                  title="Assign Tender"
+                                  onClick={() => setSelectedTenderId(tender.id)}
+                                >
+                                  <UserPlus className="h-4 w-4" />
+                                </Button>
+                              </DialogTrigger>
+                              <DialogContent>
+                                <DialogHeader>
+                                  <DialogTitle>Assign Tender</DialogTitle>
+                                  <DialogDescription>
+                                    Assign this tender to a team member
+                                  </DialogDescription>
+                                </DialogHeader>
+                                <div className="space-y-4">
+                                  <div>
+                                    <Label>Assign to:</Label>
+                                    <Select value={assigneeUserId} onValueChange={setAssigneeUserId}>
+                                      <SelectTrigger>
+                                        <SelectValue placeholder="Select user" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {users.map((u: any) => (
+                                          <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                </div>
+                                <DialogFooter>
+                                  <Button variant="outline" onClick={() => setShowAssignDialog(false)}>Cancel</Button>
+                                  <Button onClick={handleAssign}>Assign</Button>
+                                </DialogFooter>
+                              </DialogContent>
+                            </Dialog>
+
+                            <Dialog open={showNotRelevantDialog && selectedTenderId === tender.id} onOpenChange={setShowNotRelevantDialog}>
+                              <DialogTrigger asChild>
+                                <Button 
+                                  variant="outline" 
+                                  size="sm" 
+                                  title="Mark Not Relevant"
+                                  onClick={() => setSelectedTenderId(tender.id)}
+                                >
+                                  <AlertTriangle className="h-4 w-4" />
+                                </Button>
+                              </DialogTrigger>
+                              <DialogContent>
+                                <DialogHeader>
+                                  <DialogTitle>Mark as Not Relevant</DialogTitle>
+                                  <DialogDescription>
+                                    Please provide a reason why this tender is not relevant
+                                  </DialogDescription>
+                                </DialogHeader>
+                                <div className="space-y-4">
+                                  <div>
+                                    <Label>Reason:</Label>
+                                    <Textarea 
+                                      value={notRelevantReason}
+                                      onChange={(e) => setNotRelevantReason(e.target.value)}
+                                      placeholder="Enter reason..."
+                                    />
+                                  </div>
+                                </div>
+                                <DialogFooter>
+                                  <Button variant="outline" onClick={() => setShowNotRelevantDialog(false)}>Cancel</Button>
+                                  <Button onClick={handleNotRelevant}>Submit</Button>
+                                </DialogFooter>
+                              </DialogContent>
+                            </Dialog>
+
                             {tender.link && (
-                              <Button variant="outline" size="sm" asChild>
+                              <Button variant="outline" size="sm" asChild title="External Link">
                                 <a href={tender.link} target="_blank" rel="noopener noreferrer">
                                   <ExternalLink className="h-4 w-4" />
                                 </a>
+                              </Button>
+                            )}
+
+                            {(user?.role === 'admin' || user?.role === 'manager') && (
+                              <Button 
+                                variant="outline" 
+                                size="sm" 
+                                title="Delete"
+                                onClick={() => handleDelete(tender.id)}
+                              >
+                                <Trash2 className="h-4 w-4" />
                               </Button>
                             )}
                           </div>
@@ -430,15 +612,102 @@ export default function ActiveTendersPage() {
                           </Badge>
                         </TableCell>
                         <TableCell>
-                          <div className="flex items-center space-x-2">
-                            <Button variant="outline" size="sm">
+                          <div className="flex items-center space-x-1">
+                            <Button variant="outline" size="sm" title="View Details">
                               <Eye className="h-4 w-4" />
                             </Button>
+                            
+                            <Dialog open={showAssignDialog && selectedTenderId === tender.id} onOpenChange={setShowAssignDialog}>
+                              <DialogTrigger asChild>
+                                <Button 
+                                  variant="outline" 
+                                  size="sm" 
+                                  title="Assign Tender"
+                                  onClick={() => setSelectedTenderId(tender.id)}
+                                >
+                                  <UserPlus className="h-4 w-4" />
+                                </Button>
+                              </DialogTrigger>
+                              <DialogContent>
+                                <DialogHeader>
+                                  <DialogTitle>Assign Tender</DialogTitle>
+                                  <DialogDescription>
+                                    Assign this tender to a team member
+                                  </DialogDescription>
+                                </DialogHeader>
+                                <div className="space-y-4">
+                                  <div>
+                                    <Label>Assign to:</Label>
+                                    <Select value={assigneeUserId} onValueChange={setAssigneeUserId}>
+                                      <SelectTrigger>
+                                        <SelectValue placeholder="Select user" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {users.map((u: any) => (
+                                          <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                </div>
+                                <DialogFooter>
+                                  <Button variant="outline" onClick={() => setShowAssignDialog(false)}>Cancel</Button>
+                                  <Button onClick={handleAssign}>Assign</Button>
+                                </DialogFooter>
+                              </DialogContent>
+                            </Dialog>
+
+                            <Dialog open={showNotRelevantDialog && selectedTenderId === tender.id} onOpenChange={setShowNotRelevantDialog}>
+                              <DialogTrigger asChild>
+                                <Button 
+                                  variant="outline" 
+                                  size="sm" 
+                                  title="Mark Not Relevant"
+                                  onClick={() => setSelectedTenderId(tender.id)}
+                                >
+                                  <AlertTriangle className="h-4 w-4" />
+                                </Button>
+                              </DialogTrigger>
+                              <DialogContent>
+                                <DialogHeader>
+                                  <DialogTitle>Mark as Not Relevant</DialogTitle>
+                                  <DialogDescription>
+                                    Please provide a reason why this tender is not relevant
+                                  </DialogDescription>
+                                </DialogHeader>
+                                <div className="space-y-4">
+                                  <div>
+                                    <Label>Reason:</Label>
+                                    <Textarea 
+                                      value={notRelevantReason}
+                                      onChange={(e) => setNotRelevantReason(e.target.value)}
+                                      placeholder="Enter reason..."
+                                    />
+                                  </div>
+                                </div>
+                                <DialogFooter>
+                                  <Button variant="outline" onClick={() => setShowNotRelevantDialog(false)}>Cancel</Button>
+                                  <Button onClick={handleNotRelevant}>Submit</Button>
+                                </DialogFooter>
+                              </DialogContent>
+                            </Dialog>
+
                             {tender.link && (
-                              <Button variant="outline" size="sm" asChild>
+                              <Button variant="outline" size="sm" asChild title="External Link">
                                 <a href={tender.link} target="_blank" rel="noopener noreferrer">
                                   <ExternalLink className="h-4 w-4" />
                                 </a>
+                              </Button>
+                            )}
+
+                            {(user?.role === 'admin' || user?.role === 'manager') && (
+                              <Button 
+                                variant="outline" 
+                                size="sm" 
+                                title="Delete"
+                                onClick={() => handleDelete(tender.id)}
+                              >
+                                <Trash2 className="h-4 w-4" />
                               </Button>
                             )}
                           </div>

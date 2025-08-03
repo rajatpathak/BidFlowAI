@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { storage } from './storage.js';
+import { db } from './db.js';
 import { tenders } from '../shared/schema.js';
 import { sql, eq } from 'drizzle-orm';
 
@@ -49,10 +49,10 @@ export async function processWorkingExcelUpload(filePath, originalName, uploaded
               if (!row.title && !row.organization) continue;
               
               // Check for duplicates
-              const existingTender = await storage.db
+              const existingTender = await db
                 .select()
                 .from(tenders)
-                .where(sql`title = ${row.title} AND organization = ${row.organization}`)
+                .where(eq(tenders.title, row.title))
                 .limit(1);
               
               if (existingTender.length > 0) {
@@ -83,7 +83,7 @@ export async function processWorkingExcelUpload(filePath, originalName, uploaded
                 updatedAt: new Date()
               };
               
-              await storage.db.insert(tenders).values(tenderData);
+              await db.insert(tenders).values(tenderData);
               
               if (tenderData.source === 'gem') {
                 gemAdded++;
@@ -194,10 +194,10 @@ async function processAsCSV(filePath, originalName, uploadedBy, progressCallback
       if (!row.title && !row.organization) continue;
       
       // Check for duplicates
-      const existingTender = await storage.db
+      const existingTender = await db
         .select()
         .from(tenders)
-        .where(sql`title = ${row.title} AND organization = ${row.organization}`)
+        .where(eq(tenders.title, row.title))
         .limit(1);
       
       if (existingTender.length > 0) {
@@ -228,7 +228,7 @@ async function processAsCSV(filePath, originalName, uploadedBy, progressCallback
         updatedAt: new Date()
       };
       
-      await storage.db.insert(tenders).values(tenderData);
+      await db.insert(tenders).values(tenderData);
       
       if (tenderData.source === 'gem') {
         gemAdded++;
