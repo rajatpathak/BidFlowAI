@@ -53,7 +53,8 @@ const storage = multer.diskStorage({
   }
 });
 
-const upload = multer({
+// Multer config for images only
+const uploadImages = multer({
   storage: storage,
   limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
   fileFilter: function (req, file, cb) {
@@ -62,6 +63,26 @@ const upload = multer({
       cb(null, true);
     } else {
       cb(new Error('Only image files are allowed'));
+    }
+  }
+});
+
+// Multer config for Excel files (tender uploads)
+const uploadExcel = multer({
+  storage: storage,
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+  fileFilter: function (req, file, cb) {
+    // Check if file is Excel or CSV
+    const allowedTypes = [
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
+      'application/vnd.ms-excel', // .xls
+      'text/csv' // .csv
+    ];
+    
+    if (allowedTypes.includes(file.mimetype) || file.originalname.endsWith('.xlsx') || file.originalname.endsWith('.xls') || file.originalname.endsWith('.csv')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only Excel (.xlsx, .xls) and CSV files are allowed'));
     }
   }
 });
@@ -223,7 +244,7 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
   });
 
   // Upload tenders via Excel file (Active Tenders)
-  app.post("/api/upload-tenders", upload.single('file'), async (req, res) => {
+  app.post("/api/upload-tenders", uploadExcel.single('file'), async (req, res) => {
     try {
       if (!req.file) {
         return res.status(400).json({ error: "No file uploaded" });
@@ -239,20 +260,84 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
         gemAdded: 0, nonGemAdded: 0, errors: 0 
       });
 
-      // Use simple Excel processor with progress callback
-      const { processSimpleExcelUpload } = await import('./simple-excel-processor.js');
+      // Simple CSV processing inline
+      const fs = await import('fs');
+      const fileContent = fs.readFileSync(req.file.path, 'utf-8');
+      const lines = fileContent.split('\n').filter(line => line.trim());
+      const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
       
-      console.log(`SSE clients for session ${sessionId}:`, uploadClients.has(sessionId));
+      let processed = 0;
+      let duplicates = 0;
+      let gemAdded = 0;
+      let nonGemAdded = 0;
+      let errors = 0;
       
-      const result = await processSimpleExcelUpload(
-        req.file.path, 
-        req.file.originalname, 
-        uploadedBy,
-        (progress) => {
-          console.log(`Sending progress update for session ${sessionId}:`, progress);
-          uploadProgress.set(sessionId, progress);
+      // Process each data row
+      for (let i = 1; i < lines.length; i++) {
+        try {
+          const values = lines[i].split(',').map(v => v.trim());
+          const row = {};
           
-          // Send progress to connected clients via SSE
+          // Map values to headers
+          headers.forEach((header, index) => {
+            row[header] = values[index] || '';
+          });
+          
+          // Skip empty rows
+          if (!row.title && !row.organization) continue;
+          
+          // Check for duplicates (simple check)
+          const existingTenders = await storage.getAllTenders();
+          const isDuplicate = existingTenders.some(t => 
+            t.title === row.title && t.organization === row.organization
+          );
+          
+          if (isDuplicate) {
+            duplicates++;
+            continue;
+          }
+          
+          // Insert new tender
+          const tenderData = {
+            title: row.title || 'Untitled Tender',
+            organization: row.organization || 'Unknown Organization',
+            description: row.description || null,
+            value: parseFloat(row.value) || 0,
+            deadline: new Date(row.deadline || Date.now() + 30 * 24 * 60 * 60 * 1000),
+            status: row.status || 'active',
+            source: row.source || 'manual',
+            aiScore: null,
+            requirements: {},
+            documents: [],
+            location: row.location || null,
+            category: row.category || null,
+            contactEmail: row.contact_email || null,
+            contactPhone: row.contact_phone || null,
+            publishedDate: new Date(),
+            submissionMethod: row.submission_method || 'online'
+          };
+          
+          await storage.createTender(tenderData);
+          
+          processed++;
+          if (row.source === 'gem') {
+            gemAdded++;
+          } else {
+            nonGemAdded++;
+          }
+          
+          // Send progress update
+          const progress = {
+            processed,
+            duplicates,
+            total: lines.length - 1,
+            percentage: Math.round((i / (lines.length - 1)) * 100),
+            gemAdded,
+            nonGemAdded,
+            errors
+          };
+          
+          uploadProgress.set(sessionId, progress);
           const client = uploadClients.get(sessionId);
           if (client && !client.destroyed) {
             try {
@@ -260,11 +345,30 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
             } catch (error) {
               console.error('Error sending progress update:', error);
             }
-          } else {
-            console.log('No active SSE client found for session:', sessionId);
           }
+          
+        } catch (error) {
+          console.error(`Error processing row ${i}:`, error);
+          errors++;
         }
-      );
+      }
+      
+      // Clean up uploaded file
+      try {
+        fs.unlinkSync(req.file.path);
+      } catch (error) {
+        console.error('Error deleting uploaded file:', error);
+      }
+      
+      const result = {
+        success: true,
+        tendersProcessed: processed,
+        duplicatesSkipped: duplicates,
+        gemAdded,
+        nonGemAdded,
+        errorsEncountered: errors,
+        totalRows: lines.length - 1
+      };
 
       // Send final completion and clean up
       const finalProgress = { 
@@ -317,7 +421,7 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
       // Query the database directly using raw SQL with correct column names
       const result = await db.execute(sql`
         SELECT 
-          id, file_name, uploaded_by, entries_added, entries_duplicate, 
+          id, filename, uploaded_by, entries_added, entries_duplicate, 
           total_entries, sheets_processed, status, uploaded_at
         FROM excel_uploads 
         ORDER BY uploaded_at DESC 
@@ -332,7 +436,7 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
   });
 
   // Upload tender results via Excel file  
-  app.post("/api/tender-results-imports", upload.single('file'), async (req, res) => {
+  app.post("/api/tender-results-imports", uploadExcel.single('file'), async (req, res) => {
     try {
       if (!req.file) {
         return res.status(400).json({ error: "No file uploaded" });
@@ -381,7 +485,7 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
       
       // Get tender title for activity log
       const tenderResult = await db.execute(sql`SELECT title FROM tenders WHERE id = ${id}`);
-      const tenderTitle = tenderResult.rows[0]?.title || 'Unknown Tender';
+      const tenderTitle = tenderResult[0]?.title || 'Unknown Tender';
       
       // Add activity log before deletion
       await db.execute(sql`
@@ -562,7 +666,7 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
   });
 
   // Upload documents for tender (RFP documents)
-  app.post("/api/tenders/:id/documents", upload.array('documents', 10), async (req, res) => {
+  app.post("/api/tenders/:id/documents", uploadImages.array('documents', 10), async (req, res) => {
     try {
       const { id } = req.params;
       const uploadedFiles = req.files as Express.Multer.File[];
@@ -2196,7 +2300,7 @@ Provide detailed, specific analysis rather than generic responses.`
   });
 
   // Image upload endpoint for templates
-  app.post('/api/upload-images', upload.array('images'), async (req, res) => {
+  app.post('/api/upload-images', uploadImages.array('images'), async (req, res) => {
     try {
       console.log('Upload request received');
       console.log('Files:', req.files);
@@ -2327,7 +2431,7 @@ Provide detailed, specific analysis rather than generic responses.`
     }
   });
 
-  app.post("/api/document-repository", authenticateToken, upload.single('document'), async (req, res) => {
+  app.post("/api/document-repository", authenticateToken, uploadImages.single('document'), async (req, res) => {
     try {
       if (!req.file) {
         return res.status(400).json({ error: "No file uploaded" });
@@ -2359,7 +2463,7 @@ Provide detailed, specific analysis rather than generic responses.`
   });
 
   // RFP Document Routes
-  app.post("/api/rfp-documents", authenticateToken, upload.single('rfp'), async (req, res) => {
+  app.post("/api/rfp-documents", authenticateToken, uploadImages.single('rfp'), async (req, res) => {
     try {
       if (!req.file) {
         return res.status(400).json({ error: "No RFP file uploaded" });
