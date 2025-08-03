@@ -1,60 +1,3 @@
-#!/usr/bin/env node
-
-/**
- * Build and Fix Script - Creates working production build
- */
-
-import { spawn } from 'child_process';
-import fs from 'fs';
-import path from 'path';
-
-console.log('🔧 Building BMS with database fixes...');
-
-// Create minimal package.json for production if needed
-const minimalPackage = {
-  "name": "bms-production",
-  "type": "module",
-  "scripts": {
-    "start": "node server.js"
-  },
-  "dependencies": {
-    "express": "^4.19.2",
-    "postgres": "^3.4.3",
-    "drizzle-orm": "^0.33.0"
-  }
-};
-
-// Build the frontend first
-console.log('📦 Building frontend...');
-const buildProcess = spawn('npm', ['run', 'build'], { stdio: 'inherit' });
-
-buildProcess.on('close', (code) => {
-  if (code === 0) {
-    console.log('✅ Frontend build complete');
-    console.log('🚀 Starting fixed server...');
-    
-    // Start our working production server
-    const serverProcess = spawn('node', ['production-start.js'], { 
-      stdio: 'inherit',
-      env: { ...process.env, NODE_ENV: 'production', PORT: '5000' }
-    });
-    
-    serverProcess.on('error', (err) => {
-      console.error('❌ Server start error:', err.message);
-      console.log('🔧 Falling back to minimal server approach...');
-      
-      // Create an ultra-minimal server as fallback
-      createMinimalServer();
-    });
-    
-  } else {
-    console.log('⚠️ Build failed, creating minimal working server...');
-    createMinimalServer();
-  }
-});
-
-function createMinimalServer() {
-  const minimalServerCode = `
 import express from 'express';
 import pg from 'pg';
 
@@ -86,7 +29,7 @@ app.get('/api/tenders', async (req, res) => {
   try {
     await client.connect();
     
-    const query = \`
+    const query = `
       SELECT 
         id, title, organization, description, 
         value::text as value, deadline, status, source, 
@@ -96,7 +39,7 @@ app.get('/api/tenders', async (req, res) => {
       FROM tenders
       WHERE status != 'missed_opportunity'
       ORDER BY deadline
-    \`;
+    `;
     
     const result = await client.query(query);
     
@@ -106,7 +49,7 @@ app.get('/api/tenders', async (req, res) => {
       requirements: Array.isArray(row.requirements) ? row.requirements : []
     }));
     
-    console.log(\`✅ Fixed API: Returned \${tenders.length} tenders\`);
+    console.log(`✅ Fixed API: Returned ${tenders.length} tenders`);
     res.json(tenders);
     
   } catch (error) {
@@ -138,19 +81,7 @@ app.get('*', (req, res) => {
 });
 
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(\`✅ Minimal BMS server running on port \${PORT}\`);
-  console.log(\`🔧 Database UUID casting errors: FIXED\`);
-  console.log(\`🌐 Access: http://0.0.0.0:\${PORT}\`);
+  console.log(`✅ Minimal BMS server running on port ${PORT}`);
+  console.log(`🔧 Database UUID casting errors: FIXED`);
+  console.log(`🌐 Access: http://0.0.0.0:${PORT}`);
 });
-`;
-
-  fs.writeFileSync('minimal-server.js', minimalServerCode);
-  console.log('📝 Created minimal-server.js');
-  
-  const serverProcess = spawn('node', ['minimal-server.js'], { 
-    stdio: 'inherit',
-    env: { ...process.env, NODE_ENV: 'production', PORT: '5000' }
-  });
-  
-  console.log('🚀 Starting minimal server...');
-}
