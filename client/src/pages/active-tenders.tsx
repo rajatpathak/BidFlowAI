@@ -51,15 +51,21 @@ type Tender = {
   id: string;
   title: string;
   organization: string;
-  referenceNo: string | null;
+  referenceNumber: string | null;
   location: string | null;
   value: number | null;
   deadline: string | null;
   status: string;
+  source: string;
   assignedTo: string | null;
   aiScore: number;
   link: string | null;
   createdAt: string | null;
+  requirements?: any[];
+  category?: string;
+  winProbability?: number;
+  currency?: string;
+  estimatedValue?: number;
 };
 
 type TenderImport = {
@@ -98,9 +104,12 @@ export default function ActiveTendersPage() {
   const { user } = useAuth();
   const { toast } = useToast();
 
-  const { data: tenders = [], isLoading } = useQuery<Tender[]>({
+  const { data: tendersResponse, isLoading } = useQuery({
     queryKey: ["/api/tenders"],
   });
+
+  // Extract tenders array from the response data
+  const tenders = tendersResponse?.data || [];
 
   const { data: imports = [], isLoading: importsLoading } = useQuery<TenderImport[]>({
     queryKey: ["/api/tender-imports"],
@@ -120,7 +129,7 @@ export default function ActiveTendersPage() {
           tender.title.toLowerCase().includes(query) ||
           tender.organization.toLowerCase().includes(query) ||
           (tender.location && tender.location.toLowerCase().includes(query)) ||
-          (tender.requirements?.[0]?.reference && tender.requirements[0].reference.toLowerCase().includes(query))
+          (tender.referenceNumber && tender.referenceNumber.toLowerCase().includes(query))
         );
         if (!matchesSearch) return false;
       }
@@ -307,9 +316,9 @@ export default function ActiveTendersPage() {
   };
 
   // Handle select all tenders
-  const handleSelectAll = (checked: boolean) => {
+  const handleSelectAll = (checked: boolean, tendersList: Tender[]) => {
     if (checked) {
-      const allIds = new Set(paginatedTenders.map(t => t.id));
+      const allIds = new Set(tendersList.map(t => t.id));
       setSelectedTenders(allIds);
     } else {
       setSelectedTenders(new Set());
