@@ -72,7 +72,7 @@ function UploadTendersComponent() {
 
     const formData = new FormData();
     formData.append('file', selectedFile);
-    formData.append('uploadedBy', user?.username || 'admin');
+    formData.append('uploadedBy', (user as any)?.username || user?.name || 'admin');
     
     const sessionId = Date.now().toString();
     formData.append('sessionId', sessionId);
@@ -114,8 +114,8 @@ function UploadTendersComponent() {
       
       const response = await Promise.race([uploadPromise, timeoutPromise]);
 
-      if (response.ok) {
-        const result = await response.json();
+      if ((response as Response).ok) {
+        const result = await (response as Response).json();
         
         toast({
           title: "Success",
@@ -360,7 +360,7 @@ export default function ActiveTendersPage() {
 
   if (isLoading) {
     return (
-      <AppLayout>
+      <AppLayout title="Active Tenders">
         <div className="flex items-center justify-center h-64">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
@@ -372,7 +372,7 @@ export default function ActiveTendersPage() {
   }
 
   return (
-    <AppLayout>
+    <AppLayout title="Active Tenders">
       <div className="space-y-6">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Active Tenders</h1>
