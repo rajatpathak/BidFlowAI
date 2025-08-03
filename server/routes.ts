@@ -32,7 +32,7 @@ import { authenticateToken, optionalAuth, requireRole, generateToken, generateSe
 import { validateRequest, validateQuery, loginSchema, createTenderSchema, updateTenderSchema, assignTenderSchema } from './validation.js';
 import jwt from 'jsonwebtoken';
 import OpenAI from 'openai';
-import { processWorkingExcelUpload } from "./working-excel-processor.js";
+import { processExcelFileFixed } from './excel-processor-fixed.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
@@ -286,7 +286,7 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
       } else if (fileExtension === '.xlsx' || fileExtension === '.xls') {
         // Use simple Excel processor
         try {
-          const result = await processWorkingExcelUpload(req.file.path, req.file.originalname, uploadedBy, (progress: any) => {
+          const result = await processExcelFileFixed(req.file.path, sessionId, (progress: any) => {
             uploadProgress.set(sessionId, progress);
             uploadClients.get(sessionId)?.forEach(client => {
               client.write(`data: ${JSON.stringify(progress)}\n\n`);

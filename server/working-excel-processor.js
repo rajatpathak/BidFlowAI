@@ -3,6 +3,7 @@ import path from 'path';
 import { db } from './db.js';
 import { tenders } from '../shared/schema.js';
 import { sql, eq } from 'drizzle-orm';
+import crypto from 'crypto';
 
 export async function processWorkingExcelUpload(filePath, originalName, uploadedBy, progressCallback) {
   try {
@@ -60,27 +61,29 @@ export async function processWorkingExcelUpload(filePath, originalName, uploaded
                 continue;
               }
               
-              // Insert new tender with proper null handling
+              // Create tender with database schema fields
+              const now = new Date();
               const tenderData = {
-                title: row.title || 'Untitled Tender',
-                organization: row.organization || 'Unknown Organization',
-                description: row.description || 'No description available',
-                value: parseFloat(row.value) || 0,
-                deadline: new Date(row.deadline || Date.now()),
-                location: row.location || 'Not specified',
-                status: 'active',
-                source: row.source?.toLowerCase() === 'gem' ? 'gem' : 'non_gem',
-                aiScore: parseInt(row.aiscore || row.ai_score || '0') || 0,
-                requirements: row.requirements ? JSON.stringify([{ reference: row.requirements }]) : JSON.stringify([]),
-                documents: JSON.stringify([]),
-                assignedTo: '',
-                submissionDeadline: new Date(),
-                submissionDetails: '',
-                resultStatus: 'pending',
-                resultDetails: '',
-                resultDate: new Date(),
-                createdAt: new Date(),
-                updatedAt: new Date()
+                title: String(row.title || 'Untitled Tender'),
+                organization: String(row.organization || 'Unknown Organization'),
+                description: String(row.description || 'No description available'),
+                value: Number(row.value) || 0,
+                deadline: row.deadline ? new Date(row.deadline) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+                status: 'draft',
+                source: String(row.source).toLowerCase() === 'gem' ? 'gem' : 'non_gem',
+                aiScore: Number(row.aiscore || row.ai_score) || 0,
+                requirements: row.requirements ? [{ reference: String(row.requirements) }] : [],
+                documents: [],
+                bidContent: null,
+                assignedTo: null,
+                link: String(row.link || row.url || '') || null,
+                submittedAt: null,
+                notRelevantReason: null,
+                notRelevantRequestedBy: null,
+                notRelevantRequestedAt: null,
+                notRelevantApprovedBy: null,
+                notRelevantApprovedAt: null,
+                notRelevantStatus: 'none'
               };
               
               await db.insert(tenders).values(tenderData);
@@ -205,27 +208,29 @@ async function processAsCSV(filePath, originalName, uploadedBy, progressCallback
         continue;
       }
       
-      // Insert new tender with proper null handling
+      // Create tender with database schema fields
+      const now = new Date();
       const tenderData = {
-        title: row.title || 'Untitled Tender',
-        organization: row.organization || 'Unknown Organization',
-        description: row.description || 'No description available',
-        value: parseFloat(row.value) || 0,
-        deadline: new Date(row.deadline || Date.now()),
-        location: row.location || 'Not specified',
-        status: 'active',
-        source: row.source?.toLowerCase() === 'gem' ? 'gem' : 'non_gem',
-        aiScore: parseInt(row.aiscore || row.ai_score || '0') || 0,
-        requirements: row.requirements ? JSON.stringify([{ reference: row.requirements }]) : JSON.stringify([]),
-        documents: JSON.stringify([]),
-        assignedTo: '',
-        submissionDeadline: new Date(),
-        submissionDetails: '',
-        resultStatus: 'pending',
-        resultDetails: '',
-        resultDate: new Date(),
-        createdAt: new Date(),
-        updatedAt: new Date()
+        title: String(row.title || 'Untitled Tender'),
+        organization: String(row.organization || 'Unknown Organization'),
+        description: String(row.description || 'No description available'),
+        value: Number(row.value) || 0,
+        deadline: row.deadline ? new Date(row.deadline) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        status: 'draft',
+        source: String(row.source).toLowerCase() === 'gem' ? 'gem' : 'non_gem',
+        aiScore: Number(row.aiscore || row.ai_score) || 0,
+        requirements: row.requirements ? [{ reference: String(row.requirements) }] : [],
+        documents: [],
+        bidContent: null,
+        assignedTo: null,
+        link: String(row.link || row.url || '') || null,
+        submittedAt: null,
+        notRelevantReason: null,
+        notRelevantRequestedBy: null,
+        notRelevantRequestedAt: null,
+        notRelevantApprovedBy: null,
+        notRelevantApprovedAt: null,
+        notRelevantStatus: 'none'
       };
       
       await db.insert(tenders).values(tenderData);
