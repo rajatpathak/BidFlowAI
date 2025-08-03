@@ -51,31 +51,55 @@ function UploadTendersComponent() {
 
     try {
       setIsUploading(true);
-      setUploadProgress(10);
+      setUploadProgress(0);
 
-      // Real progress tracking
-      const progressInterval = setInterval(() => {
-        setUploadProgress(prev => Math.min(prev + 2, 85));
-      }, 200);
+      // Generate session ID for tracking
+      const sessionId = Date.now().toString();
+      formData.append('sessionId', sessionId);
+
+      // Set up Server-Sent Events for real-time progress
+      const eventSource = new EventSource(`/api/upload-progress/${sessionId}`);
+      
+      eventSource.onmessage = (event) => {
+        try {
+          const progressData = JSON.parse(event.data);
+          console.log('Progress update:', progressData);
+          setUploadProgress(progressData.percentage || 0);
+          
+          if (progressData.completed) {
+            eventSource.close();
+          }
+        } catch (error) {
+          console.error('Error parsing progress data:', error);
+        }
+      };
+
+      eventSource.onerror = (error) => {
+        console.error('SSE error:', error);
+        eventSource.close();
+      };
 
       const response = await fetch('/api/upload-tenders', {
         method: 'POST',
         body: formData,
       });
 
-      clearInterval(progressInterval);
-      setUploadProgress(95);
-
       if (!response.ok) {
+        eventSource.close();
         throw new Error('Upload failed');
       }
 
       const result = await response.json();
-      setUploadProgress(100);
+      
+      // Ensure progress reaches 100%
+      setTimeout(() => {
+        setUploadProgress(100);
+        eventSource.close();
+      }, 1000);
       
       toast({
         title: "Upload Complete",
-        description: `${result.tendersProcessed || 0} tenders imported from ${result.sheetsProcessed || 0} sheets`,
+        description: `${result.tendersProcessed || 0} tenders imported successfully (${result.duplicatesSkipped || 0} duplicates skipped)`,
       });
       
       setSelectedFile(null);
@@ -101,7 +125,7 @@ function UploadTendersComponent() {
       <CardHeader>
         <CardTitle>Upload Excel File</CardTitle>
         <CardDescription>
-          Upload Excel files with GeM and Non-GeM tender data
+          Upload Excel or CSV files with GeM and Non-GeM tender data
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -109,7 +133,7 @@ function UploadTendersComponent() {
           <div>
             <Input
               type="file"
-              accept=".xlsx,.xls"
+              accept=".xlsx,.xls,.csv"
               onChange={handleFileSelect}
               disabled={isUploading}
             />

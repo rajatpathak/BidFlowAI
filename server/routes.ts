@@ -260,11 +260,67 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
         gemAdded: 0, nonGemAdded: 0, errors: 0 
       });
 
-      // Simple CSV processing inline
+      // Handle both Excel and CSV files
       const fs = await import('fs');
-      const fileContent = fs.readFileSync(req.file.path, 'utf-8');
-      const lines = fileContent.split('\n').filter(line => line.trim());
-      const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+      const path = await import('path');
+      const fileExtension = path.extname(req.file.originalname).toLowerCase();
+      
+      let rows: any[] = [];
+      let headers: string[] = [];
+      
+      if (fileExtension === '.csv') {
+        // CSV processing
+        const fileContent = fs.readFileSync(req.file.path, 'utf-8');
+        const lines = fileContent.split('\n').filter(line => line.trim());
+        headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+        
+        for (let i = 1; i < lines.length; i++) {
+          const values = lines[i].split(',').map(v => v.trim());
+          const row: any = {};
+          headers.forEach((header, index) => {
+            row[header] = values[index] || '';
+          });
+          rows.push(row);
+        }
+      } else if (fileExtension === '.xlsx' || fileExtension === '.xls') {
+        // Excel processing - try to import xlsx library
+        try {
+          const XLSX = await import('xlsx');
+          const workbook = XLSX.readFile(req.file.path);
+          const sheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[sheetName];
+          const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+          
+          if (jsonData.length > 0) {
+            headers = jsonData[0].map((h: any) => String(h).trim().toLowerCase());
+            for (let i = 1; i < jsonData.length; i++) {
+              const values = jsonData[i] || [];
+              const row: any = {};
+              headers.forEach((header, index) => {
+                row[header] = values[index] ? String(values[index]).trim() : '';
+              });
+              rows.push(row);
+            }
+          }
+        } catch (xlsxError) {
+          console.error('XLSX processing failed, falling back to CSV:', xlsxError);
+          // Fallback to CSV processing
+          const fileContent = fs.readFileSync(req.file.path, 'utf-8');
+          const lines = fileContent.split('\n').filter(line => line.trim());
+          headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+          
+          for (let i = 1; i < lines.length; i++) {
+            const values = lines[i].split(',').map(v => v.trim());
+            const row: any = {};
+            headers.forEach((header, index) => {
+              row[header] = values[index] || '';
+            });
+            rows.push(row);
+          }
+        }
+      } else {
+        throw new Error('Unsupported file type. Please upload CSV or Excel files.');
+      }
       
       let processed = 0;
       let duplicates = 0;
@@ -273,24 +329,20 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
       let errors = 0;
       
       // Process each data row
-      for (let i = 1; i < lines.length; i++) {
+      for (let i = 0; i < rows.length; i++) {
         try {
-          const values = lines[i].split(',').map(v => v.trim());
-          const row = {};
-          
-          // Map values to headers
-          headers.forEach((header, index) => {
-            row[header] = values[index] || '';
-          });
+          const row = rows[i];
           
           // Skip empty rows
           if (!row.title && !row.organization) continue;
           
-          // Check for duplicates (simple check)
-          const existingTenders = await storage.getAllTenders();
-          const isDuplicate = existingTenders.some(t => 
-            t.title === row.title && t.organization === row.organization
-          );
+          // Check for duplicates using direct database query
+          const existingTender = await db.execute(sql`
+            SELECT id FROM tenders 
+            WHERE title = ${row.title} AND organization = ${row.organization}
+            LIMIT 1
+          `);
+          const isDuplicate = existingTender.length > 0;
           
           if (isDuplicate) {
             duplicates++;
@@ -317,7 +369,7 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
             submissionMethod: row.submission_method || 'online'
           };
           
-          await storage.createTender(tenderData);
+          await db.insert(tenders).values(tenderData);
           
           processed++;
           if (row.source === 'gem') {
@@ -326,29 +378,32 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
             nonGemAdded++;
           }
           
-          // Send progress update
-          const progress = {
-            processed,
-            duplicates,
-            total: lines.length - 1,
-            percentage: Math.round((i / (lines.length - 1)) * 100),
-            gemAdded,
-            nonGemAdded,
-            errors
-          };
-          
-          uploadProgress.set(sessionId, progress);
-          const client = uploadClients.get(sessionId);
-          if (client && !client.destroyed) {
-            try {
-              client.write(`data: ${JSON.stringify(progress)}\n\n`);
-            } catch (error) {
-              console.error('Error sending progress update:', error);
+          // Send progress update every 10 rows or final row
+          if (i % 10 === 0 || i === rows.length - 1) {
+            const progress = {
+              processed,
+              duplicates,
+              total: rows.length,
+              percentage: Math.round(((i + 1) / rows.length) * 100),
+              gemAdded,
+              nonGemAdded,
+              errors
+            };
+            
+            uploadProgress.set(sessionId, progress);
+            const client = uploadClients.get(sessionId);
+            if (client && !client.destroyed) {
+              try {
+                client.write(`data: ${JSON.stringify(progress)}\n\n`);
+                console.log(`Sent progress update: ${progress.percentage}% (${processed} processed)`);
+              } catch (error) {
+                console.error('Error sending progress update:', error);
+              }
             }
           }
           
         } catch (error) {
-          console.error(`Error processing row ${i}:`, error);
+          console.error(`Error processing row ${i + 1}:`, error);
           errors++;
         }
       }
@@ -367,7 +422,7 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
         gemAdded,
         nonGemAdded,
         errorsEncountered: errors,
-        totalRows: lines.length - 1
+        totalRows: rows.length
       };
 
       // Send final completion and clean up
@@ -396,14 +451,14 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
       }, 30000);
 
       if (!result.success) {
-        return res.status(500).json({ error: result.error || "Failed to process Excel file" });
+        return res.status(500).json({ error: "Failed to process Excel file" });
       }
 
       res.json({
         message: "Tenders imported successfully",
         tendersProcessed: result.tendersProcessed || 0,
         duplicatesSkipped: result.duplicatesSkipped || 0,
-        sheetsProcessed: result.sheetsProcessed || 0,
+        sheetsProcessed: 1,
         errorsEncountered: result.errorsEncountered || 0,
         gemAdded: result.gemAdded || 0,
         nonGemAdded: result.nonGemAdded || 0,
