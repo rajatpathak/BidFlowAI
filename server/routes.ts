@@ -896,34 +896,15 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
     try {
       const { includeMissedOpportunities } = req.query;
       
-      // Use proper drizzle query instead of raw SQL to ensure consistent result structure
-      let query = db.select({
-        id: tenders.id,
-        title: tenders.title,
-        organization: tenders.organization,
-        description: tenders.description,
-        value: tenders.value,
-        deadline: tenders.deadline,
-        status: tenders.status,
-        source: tenders.source,
-        aiScore: tenders.aiScore,
-        assignedTo: tenders.assignedTo,
-        requirements: tenders.requirements,
-        link: tenders.link,
-        createdAt: tenders.createdAt,
-        updatedAt: tenders.updatedAt,
-        assignedToName: users.name
-      })
-      .from(tenders)
-      .leftJoin(users, eq(tenders.assignedTo, users.id))
-      .orderBy(tenders.deadline);
+      // Use drizzle ORM select with conditional where clause
+      const baseQuery = db.select().from(tenders);
       
-      // Add where clause if not including missed opportunities
-      if (includeMissedOpportunities !== 'true') {
-        query = query.where(ne(tenders.status, 'missed_opportunity'));
+      let result;
+      if (includeMissedOpportunities === 'true') {
+        result = await baseQuery.orderBy(tenders.deadline);
+      } else {
+        result = await baseQuery.where(ne(tenders.status, 'missed_opportunity')).orderBy(tenders.deadline);
       }
-      
-      const result = await query;
       
       console.log(`API tenders query result type:`, typeof result);
       console.log(`Result is array:`, Array.isArray(result));
