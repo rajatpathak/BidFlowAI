@@ -1,5 +1,5 @@
 import express from "express";
-// import * as XLSX from 'xlsx'; // Temporarily disabled due to XLSX dependency issue
+import * as XLSX from 'xlsx';
 import fs from "fs";
 import { promises as fsPromises } from "fs";
 import multer from "multer";
@@ -33,7 +33,7 @@ import { authenticateToken, optionalAuth, requireRole, generateToken, generateSe
 import { validateRequest, validateQuery, loginSchema, createTenderSchema, updateTenderSchema, assignTenderSchema } from './validation.js';
 import jwt from 'jsonwebtoken';
 import OpenAI from 'openai';
-// import { processExcelFileFixed } from './excel-processor-fixed.js'; // Temporarily disabled due to XLSX dependency issue
+import { processExcelFileFixed } from './excel-processor-fixed.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
@@ -287,15 +287,6 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
       } else if (fileExtension === '.xlsx' || fileExtension === '.xls') {
         // Use simple Excel processor
         try {
-          // Excel processing temporarily disabled
-          const result = { 
-            success: false, 
-            message: "Excel upload temporarily disabled - please use enhanced production server", 
-            tendersProcessed: 0,
-            duplicatesSkipped: 0 
-          };
-          // Excel processing code commented out due to XLSX dependency
-          /*
           const result = await processExcelFileFixed(req.file.path, sessionId, (progress: any) => {
             uploadProgress.set(sessionId, progress);
             try {
@@ -311,7 +302,6 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
               console.warn('SSE broadcast error:', sseError.message);
             }
           });
-          */
           
           // Update final progress
           uploadProgress.set(sessionId, { 
