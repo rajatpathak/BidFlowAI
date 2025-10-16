@@ -1,11 +1,11 @@
 import { Button } from "@/components/ui/button";
-import { Plus, TrendingUp, Activity, Target } from "lucide-react";
+import { Plus, TrendingUp } from "lucide-react";
 import EnhancedStatsCards from "@/components/dashboard/enhanced-stats-cards";
 import AIRecommendations from "@/components/dashboard/ai-recommendations";
 import TenderPipeline from "@/components/dashboard/tender-pipeline";
 import DynamicTenderTable from "@/components/dashboard/dynamic-tender-table";
 import AIFeaturesPanel from "@/components/dashboard/ai-features-panel";
-import AppLayout from "@/components/layout/AppLayout";
+import PageHeader from "@/components/layout/PageHeader";
 import { useAuth } from "@/contexts/AuthContext";
 
 export default function Dashboard() {
@@ -29,34 +29,37 @@ export default function Dashboard() {
   ];
 
   return (
-    <AppLayout 
-      title="Dashboard" 
-      description={`Welcome back, ${user?.name || 'User'}! Here's your comprehensive tender overview and AI-powered insights.`}
-      breadcrumbs={breadcrumbs}
-      actions={actions}
-    >
-      <div className="space-y-8">
-        {/* Stats Cards */}
-        <div className="animate-slide-up">
-          <EnhancedStatsCards />
-        </div>
+    <div className="flex flex-col h-full">
+      <PageHeader 
+        title="Dashboard" 
+        description={`Welcome back, ${user?.name || 'User'}! Here's your comprehensive tender overview and AI-powered insights.`}
+        breadcrumbs={breadcrumbs}
+        actions={actions}
+      />
+      <main className="flex-1 overflow-auto p-6 bg-gradient-to-br from-gray-50 via-white to-blue-50/30 dark:from-gray-900 dark:via-gray-800 dark:to-blue-900/10">
+        <div className="max-w-7xl mx-auto space-y-8">
+          {/* Stats Cards */}
+          <div className="animate-slide-up">
+            <EnhancedStatsCards />
+          </div>
 
-        {/* AI and Pipeline Row */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-slide-up" style={{ animationDelay: "200ms" }}>
-          <AIRecommendations />
-          <TenderPipeline />
-        </div>
+          {/* AI and Pipeline Row */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-slide-up" style={{ animationDelay: "200ms" }}>
+            <AIRecommendations />
+            <TenderPipeline />
+          </div>
 
-        {/* Main Table */}
-        <div className="animate-slide-up" style={{ animationDelay: "400ms" }}>
-          <DynamicTenderTable />
-        </div>
+          {/* Main Table */}
+          <div className="animate-slide-up" style={{ animationDelay: "400ms" }}>
+            <DynamicTenderTable />
+          </div>
 
-        {/* AI Features Panel */}
-        <div className="animate-slide-up" style={{ animationDelay: "600ms" }}>
-          <AIFeaturesPanel />
+          {/* AI Features Panel */}
+          <div className="animate-slide-up" style={{ animationDelay: "600ms" }}>
+            <AIFeaturesPanel />
+          </div>
         </div>
-      </div>
-    </AppLayout>
+      </main>
+    </div>
   );
 }
