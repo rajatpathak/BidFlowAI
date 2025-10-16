@@ -24,6 +24,7 @@ import { Settings, Upload, FileSpreadsheet, Building2, CheckCircle, XCircle, Clo
 import BidDocumentManagement from "@/components/BidDocumentManagement";
 import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { Progress } from "@/components/ui/progress";
 
 type CompanySettings = {
   id: string;
@@ -103,6 +104,16 @@ type ImageFile = {
 export default function AdminSettingsPage() {
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState({
+    processed: 0,
+    duplicates: 0,
+    total: 0,
+    percentage: 0,
+    gemAdded: 0,
+    nonGemAdded: 0,
+    errors: 0,
+    completed: false
+  });
   const [editingTemplate, setEditingTemplate] = useState<DocumentTemplate | null>(null);
   const [showTemplateForm, setShowTemplateForm] = useState(false);
   const [templateImages, setTemplateImages] = useState<ImageFile[]>([]);
@@ -375,9 +386,38 @@ export default function AdminSettingsPage() {
     if (!uploadFile) return;
     
     setIsUploading(true);
+    setUploadProgress({
+      processed: 0,
+      duplicates: 0,
+      total: 0,
+      percentage: 0,
+      gemAdded: 0,
+      nonGemAdded: 0,
+      errors: 0,
+      completed: false
+    });
+
+    const sessionId = Date.now().toString();
     const formData = new FormData();
     formData.append("excelFile", uploadFile);
-    formData.append("uploadedBy", "admin"); // Should come from auth context
+    formData.append("uploadedBy", "admin");
+    formData.append("sessionId", sessionId);
+
+    // Set up Server-Sent Events for real-time progress
+    const eventSource = new EventSource(`/api/upload-progress/${sessionId}`);
+    
+    eventSource.onmessage = (event) => {
+      const progress = JSON.parse(event.data);
+      setUploadProgress(progress);
+      
+      if (progress.completed) {
+        eventSource.close();
+      }
+    };
+
+    eventSource.onerror = () => {
+      eventSource.close();
+    };
 
     try {
       const response = await fetch("/api/excel-uploads", {
@@ -395,16 +435,18 @@ export default function AdminSettingsPage() {
       
       toast({
         title: "Upload successful",
-        description: `Imported ${result.tendersImported} tenders from ${result.sheetsProcessed} sheets.`,
+        description: `Imported ${result.tendersImported} tenders (${result.gemAdded} GeM, ${result.nonGemAdded} Non-GeM). Skipped ${result.duplicatesSkipped} duplicates.`,
       });
       
       setUploadFile(null);
+      eventSource.close();
     } catch (error) {
       toast({
         title: "Upload failed",
         description: "Failed to process Excel file. Please check the format and try again.",
         variant: "destructive",
       });
+      eventSource.close();
     } finally {
       setIsUploading(false);
     }
@@ -809,10 +851,58 @@ export default function AdminSettingsPage() {
                   disabled={!uploadFile || isUploading}
                   className="w-full md:w-auto px-8 py-2"
                   size="lg"
+                  data-testid="button-upload-excel"
                 >
                   {isUploading ? "Processing..." : "Upload and Process Tenders"}
                 </Button>
               </div>
+
+              {/* Real-time Progress Display */}
+              {isUploading && (
+                <div className="mt-6 space-y-4 p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border border-blue-200">
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="font-semibold text-lg">Processing Excel File...</h3>
+                    <span className="text-2xl font-bold text-blue-600">{uploadProgress.percentage}%</span>
+                  </div>
+                  
+                  <Progress value={uploadProgress.percentage} className="h-3" />
+                  
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
+                    <div className="bg-white rounded-lg p-3 shadow-sm">
+                      <div className="text-xs text-gray-500 mb-1">Processed</div>
+                      <div className="text-xl font-bold text-blue-600">{uploadProgress.processed}</div>
+                      <div className="text-xs text-gray-400">of {uploadProgress.total}</div>
+                    </div>
+                    
+                    <div className="bg-white rounded-lg p-3 shadow-sm">
+                      <div className="text-xs text-gray-500 mb-1">GeM Tenders</div>
+                      <div className="text-xl font-bold text-green-600">{uploadProgress.gemAdded}</div>
+                      <div className="text-xs text-gray-400">added</div>
+                    </div>
+                    
+                    <div className="bg-white rounded-lg p-3 shadow-sm">
+                      <div className="text-xs text-gray-500 mb-1">Non-GeM</div>
+                      <div className="text-xl font-bold text-purple-600">{uploadProgress.nonGemAdded}</div>
+                      <div className="text-xs text-gray-400">added</div>
+                    </div>
+                    
+                    <div className="bg-white rounded-lg p-3 shadow-sm">
+                      <div className="text-xs text-gray-500 mb-1">Duplicates</div>
+                      <div className="text-xl font-bold text-orange-600">{uploadProgress.duplicates}</div>
+                      <div className="text-xs text-gray-400">skipped</div>
+                    </div>
+                  </div>
+
+                  {uploadProgress.errors > 0 && (
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-3 mt-4">
+                      <div className="flex items-center gap-2 text-red-700">
+                        <XCircle className="h-4 w-4" />
+                        <span className="font-medium">{uploadProgress.errors} errors encountered</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
 

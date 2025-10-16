@@ -130,15 +130,37 @@ export async function processExcelFileFixed(filePath, sessionId, progressCallbac
           ''
         );
 
-        // Handle deadline with actual Excel field names
+        // Handle deadline with actual Excel field names - added more variations
         let deadline = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // Default 30 days from now
-        const deadlineField = row.Deadline || row.deadline || row.DEADLINE ||
+        const deadlineField = row['LAST DATE'] || row['Last Date'] || row['last date'] ||
+                             row.Deadline || row.deadline || row.DEADLINE ||
                              row.due_date || row['Due Date'] || row.submission_date ||
-                             row['Submission Date'] || row.end_date || row['End Date'];
+                             row['Submission Date'] || row.end_date || row['End Date'] ||
+                             row['BID SUBMISSION END DATE'] || row['Bid Submission End Date'] ||
+                             row['CLOSING DATE'] || row['Closing Date'] ||
+                             row['TENDER CLOSING DATE'] || row['Tender Closing Date'];
         
         if (deadlineField) {
-          const deadlineValue = cleanValue(deadlineField, 'date');
-          if (deadlineValue) deadline = deadlineValue;
+          // Handle Excel serial date numbers
+          let parsedDate = null;
+          
+          // Check if it's an Excel serial number (numeric value > 40000 indicates dates after 2009)
+          if (typeof deadlineField === 'number' && deadlineField > 25569) {
+            // Excel date serial to JavaScript Date
+            // Excel epoch is Dec 30, 1899; JS epoch is Jan 1, 1970
+            const excelEpoch = new Date(1899, 11, 30);
+            parsedDate = new Date(excelEpoch.getTime() + (deadlineField * 24 * 60 * 60 * 1000));
+          } else {
+            // Try parsing as regular date string
+            parsedDate = cleanValue(deadlineField, 'date');
+          }
+          
+          if (parsedDate && !isNaN(parsedDate.getTime())) {
+            deadline = parsedDate;
+            if (i < 3) {
+              console.log(`📅 Deadline parsed: ${deadlineField} -> ${deadline.toISOString()}`);
+            }
+          }
         }
 
         // Check for duplicates by title and organization (skip if generic title)
