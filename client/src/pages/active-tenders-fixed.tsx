@@ -116,16 +116,18 @@ export default function ActiveTendersPage() {
   if (statusFilter !== 'all') queryParams.set('status', statusFilter);
   if (sourceFilter !== 'all') queryParams.set('source', sourceFilter);
 
-  const { data: tendersResponse, isLoading } = useQuery<TenderResponse>({
+  const { data: tendersResponse, isLoading } = useQuery<Tender[] | TenderResponse>({
     queryKey: [`/api/tenders?${queryParams.toString()}`],
   });
 
-  // Extract tenders and pagination info from the enhanced API response
-  const tenders = tendersResponse?.data || [];
-  const pagination = tendersResponse?.pagination || {
-    page: 1,
-    limit: 20,
-    total: 0,
+  // Handle both array response and object response formats
+  const tenders = Array.isArray(tendersResponse) 
+    ? tendersResponse 
+    : (tendersResponse?.data || []);
+  const pagination = (Array.isArray(tendersResponse) ? null : tendersResponse?.pagination) || {
+    page: currentPage,
+    limit: itemsPerPage,
+    total: Array.isArray(tendersResponse) ? tendersResponse.length : 0,
     totalPages: 0,
     hasNext: false,
     hasPrev: false
@@ -326,6 +328,14 @@ export default function ActiveTendersPage() {
           <h1 className="text-3xl font-bold">Active Tenders</h1>
           <p className="text-gray-600">View and manage active tender opportunities with AI-powered insights</p>
         </div>
+        <Button
+          onClick={() => window.location.href = '/admin-settings'}
+          className="flex items-center gap-2"
+          data-testid="button-upload-tenders"
+        >
+          <Upload className="h-4 w-4" />
+          Upload Tenders
+        </Button>
       </div>
 
       {/* Statistics Cards */}
