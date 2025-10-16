@@ -1,6 +1,6 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
-// import { setupVite, serveStatic, log } from "./vite"; // Disabled due to Vite dependency issues
+import { setupVite, serveStatic, log } from "./vite";
 import path from 'path';
 import { corsMiddleware, apiMiddleware, apiErrorHandler } from "./middleware";
 
@@ -88,61 +88,20 @@ app.use((req, res, next) => {
   // Add API error handler before static serving
   app.use(apiErrorHandler);
 
-  // Setup static serving or Vite dev mode
-  if (process.env.NODE_ENV === "production") {
-    // Production: serve static files and handle client-side routing
-    app.use(express.static(path.join(process.cwd(), 'dist', 'public')));
-    app.get('*', (req: Request, res: Response) => {
-      if (req.path.startsWith('/api/')) {
-        res.status(404).json({ error: 'API endpoint not found' });
-      } else {
-        res.sendFile(path.join(process.cwd(), 'dist', 'public', 'index.html'));
-      }
-    });
-  } else {
-    // Development: configure MIME types and serve static files properly
-    app.use((req, res, next) => {
-      if (req.path.endsWith('.js') || req.path.endsWith('.mjs')) {
-        res.type('application/javascript');
-      } else if (req.path.endsWith('.ts') || req.path.endsWith('.tsx')) {
-        res.type('application/javascript');
-      } else if (req.path.endsWith('.css')) {
-        res.type('text/css');
-      } else if (req.path.endsWith('.html')) {
-        res.type('text/html');
-      }
-      next();
-    });
-    
-    // Serve static files with proper MIME types
-    app.use('/src', express.static(path.join(process.cwd(), 'client/src'), {
-      setHeaders: (res, path) => {
-        if (path.endsWith('.ts') || path.endsWith('.tsx')) {
-          res.set('Content-Type', 'application/javascript');
-        }
-      }
-    }));
-    app.use('/client', express.static(path.join(process.cwd(), 'client')));
-    
-    // Serve the test page to demonstrate fixes
-    app.get('*', (req: Request, res: Response) => {
-      if (req.path.startsWith('/api/')) {
-        res.status(404).json({ error: 'API endpoint not found' });
-      } else {
-        // Serve the test page that demonstrates the fixes
-        res.sendFile(path.join(process.cwd(), 'client', 'simple-test.html'));
-      }
-    });
-  }
-
   // ALWAYS serve the app on the port specified in the environment variable PORT
   // Other ports are firewalled. Default to 80 if not specified.
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
   const port = parseInt(process.env.PORT || '5000', 10);
-  app.listen(port, "0.0.0.0", () => {
+  const httpServer = app.listen(port, "0.0.0.0", () => {
     console.log(`✅ BMS Server running on port ${port}`);
     console.log(`🌐 Access: http://0.0.0.0:${port}`);
-    console.log(`🔧 Database fixes applied - UUID casting resolved`);
   });
+
+  // Setup Vite or static serving after server is listening
+  if (process.env.NODE_ENV === "production") {
+    serveStatic(app);
+  } else {
+    await setupVite(app, httpServer);
+  }
 })();

@@ -370,7 +370,7 @@ export default function ActiveTendersPage() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600">High Value (>₹1Cr)</p>
+                <p className="text-sm text-gray-600">High Value ({'>'}₹1Cr)</p>
                 <p className="text-2xl font-bold text-purple-600">{stats.highValue}</p>
               </div>
               <DollarSign className="h-8 w-8 text-purple-500" />
@@ -427,7 +427,7 @@ export default function ActiveTendersPage() {
               <SelectContent>
                 <SelectItem value="all">All Locations</SelectItem>
                 {locations.map(location => (
-                  <SelectItem key={location} value={location}>{location}</SelectItem>
+                  <SelectItem key={location || ''} value={location || ''}>{location}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -554,7 +554,7 @@ export default function ActiveTendersPage() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => window.open(tender.link, '_blank')}
+                          onClick={() => window.open(tender.link || '', '_blank')}
                         >
                           <ExternalLink className="h-4 w-4" />
                         </Button>
