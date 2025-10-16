@@ -33,7 +33,7 @@ import { authenticateToken, optionalAuth, requireRole, generateToken, generateSe
 import { validateRequest, validateQuery, loginSchema, createTenderSchema, updateTenderSchema, assignTenderSchema } from './validation.js';
 import jwt from 'jsonwebtoken';
 import OpenAI from 'openai';
-// import { processExcelFileFixed } from './excel-processor-fixed.js'; // Temporarily disabled due to XLSX dependency issue
+import { processExcelFileFixed } from './excel-processor-fixed.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
@@ -243,6 +243,63 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
     req.on('close', () => {
       uploadClients.delete(sessionId);
     });
+  });
+
+  // Excel upload route for Admin Settings page
+  app.post("/api/excel-uploads", uploadExcel.single('excelFile'), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+
+      const uploadedBy = req.body.uploadedBy || "admin";
+      const sessionId = Date.now().toString();
+      console.log(`Processing Excel upload: ${req.file.originalname} (Session: ${sessionId})`);
+
+      // Initialize progress tracking
+      uploadProgress.set(sessionId, { 
+        processed: 0, duplicates: 0, total: 0, percentage: 0,
+        gemAdded: 0, nonGemAdded: 0, errors: 0 
+      });
+
+      // Process Excel file
+      const result = await processExcelFileFixed(req.file.path, sessionId, (progress: any) => {
+        uploadProgress.set(sessionId, progress);
+        const client = uploadClients.get(sessionId);
+        if (client) {
+          client.write(`data: ${JSON.stringify(progress)}\n\n`);
+        }
+      });
+
+      // Create upload record in database
+      const [uploadRecord] = await db
+        .insert(excelUploads)
+        .values({
+          filename: req.file.filename,
+          originalName: req.file.originalname,
+          tendersProcessed: result.processed || 0,
+          duplicatesSkipped: result.duplicates || 0,
+          status: 'completed'
+        })
+        .returning();
+
+      res.json({
+        message: "Upload successful",
+        tendersImported: result.processed || 0,
+        duplicatesSkipped: result.duplicates || 0,
+        sheetsProcessed: result.sheetsProcessed || 1,
+        gemAdded: result.gemAdded || 0,
+        nonGemAdded: result.nonGemAdded || 0,
+        uploadRecord
+      });
+
+    } catch (error: any) {
+      console.error('Excel upload error:', error);
+      res.status(500).json({ 
+        error: 'Failed to process Excel file',
+        details: error.message 
+      });
+    }
   });
 
   // Upload tenders via Excel file (Active Tenders)
