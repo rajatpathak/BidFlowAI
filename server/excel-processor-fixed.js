@@ -295,6 +295,8 @@ export async function processExcelFileFixed(filePath, sessionId, progressCallbac
 
       } catch (error) {
         console.error(`❌ Error processing row ${i + 1}:`, error.message);
+        console.error(`   Row data:`, JSON.stringify(row).substring(0, 200));
+        console.error(`   Full error:`, error.stack);
         errors++;
       }
     }
