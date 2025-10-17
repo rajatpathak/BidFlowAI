@@ -48,6 +48,13 @@ type Tender = {
   createdAt: string;
 };
 
+type TenderStats = {
+  todayTenders?: number;
+  activeTenders?: number;
+  closedTenders?: number;
+  totalTenders?: number;
+};
+
 export default function ActiveTendersEnhanced() {
   const { toast } = useToast();
   
@@ -87,7 +94,7 @@ export default function ActiveTendersEnhanced() {
   const { user } = useAuth();
 
   // Fetch statistics
-  const { data: stats } = useQuery({
+  const { data: stats } = useQuery<TenderStats>({
     queryKey: ["/api/tenders/stats"],
   });
 
