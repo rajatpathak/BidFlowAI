@@ -1,57 +1,11 @@
 # Bid Management System (BMS)
 
 ## Overview
-The Bid Management System (BMS) is a comprehensive full-stack web application designed for end-to-end tender lifecycle management. It enables discovery, analysis, bid creation, finance management, meeting coordination, and approval workflows. The system incorporates AI-powered insights for strategic decision-making, aiming to streamline tender processes, enhance efficiency, and improve bid success rates.
+The Bid Management System (BMS) is a comprehensive full-stack web application for end-to-end tender lifecycle management. It facilitates tender discovery, analysis, bid creation, financial management, meeting coordination, and approval workflows. The system leverages AI for strategic decision-making to streamline processes, enhance efficiency, and improve bid success rates, providing a competitive edge in tender acquisition.
 
 ## User Preferences
 Preferred communication style: Simple, everyday language.
 Project Architecture: Clean, simple, and scalable structure with consolidated codebase for easier deployment and maintenance.
-
-## Recent Changes (October 17, 2025)
-
-### Critical Bug Fixes and Feature Enhancements (October 17, 2025)
-- **CRITICAL FIX - Assign Tender Functionality (October 17, 2025)**: Resolved critical bug where assign tender route was looking up users by ID instead of username. The route now correctly queries `WHERE username = ${assignedTo}` instead of `WHERE id = ${assignedTo}`, fixing 500 errors during tender assignment.
-- **Excel Upload Success Message Fixed (October 17, 2025)**: Fixed route to correctly extract statistics from `result.stats` object and properly calculate new entries added, showing accurate counts in success messages.
-- **Real-time Progress Bar SSE Connection (October 17, 2025)**: Fixed Server-Sent Events connection by using client-provided sessionId from `req.body.sessionId` instead of generating new one, enabling live progress updates during Excel uploads.
-- **Upload History Display (October 17, 2025)**: Added GET `/api/excel-uploads` endpoint to fetch and display upload history records in Admin Settings with proper column mapping from snake_case to camelCase.
-- **Corrigendum Visual Indicator (October 17, 2025)**: Added red dot indicator for tenders containing "corrigendum" in title (case-insensitive) for easy identification of tender amendments.
-- **Database Schema Enhancement (October 17, 2025)**: Added `referenceNumber` text field to tenders table for T247 ID tracking and unique tender identification across Excel imports.
-
-## Recent Changes (August 3, 2025)
-
-### Production Code Structure & Database Schema Improvements (August 3, 2025)
-- **Enhanced Database Schema (August 3, 2025)**: Completely redesigned database schema with improved relationships, constraints, and performance optimizations. Added comprehensive enums for better type safety (user_role, tender_status, tender_source, priority, approval_status). Enhanced tables with better data types (decimal for currency, proper varchar lengths), added missing columns (reference_number, estimated_value, currency, win_probability), and implemented comprehensive indexing strategy for optimal query performance.
-- **Production-Ready Server Architecture (August 3, 2025)**: Restructured server code with proper separation of concerns using controller pattern, service layer for business logic, and modular route organization. Created TenderController and UserController with comprehensive CRUD operations, pagination, filtering, and search capabilities.
-- **Advanced Analytics & Reporting System (August 3, 2025)**: Implemented DatabaseService with comprehensive analytics including tender performance metrics, user activity tracking, finance overview, document analytics, and system health monitoring. Added real-time dashboard with trend analysis, status distributions, and key performance indicators.
-- **Enhanced Security & Performance (August 3, 2025)**: Added security middleware (helmet, rate limiting), compression, enhanced CORS configuration, and comprehensive error handling. Implemented audit logging system for complete activity tracking and compliance requirements.
-- **Database Migration Script (August 3, 2025)**: Created comprehensive migration script to upgrade existing database to enhanced schema with proper constraint handling, data type conversions, and index creation for improved performance.
-
-### Previous Critical Fixes (August 3, 2025)
-- **CRITICAL DATABASE FIX - UUID Casting Error Resolved (August 3, 2025)**: Successfully diagnosed and fixed the persistent "operator does not exist: text = uuid" database error that was breaking the `/api/tenders` endpoint. The issue was caused by problematic JOIN operations between `tenders.assigned_to` (text) and `users.id` (uuid) fields. Applied comprehensive fixes to both `server/routes.ts` and `server/clean-routes.ts` using proper Drizzle ORM queries without type casting conflicts. Created production deployment script `production-start.js` with complete database fix implementation ready for deployment.
-- **Production Port 5000 Routing Fixed (August 3, 2025)**: Verified and confirmed all page routes work correctly for production deployment on port 5000, with proper API endpoints (/api/health, /api/tenders, etc.) and client-side routing fallback to index.html for SPA functionality.
-- **GeM/Non-GeM Categorization Fixed (August 3, 2025)**: Corrected Excel processor to accurately categorize tenders based on exact sheet names ("GeM Tenders" vs "Non-GeM Tenders") instead of partial text matching, ensuring proper source classification for 1,036 GeM and 1,249 Non-GeM tenders.
-- **Real-time Progress Bar with Detailed Statistics (August 3, 2025)**: Implemented comprehensive real-time progress tracking showing detailed tender import statistics including GeM/Non-GeM counts, duplicates skipped, and failed records with animated visual feedback and Server-Sent Events integration.
-- **Excel Upload Functionality Completely Fixed (August 3, 2025)**: Successfully resolved all Excel upload issues by fixing XLSX library import errors, created working Excel processor with proper XLSX support, and implemented real-time progress tracking via Server-Sent Events.
-- **Tender List Action Buttons Restored (August 3, 2025)**: Fully restored tender list functionality with assign, mark not relevant, external link, view details, and delete buttons with proper dialog modals and user role permissions.
-- **Frontend Page Loading Fixed (August 3, 2025)**: Fixed React component crashes by creating simplified active-tenders page with correct imports, resolving "Something went wrong" errors and enabling proper page functionality.
-- **Upload System Enhanced (August 3, 2025)**: Implemented comprehensive upload system supporting both Excel (.xlsx, .xls) and CSV files with duplicate detection, real-time progress updates, and automatic data refresh.
-- **Production Deployment Scripts (August 3, 2025)**: Created production deployment scripts that properly build and copy static files for server hosting.
-
-## Previous Changes (August 2, 2025)
-- **Replit Migration Completed (August 2, 2025)**: Successfully migrated BMS project from Replit Agent to standard Replit environment. Fixed dependency installation issues, created PostgreSQL database, resolved UUID comparison errors in activity logging, and added missing db:seed script for production deployments.
-
-## Previous Changes (August 1, 2025)
-- **Project Restructure**: Cleaned up project structure by removing duplicate directories and unused files
-- **Simplified Architecture**: Created consolidated route handlers and removed complex scattered server files
-- **Clean Image Upload**: Fixed image upload functionality with proper multer configuration and file serving
-- **Deployment Ready**: Streamlined codebase for easier server deployment and maintenance
-- **Complete Deployment Suite**: Added comprehensive deployment configurations including Docker, PM2, GitHub Actions, and manual server setup
-- **Production Security**: Enhanced server configuration with security headers, CORS, and graceful shutdown handling
-- **Bid Document Management**: Added comprehensive bid document management system as sub-tab in tender view with create, edit, delete, and workflow capabilities
-- **Admin Document Management**: Enhanced admin settings with comprehensive bid document oversight including workflow management, document statistics, and approval controls
-- **Centralized Document Library**: Added folder-based document organization system in admin interface for company documents accessible by bidders and AI systems
-- **Replit Deployment Fix (FINAL SOLUTION - August 1, 2025)**: Successfully resolved Replit deployment error "Run command contains 'dev' which is blocked for security reasons". Created `replit-deploy.js` production deployment script that automatically builds and starts the server without using any dev commands. Production build tested and verified working (816KB JS, 78KB CSS, 140KB server bundle). The solution includes manual configuration instructions since the `.replit` file cannot be programmatically modified. User must manually change the deployment run command from `npm run dev` to `node replit-deploy.js` in Replit deployment settings.
-- **Enhanced VPS Deployment Configuration (August 1, 2025)**: Completely updated VPS deployment configurations with improved Docker setup, optimized PM2 cluster mode, enhanced security with Nginx rate limiting and security headers, automated GitHub Actions deployment pipeline, and comprehensive deployment scripts with health checks and rollback capabilities.
 
 ## System Architecture
 
@@ -67,11 +21,11 @@ Project Architecture: Clean, simple, and scalable structure with consolidated co
 ### Backend
 - **Runtime**: Node.js with Express.js
 - **Language**: TypeScript with ES modules
-- **Database ORM**: Drizzle ORM with PostgreSQL
+- **Database ORM**: Drizzle ORM
 - **File Uploads**: Multer with local storage
 - **AI Integration**: OpenAI API
-- **Authentication**: Simple JWT-based authentication for demo purposes
-- **Architecture**: Clean modular route structure for easy maintenance and deployment
+- **Authentication**: Simple JWT-based authentication
+- **Architecture**: Clean, modular route structure with a controller pattern and service layer for business logic.
 
 ### Data Storage
 - **Primary Database**: PostgreSQL (via Neon serverless for production), with a user preference to migrate to MySQL.
@@ -80,13 +34,17 @@ Project Architecture: Clean, simple, and scalable structure with consolidated co
 - **File Storage**: Local filesystem (`uploads/` directory)
 
 ### Core System Features
-- **Database Schema**: Comprehensive schema including Users, Tenders, AI Recommendations, Documents, Analytics, Meetings, Finance Requests, Approvals, Tender Assignments, Reminders, Tender Results, Checklists, Departments & Roles.
+- **Comprehensive Database Schema**: Includes Users, Tenders, AI Recommendations, Documents, Analytics, Meetings, Finance Requests, Approvals, Tender Assignments, Reminders, Tender Results, Checklists, Departments & Roles.
 - **AI Services**: Tender analysis, bid optimization, pricing intelligence, and risk assessment using OpenAI.
-- **Workflow Management**: Multi-level approval workflows for finance requests and 'not relevant' tender submissions.
-- **Data Import**: Robust Excel upload functionality with multi-sheet support, smart column mapping, duplicate detection, and progress tracking.
-- **Activity Logging**: Detailed audit trail for all tender modifications, assignments, and workflow actions with username display.
-- **Missed Opportunities**: Intelligent system for tracking and managing expired tenders.
+- **Workflow Management**: Multi-level approval workflows for finance requests and tender submissions.
+- **Advanced Tender Filtering**: Comprehensive filtering system for active tenders including search by ID/keyword, organization ID, category, state, city, ownership, department, closing date, website, quantity, tender value, GeM/Non-GeM, MSME/Startup exemption, AI Summary, and BOQ.
+- **Real-time Statistics & Display**: Dashboard cards for tender statistics, filterable status tabs, smart sorting options, and enhanced tender cards with bid value, EMD, days left, corrigendum indicators, and quick actions.
+- **Robust Data Import**: Excel upload functionality with multi-sheet support, smart column mapping, duplicate detection, real-time progress tracking via Server-Sent Events, and detailed import statistics.
+- **Activity Logging**: Detailed audit trail for tender modifications, assignments, and workflow actions.
+- **Missed Opportunities**: System for tracking and managing expired tenders.
 - **User Management**: Dynamic user role management and permission-based access control.
+- **Bid Document Management**: Comprehensive system for managing bid documents within tender views and central library.
+- **Production-Ready Architecture**: Restructured server for separation of concerns, enhanced security (helmet, rate limiting, CORS), compression, comprehensive error handling, and audit logging.
 
 ## External Dependencies
 
@@ -96,36 +54,3 @@ Project Architecture: Clean, simple, and scalable structure with consolidated co
 - **@radix-ui/***: Accessible UI component primitives.
 - **openai**: Official OpenAI API client.
 - **xlsx**: Library for Excel file parsing and data extraction.
-
-## Production Deployment Configuration
-
-### Replit Deployment Error Resolution (FINAL - August 1, 2025)
-Successfully resolved the deployment security error: "Run command contains 'dev' which is blocked for security reasons"
-
-**Applied Fixes:**
-1. ✅ **Smart Deployment Script**: Created `replit-deploy.js` - production script that auto-builds and starts server
-2. ✅ **Production Build**: Optimized build with `npm run build` (816KB JS, 78KB CSS, 140KB server bundle)
-3. ✅ **Environment Configuration**: Proper `NODE_ENV=production` and port settings
-4. ✅ **Security Compliance**: No development commands used in production deployment
-5. ✅ **Manual Configuration Required**: Since `.replit` file cannot be modified programmatically
-
-### Deployment Commands
-- **Recommended**: `node replit-deploy.js` (auto-builds if needed, production-ready)
-- **Alternative**: `npm start` (requires manual build first)
-- **Build**: `npm run build` (creates optimized production bundle)
-
-### Manual Steps Required
-User must manually update Replit deployment settings:
-1. Go to Deploy tab in Replit
-2. Change run command from `npm run dev` to `node replit-deploy.js`
-3. Set environment variables: `NODE_ENV=production`, `PORT=5000`
-
-### Files Created
-- `replit-deploy.js` - Smart deployment script with auto-build
-- `DEPLOYMENT_INSTRUCTIONS.md` - Complete manual configuration guide
-
-### Deployment Status ✅
-- Production build tested and verified working
-- Deployment script functional with graceful shutdown
-- Manual configuration instructions provided
-- Ready for Replit deployment once user updates settings
