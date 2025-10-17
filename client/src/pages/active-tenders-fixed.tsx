@@ -514,7 +514,12 @@ export default function ActiveTendersPage() {
                   </TableCell>
                   <TableCell>
                     <div className="max-w-xs">
-                      <p className="font-medium truncate">{tender.title}</p>
+                      <div className="flex items-center gap-2">
+                        {tender.title.toLowerCase().includes('corrigendum') && (
+                          <div className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0" title="Corrigendum" />
+                        )}
+                        <p className="font-medium truncate">{tender.title}</p>
+                      </div>
                       {tender.referenceNumber && (
                         <p className="text-xs text-gray-500">{tender.referenceNumber}</p>
                       )}

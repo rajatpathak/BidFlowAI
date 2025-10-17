@@ -245,6 +245,22 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
     });
   });
 
+  // Get Excel upload history
+  app.get("/api/excel-uploads", async (req, res) => {
+    try {
+      const uploads = await db
+        .select()
+        .from(excelUploads)
+        .orderBy(sql`${excelUploads.uploadedAt} DESC`)
+        .limit(50);
+      
+      res.json(uploads);
+    } catch (error: any) {
+      console.error('Failed to fetch excel uploads:', error);
+      res.status(500).json({ error: 'Failed to fetch upload history' });
+    }
+  });
+
   // Excel upload route for Admin Settings page
   app.post("/api/excel-uploads", uploadExcel.single('excelFile'), async (req, res) => {
     try {
@@ -253,7 +269,7 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
       }
 
       const uploadedBy = req.body.uploadedBy || "admin";
-      const sessionId = Date.now().toString();
+      const sessionId = req.body.sessionId || Date.now().toString();
       console.log(`Processing Excel upload: ${req.file.originalname} (Session: ${sessionId})`);
 
       // Initialize progress tracking
@@ -272,24 +288,27 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
       });
 
       // Create upload record in database
+      const stats = result.stats || result;
+      const newEntriesAdded = (stats.gemAdded || 0) + (stats.nonGemAdded || 0);
+      
       const [uploadRecord] = await db
         .insert(excelUploads)
         .values({
           filename: req.file.filename,
           originalName: req.file.originalname,
-          tendersProcessed: result.processed || 0,
-          duplicatesSkipped: result.duplicates || 0,
+          tendersProcessed: stats.processed || 0,
+          duplicatesSkipped: stats.duplicates || 0,
           status: 'completed'
         })
         .returning();
 
       res.json({
-        message: "Upload successful",
-        tendersImported: result.processed || 0,
-        duplicatesSkipped: result.duplicates || 0,
+        message: `Upload successful! ${newEntriesAdded} new tenders added, ${stats.duplicates || 0} duplicates skipped`,
+        tendersImported: newEntriesAdded,
+        duplicatesSkipped: stats.duplicates || 0,
         sheetsProcessed: result.sheetsProcessed || 1,
-        gemAdded: result.gemAdded || 0,
-        nonGemAdded: result.nonGemAdded || 0,
+        gemAdded: stats.gemAdded || 0,
+        nonGemAdded: stats.nonGemAdded || 0,
         uploadRecord
       });
 
@@ -1020,12 +1039,12 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
         WHERE id = ${tenderId}
       `);
       
-      // Get assignee name for logging
+      // Get assignee name for logging (assignedTo is username/role, not ID)
       const [assignee] = await db.execute(sql`
-        SELECT name FROM users WHERE id = ${assignedTo} LIMIT 1
+        SELECT name FROM users WHERE username = ${assignedTo} LIMIT 1
       `);
       
-      const assigneeName = assignee?.name || 'Unknown User';
+      const assigneeName = assignee?.name || assignedTo;
       
       // Log the assignment activity
       const description = `Tender assigned to ${assigneeName}${priority ? ` with priority: ${priority}` : ''}${budget ? `, Budget: ₹${budget}` : ''}`;
