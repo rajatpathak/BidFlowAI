@@ -7,6 +7,16 @@ The Bid Management System (BMS) is a comprehensive full-stack web application de
 Preferred communication style: Simple, everyday language.
 Project Architecture: Clean, simple, and scalable structure with consolidated codebase for easier deployment and maintenance.
 
+## Recent Changes (October 17, 2025)
+
+### Critical Bug Fixes and Feature Enhancements (October 17, 2025)
+- **CRITICAL FIX - Assign Tender Functionality (October 17, 2025)**: Resolved critical bug where assign tender route was looking up users by ID instead of username. The route now correctly queries `WHERE username = ${assignedTo}` instead of `WHERE id = ${assignedTo}`, fixing 500 errors during tender assignment.
+- **Excel Upload Success Message Fixed (October 17, 2025)**: Fixed route to correctly extract statistics from `result.stats` object and properly calculate new entries added, showing accurate counts in success messages.
+- **Real-time Progress Bar SSE Connection (October 17, 2025)**: Fixed Server-Sent Events connection by using client-provided sessionId from `req.body.sessionId` instead of generating new one, enabling live progress updates during Excel uploads.
+- **Upload History Display (October 17, 2025)**: Added GET `/api/excel-uploads` endpoint to fetch and display upload history records in Admin Settings with proper column mapping from snake_case to camelCase.
+- **Corrigendum Visual Indicator (October 17, 2025)**: Added red dot indicator for tenders containing "corrigendum" in title (case-insensitive) for easy identification of tender amendments.
+- **Database Schema Enhancement (October 17, 2025)**: Added `referenceNumber` text field to tenders table for T247 ID tracking and unique tender identification across Excel imports.
+
 ## Recent Changes (August 3, 2025)
 
 ### Production Code Structure & Database Schema Improvements (August 3, 2025)
