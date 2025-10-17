@@ -977,35 +977,68 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
     }
   });
 
-  // Get all tenders with optional missed opportunities and assigned user names
+  // Get all tenders with comprehensive filtering
   app.get("/api/tenders", async (req, res) => {
     try {
-      const { includeMissedOpportunities } = req.query;
+      const { 
+        includeMissedOpportunities,
+        search,
+        organization,
+        source,
+        minValue,
+        maxValue,
+        closingFrom,
+        closingTo,
+        status: filterStatus,
+        sortBy,
+        sortOrder
+      } = req.query;
       
-      // Use drizzle ORM select with conditional where clause
-      const baseQuery = db.select().from(tenders);
+      // Build base query with Drizzle
+      let baseQuery = db.select().from(tenders);
       
-      let result;
-      if (includeMissedOpportunities === 'true') {
-        result = await baseQuery.orderBy(tenders.deadline);
-      } else {
-        result = await baseQuery.where(ne(tenders.status, 'missed_opportunity')).orderBy(tenders.deadline);
+      // Apply filters using Drizzle where conditions
+      const whereConditions = [];
+      
+      // Exclude missed opportunities by default
+      if (includeMissedOpportunities !== 'true') {
+        whereConditions.push(ne(tenders.status, 'missed_opportunity'));
       }
       
-      console.log(`API tenders query result type:`, typeof result);
-      console.log(`Result is array:`, Array.isArray(result));
-      console.log(`Found ${result?.length || 0} tenders`);
+      // Build comprehensive SQL query with all filters
+      const searchTerm = search ? `%${search}%` : null;
+      const orgPattern = organization ? `%${organization}%` : null;
       
-      // Ensure result is always an array
-      const tendersArray = Array.isArray(result) ? result : [];
+      const result = await db.execute(sql`
+        SELECT * FROM tenders 
+        WHERE 1=1
+        ${includeMissedOpportunities !== 'true' ? sql`AND status != 'missed_opportunity'` : sql``}
+        ${searchTerm ? sql`AND (
+          reference_number ILIKE ${searchTerm} OR
+          title ILIKE ${searchTerm} OR
+          organization ILIKE ${searchTerm} OR
+          description ILIKE ${searchTerm}
+        )` : sql``}
+        ${orgPattern ? sql`AND organization ILIKE ${orgPattern}` : sql``}
+        ${source && source !== 'all' ? sql`AND source = ${source}` : sql``}
+        ${minValue ? sql`AND value >= ${parseInt(minValue as string) * 100000}` : sql``}
+        ${maxValue ? sql`AND value <= ${parseInt(maxValue as string) * 100000}` : sql``}
+        ${closingFrom ? sql`AND deadline >= ${closingFrom}` : sql``}
+        ${closingTo ? sql`AND deadline <= ${closingTo}` : sql``}
+        ${filterStatus && filterStatus !== 'all' ? sql`AND status = ${filterStatus}` : sql``}
+        ORDER BY ${sortBy === 'value' ? sql`value` : sortBy === 'aiScore' ? sql`ai_score` : sql`deadline`} 
+        ${sortOrder === 'desc' ? sql`DESC` : sql`ASC`}
+      `);
       
-      // Process requirements field to ensure it's properly formatted
+      // Extract rows from Drizzle Postgres result
+      const tendersArray = Array.isArray(result) ? result : (result?.rows || []);
+      
+      console.log(`Found ${tendersArray.length} tenders`);
+      
       const tendersWithNames = tendersArray.map(row => ({
         ...row,
         requirements: Array.isArray(row.requirements) ? row.requirements : 
-                     (typeof row.requirements === 'string' ? 
-                      (row.requirements.startsWith('[') ? JSON.parse(row.requirements) : []) : 
-                      [])
+                     (typeof row.requirements === 'string' && row.requirements.startsWith('[') ? JSON.parse(row.requirements) : [])
       }));
       
       res.json(tendersWithNames);
@@ -1073,6 +1106,54 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
       res.json(stats);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch dashboard stats" });
+    }
+  });
+
+  // Get tender statistics for active tenders page
+  app.get("/api/tenders/stats", async (req, res) => {
+    try {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+
+      // Today's tenders
+      const [todayCount] = await db.execute(sql`
+        SELECT COUNT(*) as count 
+        FROM tenders 
+        WHERE DATE(created_at) = CURRENT_DATE
+      `);
+
+      // Active tenders (not missed opportunities)
+      const [activeCount] = await db.execute(sql`
+        SELECT COUNT(*) as count 
+        FROM tenders 
+        WHERE status != 'missed_opportunity'
+      `);
+
+      // Closed/Submitted tenders
+      const [closedCount] = await db.execute(sql`
+        SELECT COUNT(*) as count 
+        FROM tenders 
+        WHERE status IN ('submitted', 'won', 'lost')
+      `);
+
+      // Interested tenders (assigned)
+      const [interestedCount] = await db.execute(sql`
+        SELECT COUNT(*) as count 
+        FROM tenders 
+        WHERE assigned_to IS NOT NULL
+      `);
+
+      res.json({
+        todayTenders: parseInt(todayCount?.count || 0),
+        activeTenders: parseInt(activeCount?.count || 0),
+        closedTenders: parseInt(closedCount?.count || 0),
+        interestedTenders: parseInt(interestedCount?.count || 0)
+      });
+    } catch (error) {
+      console.error("Tender stats error:", error);
+      res.status(500).json({ error: "Failed to fetch tender stats" });
     }
   });
 
