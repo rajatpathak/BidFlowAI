@@ -645,8 +645,8 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
       
       // Add activity log before deletion
       await db.execute(sql`
-        INSERT INTO activity_logs (id, tender_id, activity_type, description, created_by, created_at)
-        VALUES (gen_random_uuid(), ${id}, 'tender_deleted', ${'Tender deleted: ' + tenderTitle}, 'System User', NOW())
+        INSERT INTO activity_logs (id, tender_id, action, details, created_at)
+        VALUES (gen_random_uuid(), ${id}, 'tender_deleted', ${JSON.stringify({ description: 'Tender deleted: ' + tenderTitle, created_by: 'System User' })}, NOW())
       `);
       
       // Delete tender
@@ -671,8 +671,8 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
       
       // Add activity log with username
       await db.execute(sql`
-        INSERT INTO activity_logs (id, tender_id, activity_type, description, created_by, created_at)
-        VALUES (gen_random_uuid(), ${id}, 'marked_not_relevant', ${'Tender marked as not relevant. Reason: ' + (reason || 'No reason provided')}, 'System User', NOW())
+        INSERT INTO activity_logs (id, tender_id, action, details, created_at)
+        VALUES (gen_random_uuid(), ${id}, 'marked_not_relevant', ${JSON.stringify({ description: 'Tender marked as not relevant. Reason: ' + (reason || 'No reason provided'), created_by: 'System User' })}, NOW())
       `);
       
       res.json({ success: true, message: "Tender marked as not relevant" });
@@ -706,8 +706,8 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
       
       // Add activity log
       await db.execute(sql`
-        INSERT INTO activity_logs (id, tender_id, activity_type, description, created_by, created_at)
-        VALUES (gen_random_uuid(), ${id}, 'not_relevant_requested', ${`Not relevant request submitted for admin approval. Reason: ${reason}`}, ${user.name}, NOW())
+        INSERT INTO activity_logs (id, tender_id, action, details, created_at)
+        VALUES (gen_random_uuid(), ${id}, 'not_relevant_requested', ${JSON.stringify({ description: `Not relevant request submitted for admin approval. Reason: ${reason}`, created_by: user.name })}, NOW())
       `);
       
       res.json({ success: true, message: "Not relevant request submitted for admin approval" });
@@ -762,10 +762,9 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
 
       // Log the activity
       await db.execute(sql`
-        INSERT INTO activity_logs (id, tender_id, activity_type, description, created_by, created_at)
+        INSERT INTO activity_logs (id, tender_id, action, details, created_at)
         VALUES (gen_random_uuid(), ${id}, ${'not_relevant_' + action + 'd'}, 
-        ${`Not relevant request ${action}d by admin${comments ? `. Comments: ${comments}` : ''}`}, 
-        ${user.name}, NOW())
+        ${JSON.stringify({ description: `Not relevant request ${action}d by admin${comments ? `. Comments: ${comments}` : ''}`, created_by: user.name })}, NOW())
       `);
 
       res.json({ success: true, message: `Not relevant request ${action}d successfully` });
@@ -849,8 +848,8 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
 
       // Log the activity
       await db.execute(sql`
-        INSERT INTO activity_logs (id, tender_id, activity_type, description, created_by, created_at)
-        VALUES (gen_random_uuid(), ${id}, 'document_uploaded', ${`RFP documents uploaded: ${uploadedFiles.map(f => f.originalname).join(', ')}`}, 'System User', NOW())
+        INSERT INTO activity_logs (id, tender_id, action, details, created_at)
+        VALUES (gen_random_uuid(), ${id}, 'document_uploaded', ${JSON.stringify({ description: `RFP documents uploaded: ${uploadedFiles.map(f => f.originalname).join(', ')}`, created_by: 'System User' })}, NOW())
       `);
 
       // Update tender status to 'assigned' if it was 'active'
@@ -1032,8 +1031,8 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
       const description = `Tender assigned to ${assigneeName}${priority ? ` with priority: ${priority}` : ''}${budget ? `, Budget: ₹${budget}` : ''}`;
       
       await db.execute(sql`
-        INSERT INTO activity_logs (id, tender_id, activity_type, description, created_by, created_at, details)
-        VALUES (gen_random_uuid(), ${tenderId}, 'tender_assigned', ${description}, ${assignedBy || 'System'}, NOW(), ${JSON.stringify({ assignedTo, assigneeName, priority, budget, notes })})
+        INSERT INTO activity_logs (id, tender_id, action, details, created_at)
+        VALUES (gen_random_uuid(), ${tenderId}, 'tender_assigned', ${JSON.stringify({ description, created_by: assignedBy || 'System', assignedTo, assigneeName, priority, budget, notes })}, NOW())
       `);
       
       res.json({ 
@@ -1661,10 +1660,9 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
       
       // Add activity log for assignment update
       await db.execute(sql`
-        INSERT INTO activity_logs (id, tender_id, activity_type, description, created_by, created_at)
+        INSERT INTO activity_logs (id, tender_id, action, details, created_at)
         VALUES (gen_random_uuid(), ${updatedAssignment.tenderId}, 'assignment_updated', 
-                ${'Assignment updated - Priority: ' + priority + ', Budget: ₹' + (budget || 'Not specified') + ', Status: ' + (status || 'assigned')}, 
-                'System User', NOW())
+                ${JSON.stringify({ description: 'Assignment updated - Priority: ' + priority + ', Budget: ₹' + (budget || 'Not specified') + ', Status: ' + (status || 'assigned'), created_by: 'System User' })}, NOW())
       `);
       
       res.json(updatedAssignment);
@@ -1688,10 +1686,9 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
 
       // Add activity log before removing assignment
       await db.execute(sql`
-        INSERT INTO activity_logs (id, tender_id, activity_type, description, created_by, created_at)
+        INSERT INTO activity_logs (id, tender_id, action, details, created_at)
         VALUES (gen_random_uuid(), ${assignment.tenderId}, 'assignment_removed', 
-                'Assignment removed and tender returned to active status', 
-                'System User', NOW())
+                ${JSON.stringify({ description: 'Assignment removed and tender returned to active status', created_by: 'System User' })}, NOW())
       `);
       
       // Delete the assignment
@@ -1867,8 +1864,8 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
       const activityDescription = `Documents uploaded: ${files.map(f => f.originalname).join(', ')}`;
       
       await db.execute(sql`
-        INSERT INTO activity_logs (id, tender_id, activity_type, description, created_by, created_at)
-        VALUES (${randomUUID()}, ${tenderId}, 'document_uploaded', ${activityDescription}, 'bidder-uuid-003', NOW())
+        INSERT INTO activity_logs (id, tender_id, action, details, created_at)
+        VALUES (${randomUUID()}, ${tenderId}, 'document_uploaded', ${JSON.stringify({ description: activityDescription, created_by: 'bidder-uuid-003' })}, NOW())
       `);
 
       res.json({ 
