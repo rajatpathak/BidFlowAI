@@ -1021,8 +1021,8 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
         )` : sql``}
         ${orgPattern ? sql`AND organization ILIKE ${orgPattern}` : sql``}
         ${source && source !== 'all' ? sql`AND source = ${source}` : sql``}
-        ${minValue ? sql`AND value >= ${parseInt(minValue as string) * 100000}` : sql``}
-        ${maxValue ? sql`AND value <= ${parseInt(maxValue as string) * 100000}` : sql``}
+        ${minValue ? sql`AND value >= ${parseFloat(minValue as string) * 100000}` : sql``}
+        ${maxValue ? sql`AND value <= ${parseFloat(maxValue as string) * 100000}` : sql``}
         ${closingFrom ? sql`AND deadline >= ${closingFrom}` : sql``}
         ${closingTo ? sql`AND deadline <= ${closingTo}` : sql``}
         ${filterStatus && filterStatus !== 'all' ? sql`AND status = ${filterStatus}` : sql``}
