@@ -909,46 +909,66 @@ export default function AdminSettingsPage() {
           <Card>
             <CardHeader>
               <CardTitle>Upload History</CardTitle>
-              <CardDescription>View previous Excel upload attempts and results</CardDescription>
+              <CardDescription>Detailed history of Excel uploads with statistics</CardDescription>
             </CardHeader>
             <CardContent>
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>File Name</TableHead>
-                    <TableHead>Upload Date</TableHead>
-                    <TableHead>Sheets</TableHead>
-                    <TableHead>Tenders</TableHead>
+                    <TableHead>Timestamp</TableHead>
+                    <TableHead>Excel File Name</TableHead>
+                    <TableHead>New Entries</TableHead>
+                    <TableHead>Duplicates Rejected</TableHead>
+                    <TableHead>Total Processed</TableHead>
                     <TableHead>Status</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {excelUploads.map((upload) => (
-                    <TableRow key={upload.id}>
-                      <TableCell className="font-medium">{upload.fileName}</TableCell>
-                      <TableCell>
-                        {upload.uploadedAt ? new Date(upload.uploadedAt).toLocaleDateString() : "-"}
-                      </TableCell>
-                      <TableCell>{upload.sheetsProcessed || 0}</TableCell>
-                      <TableCell>{upload.tendersImported || 0}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          {getStatusIcon(upload.status)}
-                          <Badge
-                            variant={
-                              upload.status === "completed"
-                                ? "default"
-                                : upload.status === "failed"
-                                ? "destructive"
-                                : "secondary"
-                            }
-                          >
-                            {upload.status}
+                  {excelUploads.map((upload) => {
+                    const newEntries = (upload.tendersProcessed || 0) - (upload.duplicatesSkipped || 0);
+                    const uploadDate = upload.uploadedAt ? new Date(upload.uploadedAt) : null;
+                    const timestamp = uploadDate 
+                      ? `${uploadDate.toLocaleDateString()} ${uploadDate.toLocaleTimeString()}`
+                      : "-";
+                    
+                    return (
+                      <TableRow key={upload.id}>
+                        <TableCell className="text-sm">{timestamp}</TableCell>
+                        <TableCell className="font-medium max-w-xs truncate" title={upload.originalName}>
+                          {upload.originalName || upload.fileName}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="default" className="bg-green-600">
+                            {newEntries} added
                           </Badge>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="secondary" className="bg-orange-100 text-orange-700">
+                            {upload.duplicatesSkipped || 0} rejected
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <span className="font-medium">{upload.tendersProcessed || 0}</span>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            {getStatusIcon(upload.status)}
+                            <Badge
+                              variant={
+                                upload.status === "completed"
+                                  ? "default"
+                                  : upload.status === "failed"
+                                  ? "destructive"
+                                  : "secondary"
+                              }
+                            >
+                              {upload.status}
+                            </Badge>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </CardContent>

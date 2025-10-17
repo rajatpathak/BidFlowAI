@@ -110,12 +110,20 @@ export async function processExcelFileFixed(filePath, sessionId, progressCallbac
         processed++;
 
         // Clean and validate all fields with actual Excel field names
+        // Extract T247 ID as unique identifier
+        const t247Id = cleanValue(
+          row['T247 ID'] || row['T247ID'] || row['t247_id'] || row['T247_ID'] ||
+          row['Tender ID'] || row['TENDER_ID'] || row['tender_id'],
+          'string',
+          null
+        );
+
         const title = cleanValue(
           row['TENDER BRIEF'] || row.title || row.Title || row.TITLE || 
           row['Tender Title'] || row['tender_title'] || 
           row.name || row.Name || row.tenderTitle,
           'string', 
-          `Tender ${i + 1}`
+          t247Id ? `Tender ${t247Id}` : `Tender ${i + 1}`
         );
         
         const organization = cleanValue(
@@ -197,20 +205,30 @@ export async function processExcelFileFixed(filePath, sessionId, progressCallbac
           }
         }
 
-        // Check for duplicates by title and organization (skip if generic title)
+        // Check for duplicates by T247 ID (unique identifier)
         let existingTender = [];
-        if (title !== 'Untitled Tender' && !title.startsWith('Tender ')) {
+        if (t247Id) {
           existingTender = await db
             .select()
             .from(tenders)
-            .where(eq(tenders.title, title))
+            .where(eq(tenders.referenceNumber, t247Id))
             .limit(1);
         }
 
         if (existingTender.length > 0) {
           duplicates++;
-          console.log(`⚠️ Duplicate found: ${title}`);
+          console.log(`⚠️ Duplicate found (T247 ID: ${t247Id}): ${title}`);
         } else {
+          // Determine tender status based on deadline
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          const isExpired = deadline < today;
+          const tenderStatus = isExpired ? 'missed_opportunity' : 'draft';
+
+          if (isExpired && i < 3) {
+            console.log(`⏰ Expired tender (moving to Missed Opportunities): ${title}, Deadline: ${deadline.toISOString()}`);
+          }
+
           // Create tender object with only valid fields
           const tenderData = {
             title,
@@ -218,8 +236,9 @@ export async function processExcelFileFixed(filePath, sessionId, progressCallbac
             description,
             value,
             deadline,
-            status: 'draft',
+            status: tenderStatus,
             source: source === 'gem' ? 'gem' : 'non_gem',
+            referenceNumber: t247Id || null,
             aiScore: cleanValue(row.aiscore || row.ai_score || row.AiScore, 'number', 0),
             requirements: [],
             documents: [],
