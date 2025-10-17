@@ -18,6 +18,40 @@ function cleanValue(value, type = 'string', defaultValue = null) {
       const num = Number(value);
       return isNaN(num) ? (defaultValue || 0) : num;
     case 'date':
+      // Handle DD-MM-YYYY format
+      if (typeof value === 'string' && value.includes('-')) {
+        const parts = value.split('-');
+        if (parts.length === 3) {
+          // Check if it's DD-MM-YYYY format
+          const day = parseInt(parts[0]);
+          const month = parseInt(parts[1]);
+          const year = parseInt(parts[2]);
+          
+          if (day > 12 || (parts[0].length <= 2 && parts[2].length === 4)) {
+            // DD-MM-YYYY format
+            const date = new Date(year, month - 1, day);
+            return isNaN(date.getTime()) ? defaultValue : date;
+          }
+        }
+      }
+      
+      // Handle DD/MM/YYYY format
+      if (typeof value === 'string' && value.includes('/')) {
+        const parts = value.split('/');
+        if (parts.length === 3) {
+          const day = parseInt(parts[0]);
+          const month = parseInt(parts[1]);
+          const year = parseInt(parts[2]);
+          
+          if (day > 12 || (parts[0].length <= 2 && parts[2].length === 4)) {
+            // DD/MM/YYYY format
+            const date = new Date(year, month - 1, day);
+            return isNaN(date.getTime()) ? defaultValue : date;
+          }
+        }
+      }
+      
+      // Default date parsing
       const date = new Date(value);
       return isNaN(date.getTime()) ? defaultValue : date;
     case 'boolean':

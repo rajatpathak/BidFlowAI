@@ -150,9 +150,9 @@ export default function ActiveTendersPage() {
   };
 
   // Handle tender selection
-  const handleTenderSelect = (tenderId: string, checked: boolean) => {
+  const handleTenderSelect = (tenderId: string, checked: boolean | 'indeterminate') => {
     const newSelected = new Set(selectedTenders);
-    if (checked) {
+    if (checked === true) {
       newSelected.add(tenderId);
     } else {
       newSelected.delete(tenderId);
@@ -161,8 +161,8 @@ export default function ActiveTendersPage() {
   };
 
   // Handle select all tenders
-  const handleSelectAll = (checked: boolean) => {
-    if (checked) {
+  const handleSelectAll = (checked: boolean | 'indeterminate') => {
+    if (checked === true) {
       const allIds = new Set(tenders.map(t => t.id));
       setSelectedTenders(allIds);
     } else {
@@ -458,6 +458,7 @@ export default function ActiveTendersPage() {
                 size="sm"
                 onClick={handleDeleteSelected}
                 disabled={isDeleting}
+                data-testid="button-delete-selected"
               >
                 {isDeleting ? "Deleting..." : "Delete Selected"}
               </Button>
@@ -480,6 +481,7 @@ export default function ActiveTendersPage() {
               <Checkbox
                 checked={selectedTenders.size === tenders.length && tenders.length > 0}
                 onCheckedChange={handleSelectAll}
+                data-testid="checkbox-select-all"
               />
               <span className="text-sm text-gray-600">Select All</span>
             </div>
@@ -506,7 +508,8 @@ export default function ActiveTendersPage() {
                   <TableCell>
                     <Checkbox
                       checked={selectedTenders.has(tender.id)}
-                      onCheckedChange={(checked) => handleTenderSelect(tender.id, checked as boolean)}
+                      onCheckedChange={(checked) => handleTenderSelect(tender.id, checked)}
+                      data-testid={`checkbox-tender-${tender.id}`}
                     />
                   </TableCell>
                   <TableCell>
