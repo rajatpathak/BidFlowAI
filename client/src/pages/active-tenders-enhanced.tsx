@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,23 +13,25 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 import { 
   Calendar,
   Building2,
   DollarSign,
   FileText,
   Search,
-  Heart,
-  ExternalLink,
-  Share2,
   CalendarDays,
   TrendingUp,
   Clock,
-  Mail,
   Bell,
-  ChevronDown
+  ChevronDown,
+  UserPlus,
+  XCircle
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 
 type Tender = {
   id: string;
@@ -47,6 +49,15 @@ type Tender = {
 };
 
 export default function ActiveTendersEnhanced() {
+  const { toast } = useToast();
+  
+  // Dialog states
+  const [assignDialogOpen, setAssignDialogOpen] = useState(false);
+  const [notRelevantDialogOpen, setNotRelevantDialogOpen] = useState(false);
+  const [selectedTender, setSelectedTender] = useState<Tender | null>(null);
+  const [assignedTo, setAssignedTo] = useState("");
+  const [notRelevantReason, setNotRelevantReason] = useState("");
+  
   // Filter states
   const [searchQuery, setSearchQuery] = useState("");
   const [organizationFilter, setOrganizationFilter] = useState("");
@@ -103,6 +114,62 @@ export default function ActiveTendersEnhanced() {
 
   const { data: tenders = [], isLoading } = useQuery<Tender[]>({
     queryKey: [`/api/tenders?${queryParams.toString()}`],
+  });
+
+  // Assign tender mutation
+  const assignMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedTender) return;
+      return apiRequest(`/api/tenders/${selectedTender.id}/assign`, {
+        method: "POST",
+        body: JSON.stringify({ assignedTo }),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/tenders"] });
+      toast({
+        title: "Success",
+        description: "Tender assigned successfully",
+      });
+      setAssignDialogOpen(false);
+      setAssignedTo("");
+      setSelectedTender(null);
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to assign tender",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Mark as not relevant mutation
+  const markNotRelevantMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedTender) return;
+      return apiRequest(`/api/tenders/${selectedTender.id}/not-relevant`, {
+        method: "POST",
+        body: JSON.stringify({ reason: notRelevantReason }),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/tenders"] });
+      toast({
+        title: "Success",
+        description: "Tender marked as not relevant",
+      });
+      setNotRelevantDialogOpen(false);
+      setNotRelevantReason("");
+      setSelectedTender(null);
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to mark tender as not relevant",
+        variant: "destructive",
+      });
+    },
   });
 
   const handleClearFilters = () => {
@@ -617,17 +684,31 @@ export default function ActiveTendersEnhanced() {
 
                     <div className="flex flex-col items-end gap-2 ml-4">
                       <div className="flex gap-2">
-                        <Button size="sm" variant="ghost" title="Reminders">
-                          <Mail className="h-4 w-4" />
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          onClick={() => {
+                            setSelectedTender(tender);
+                            setAssignDialogOpen(true);
+                          }}
+                          data-testid={`button-assign-${tender.id}`}
+                          className="text-blue-600 border-blue-600 hover:bg-blue-50"
+                        >
+                          <UserPlus className="h-4 w-4 mr-1" />
+                          Assign Tender
                         </Button>
-                        <Button size="sm" variant="ghost" title="Add to favorites">
-                          <Heart className="h-4 w-4" />
-                        </Button>
-                        <Button size="sm" variant="ghost" title="External link">
-                          <ExternalLink className="h-4 w-4" />
-                        </Button>
-                        <Button size="sm" variant="ghost" title="Share">
-                          <Share2 className="h-4 w-4" />
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          onClick={() => {
+                            setSelectedTender(tender);
+                            setNotRelevantDialogOpen(true);
+                          }}
+                          data-testid={`button-not-relevant-${tender.id}`}
+                          className="text-red-600 border-red-600 hover:bg-red-50"
+                        >
+                          <XCircle className="h-4 w-4 mr-1" />
+                          Mark as Not Relevant
                         </Button>
                       </div>
                     </div>
@@ -638,6 +719,88 @@ export default function ActiveTendersEnhanced() {
           })
         )}
       </div>
+
+      {/* Assign Tender Dialog */}
+      <Dialog open={assignDialogOpen} onOpenChange={setAssignDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Assign Tender</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div>
+              <Label>Tender: {selectedTender?.title}</Label>
+            </div>
+            <div>
+              <Label htmlFor="assignedTo">Assign To (Username)</Label>
+              <Input
+                id="assignedTo"
+                value={assignedTo}
+                onChange={(e) => setAssignedTo(e.target.value)}
+                placeholder="Enter username"
+                data-testid="input-assigned-to"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => setAssignDialogOpen(false)}
+              data-testid="button-cancel-assign"
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={() => assignMutation.mutate()}
+              disabled={!assignedTo || assignMutation.isPending}
+              data-testid="button-confirm-assign"
+            >
+              {assignMutation.isPending ? "Assigning..." : "Assign"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Mark as Not Relevant Dialog */}
+      <Dialog open={notRelevantDialogOpen} onOpenChange={setNotRelevantDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Mark Tender as Not Relevant</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div>
+              <Label>Tender: {selectedTender?.title}</Label>
+            </div>
+            <div>
+              <Label htmlFor="reason">Reason</Label>
+              <Textarea
+                id="reason"
+                value={notRelevantReason}
+                onChange={(e) => setNotRelevantReason(e.target.value)}
+                placeholder="Enter reason for marking as not relevant"
+                rows={4}
+                data-testid="textarea-not-relevant-reason"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => setNotRelevantDialogOpen(false)}
+              data-testid="button-cancel-not-relevant"
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={() => markNotRelevantMutation.mutate()}
+              disabled={!notRelevantReason || markNotRelevantMutation.isPending}
+              variant="destructive"
+              data-testid="button-confirm-not-relevant"
+            >
+              {markNotRelevantMutation.isPending ? "Processing..." : "Mark as Not Relevant"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

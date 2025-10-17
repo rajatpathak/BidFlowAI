@@ -38,7 +38,7 @@ Project Architecture: Clean, simple, and scalable structure with consolidated co
 - **AI Services**: Tender analysis, bid optimization, pricing intelligence, and risk assessment using OpenAI.
 - **Workflow Management**: Multi-level approval workflows for finance requests and tender submissions.
 - **Advanced Tender Filtering**: Comprehensive filtering system for active tenders including search by ID/keyword, organization ID, category, state, city, ownership, department, closing date, website, quantity, tender value, GeM/Non-GeM, MSME/Startup exemption, AI Summary, and BOQ.
-- **Real-time Statistics & Display**: Dashboard cards for tender statistics, filterable status tabs, smart sorting options, and enhanced tender cards with bid value, EMD, days left, corrigendum indicators, and quick actions.
+- **Real-time Statistics & Display**: Dashboard cards for tender statistics, filterable status tabs, smart sorting options, and enhanced tender cards with bid value, EMD, days left, corrigendum indicators, and action buttons for assigning tenders and marking as not relevant.
 - **Robust Data Import**: Excel upload functionality with multi-sheet support, smart column mapping, duplicate detection, real-time progress tracking via Server-Sent Events, and detailed import statistics.
 - **Activity Logging**: Detailed audit trail for tender modifications, assignments, and workflow actions.
 - **Missed Opportunities**: System for tracking and managing expired tenders.
