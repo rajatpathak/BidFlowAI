@@ -272,7 +272,6 @@ export default function ActiveTendersEnhanced() {
             <div className="flex items-center justify-between">
               <div>
                 <div className="flex items-center gap-2">
-                  <Mail className="h-5 w-5 text-purple-600" />
                   <Bell className="h-5 w-5 text-purple-600" />
                 </div>
                 <p className="text-sm text-purple-600 mt-2">Get Reminders</p>
