@@ -18,6 +18,40 @@ function cleanValue(value, type = 'string', defaultValue = null) {
       const num = Number(value);
       return isNaN(num) ? (defaultValue || 0) : num;
     case 'date':
+      // Handle DD-MM-YYYY format
+      if (typeof value === 'string' && value.includes('-')) {
+        const parts = value.split('-');
+        if (parts.length === 3) {
+          // Check if it's DD-MM-YYYY format
+          const day = parseInt(parts[0]);
+          const month = parseInt(parts[1]);
+          const year = parseInt(parts[2]);
+          
+          if (day > 12 || (parts[0].length <= 2 && parts[2].length === 4)) {
+            // DD-MM-YYYY format
+            const date = new Date(year, month - 1, day);
+            return isNaN(date.getTime()) ? defaultValue : date;
+          }
+        }
+      }
+      
+      // Handle DD/MM/YYYY format
+      if (typeof value === 'string' && value.includes('/')) {
+        const parts = value.split('/');
+        if (parts.length === 3) {
+          const day = parseInt(parts[0]);
+          const month = parseInt(parts[1]);
+          const year = parseInt(parts[2]);
+          
+          if (day > 12 || (parts[0].length <= 2 && parts[2].length === 4)) {
+            // DD/MM/YYYY format
+            const date = new Date(year, month - 1, day);
+            return isNaN(date.getTime()) ? defaultValue : date;
+          }
+        }
+      }
+      
+      // Default date parsing
       const date = new Date(value);
       return isNaN(date.getTime()) ? defaultValue : date;
     case 'boolean':
@@ -76,12 +110,20 @@ export async function processExcelFileFixed(filePath, sessionId, progressCallbac
         processed++;
 
         // Clean and validate all fields with actual Excel field names
+        // Extract T247 ID as unique identifier
+        const t247Id = cleanValue(
+          row['T247 ID'] || row['T247ID'] || row['t247_id'] || row['T247_ID'] ||
+          row['Tender ID'] || row['TENDER_ID'] || row['tender_id'],
+          'string',
+          null
+        );
+
         const title = cleanValue(
           row['TENDER BRIEF'] || row.title || row.Title || row.TITLE || 
           row['Tender Title'] || row['tender_title'] || 
           row.name || row.Name || row.tenderTitle,
           'string', 
-          `Tender ${i + 1}`
+          t247Id ? `Tender ${t247Id}` : `Tender ${i + 1}`
         );
         
         const organization = cleanValue(
@@ -130,31 +172,63 @@ export async function processExcelFileFixed(filePath, sessionId, progressCallbac
           ''
         );
 
-        // Handle deadline with actual Excel field names
+        // Handle deadline with actual Excel field names - added more variations
         let deadline = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // Default 30 days from now
-        const deadlineField = row.Deadline || row.deadline || row.DEADLINE ||
+        const deadlineField = row['LAST DATE'] || row['Last Date'] || row['last date'] ||
+                             row.Deadline || row.deadline || row.DEADLINE ||
                              row.due_date || row['Due Date'] || row.submission_date ||
-                             row['Submission Date'] || row.end_date || row['End Date'];
+                             row['Submission Date'] || row.end_date || row['End Date'] ||
+                             row['BID SUBMISSION END DATE'] || row['Bid Submission End Date'] ||
+                             row['CLOSING DATE'] || row['Closing Date'] ||
+                             row['TENDER CLOSING DATE'] || row['Tender Closing Date'];
         
         if (deadlineField) {
-          const deadlineValue = cleanValue(deadlineField, 'date');
-          if (deadlineValue) deadline = deadlineValue;
+          // Handle Excel serial date numbers
+          let parsedDate = null;
+          
+          // Check if it's an Excel serial number (numeric value > 40000 indicates dates after 2009)
+          if (typeof deadlineField === 'number' && deadlineField > 25569) {
+            // Excel date serial to JavaScript Date
+            // Excel epoch is Dec 30, 1899; JS epoch is Jan 1, 1970
+            const excelEpoch = new Date(1899, 11, 30);
+            parsedDate = new Date(excelEpoch.getTime() + (deadlineField * 24 * 60 * 60 * 1000));
+          } else {
+            // Try parsing as regular date string
+            parsedDate = cleanValue(deadlineField, 'date');
+          }
+          
+          if (parsedDate && !isNaN(parsedDate.getTime())) {
+            deadline = parsedDate;
+            if (i < 3) {
+              console.log(`📅 Deadline parsed: ${deadlineField} -> ${deadline.toISOString()}`);
+            }
+          }
         }
 
-        // Check for duplicates by title and organization (skip if generic title)
+        // Check for duplicates by T247 ID (unique identifier)
         let existingTender = [];
-        if (title !== 'Untitled Tender' && !title.startsWith('Tender ')) {
+        if (t247Id) {
           existingTender = await db
             .select()
             .from(tenders)
-            .where(eq(tenders.title, title))
+            .where(eq(tenders.referenceNumber, t247Id))
             .limit(1);
         }
 
         if (existingTender.length > 0) {
           duplicates++;
-          console.log(`⚠️ Duplicate found: ${title}`);
+          console.log(`⚠️ Duplicate found (T247 ID: ${t247Id}): ${title}`);
         } else {
+          // Determine tender status based on deadline
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          const isExpired = deadline < today;
+          const tenderStatus = isExpired ? 'missed_opportunity' : 'draft';
+
+          if (isExpired && i < 3) {
+            console.log(`⏰ Expired tender (moving to Missed Opportunities): ${title}, Deadline: ${deadline.toISOString()}`);
+          }
+
           // Create tender object with only valid fields
           const tenderData = {
             title,
@@ -162,8 +236,9 @@ export async function processExcelFileFixed(filePath, sessionId, progressCallbac
             description,
             value,
             deadline,
-            status: 'draft',
+            status: tenderStatus,
             source: source === 'gem' ? 'gem' : 'non_gem',
+            referenceNumber: t247Id || null,
             aiScore: cleanValue(row.aiscore || row.ai_score || row.AiScore, 'number', 0),
             requirements: [],
             documents: [],
@@ -220,6 +295,8 @@ export async function processExcelFileFixed(filePath, sessionId, progressCallbac
 
       } catch (error) {
         console.error(`❌ Error processing row ${i + 1}:`, error.message);
+        console.error(`   Row data:`, JSON.stringify(row).substring(0, 200));
+        console.error(`   Full error:`, error.stack);
         errors++;
       }
     }

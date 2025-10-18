@@ -1,5 +1,5 @@
 import express from "express";
-import * as XLSX from 'xlsx';
+// import * as XLSX from 'xlsx'; // Temporarily disabled due to XLSX dependency issue
 import fs from "fs";
 import { promises as fsPromises } from "fs";
 import multer from "multer";
@@ -245,6 +245,82 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
     });
   });
 
+  // Get Excel upload history
+  app.get("/api/excel-uploads", async (req, res) => {
+    try {
+      const uploads = await db
+        .select()
+        .from(excelUploads)
+        .orderBy(sql`${excelUploads.uploadedAt} DESC`)
+        .limit(50);
+      
+      res.json(uploads);
+    } catch (error: any) {
+      console.error('Failed to fetch excel uploads:', error);
+      res.status(500).json({ error: 'Failed to fetch upload history' });
+    }
+  });
+
+  // Excel upload route for Admin Settings page
+  app.post("/api/excel-uploads", uploadExcel.single('excelFile'), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+
+      const uploadedBy = req.body.uploadedBy || "admin";
+      const sessionId = req.body.sessionId || Date.now().toString();
+      console.log(`Processing Excel upload: ${req.file.originalname} (Session: ${sessionId})`);
+
+      // Initialize progress tracking
+      uploadProgress.set(sessionId, { 
+        processed: 0, duplicates: 0, total: 0, percentage: 0,
+        gemAdded: 0, nonGemAdded: 0, errors: 0 
+      });
+
+      // Process Excel file
+      const result = await processExcelFileFixed(req.file.path, sessionId, (progress: any) => {
+        uploadProgress.set(sessionId, progress);
+        const client = uploadClients.get(sessionId);
+        if (client) {
+          client.write(`data: ${JSON.stringify(progress)}\n\n`);
+        }
+      });
+
+      // Create upload record in database
+      const stats = result.stats || result;
+      const newEntriesAdded = (stats.gemAdded || 0) + (stats.nonGemAdded || 0);
+      
+      const [uploadRecord] = await db
+        .insert(excelUploads)
+        .values({
+          filename: req.file.filename,
+          originalName: req.file.originalname,
+          tendersProcessed: stats.processed || 0,
+          duplicatesSkipped: stats.duplicates || 0,
+          status: 'completed'
+        })
+        .returning();
+
+      res.json({
+        message: `Upload successful! ${newEntriesAdded} new tenders added, ${stats.duplicates || 0} duplicates skipped`,
+        tendersImported: newEntriesAdded,
+        duplicatesSkipped: stats.duplicates || 0,
+        sheetsProcessed: result.sheetsProcessed || 1,
+        gemAdded: stats.gemAdded || 0,
+        nonGemAdded: stats.nonGemAdded || 0,
+        uploadRecord
+      });
+
+    } catch (error: any) {
+      console.error('Excel upload error:', error);
+      res.status(500).json({ 
+        error: 'Failed to process Excel file',
+        details: error.message 
+      });
+    }
+  });
+
   // Upload tenders via Excel file (Active Tenders)
   app.post("/api/upload-tenders", uploadExcel.single('file'), async (req, res) => {
     try {
@@ -287,6 +363,15 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
       } else if (fileExtension === '.xlsx' || fileExtension === '.xls') {
         // Use simple Excel processor
         try {
+          // Excel processing temporarily disabled
+          const result = { 
+            success: false, 
+            message: "Excel upload temporarily disabled - please use enhanced production server", 
+            tendersProcessed: 0,
+            duplicatesSkipped: 0 
+          };
+          // Excel processing code commented out due to XLSX dependency
+          /*
           const result = await processExcelFileFixed(req.file.path, sessionId, (progress: any) => {
             uploadProgress.set(sessionId, progress);
             try {
@@ -302,6 +387,7 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
               console.warn('SSE broadcast error:', sseError.message);
             }
           });
+          */
           
           // Update final progress
           uploadProgress.set(sessionId, { 
@@ -578,8 +664,8 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
       
       // Add activity log before deletion
       await db.execute(sql`
-        INSERT INTO activity_logs (id, tender_id, activity_type, description, created_by, created_at)
-        VALUES (gen_random_uuid(), ${id}, 'tender_deleted', ${'Tender deleted: ' + tenderTitle}, 'System User', NOW())
+        INSERT INTO activity_logs (id, tender_id, action, details, created_at)
+        VALUES (gen_random_uuid(), ${id}, 'tender_deleted', ${JSON.stringify({ description: 'Tender deleted: ' + tenderTitle, created_by: 'System User' })}, NOW())
       `);
       
       // Delete tender
@@ -604,8 +690,8 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
       
       // Add activity log with username
       await db.execute(sql`
-        INSERT INTO activity_logs (id, tender_id, activity_type, description, created_by, created_at)
-        VALUES (gen_random_uuid(), ${id}, 'marked_not_relevant', ${'Tender marked as not relevant. Reason: ' + (reason || 'No reason provided')}, 'System User', NOW())
+        INSERT INTO activity_logs (id, tender_id, action, details, created_at)
+        VALUES (gen_random_uuid(), ${id}, 'marked_not_relevant', ${JSON.stringify({ description: 'Tender marked as not relevant. Reason: ' + (reason || 'No reason provided'), created_by: 'System User' })}, NOW())
       `);
       
       res.json({ success: true, message: "Tender marked as not relevant" });
@@ -639,8 +725,8 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
       
       // Add activity log
       await db.execute(sql`
-        INSERT INTO activity_logs (id, tender_id, activity_type, description, created_by, created_at)
-        VALUES (gen_random_uuid(), ${id}, 'not_relevant_requested', ${`Not relevant request submitted for admin approval. Reason: ${reason}`}, ${user.name}, NOW())
+        INSERT INTO activity_logs (id, tender_id, action, details, created_at)
+        VALUES (gen_random_uuid(), ${id}, 'not_relevant_requested', ${JSON.stringify({ description: `Not relevant request submitted for admin approval. Reason: ${reason}`, created_by: user.name })}, NOW())
       `);
       
       res.json({ success: true, message: "Not relevant request submitted for admin approval" });
@@ -695,10 +781,9 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
 
       // Log the activity
       await db.execute(sql`
-        INSERT INTO activity_logs (id, tender_id, activity_type, description, created_by, created_at)
+        INSERT INTO activity_logs (id, tender_id, action, details, created_at)
         VALUES (gen_random_uuid(), ${id}, ${'not_relevant_' + action + 'd'}, 
-        ${`Not relevant request ${action}d by admin${comments ? `. Comments: ${comments}` : ''}`}, 
-        ${user.name}, NOW())
+        ${JSON.stringify({ description: `Not relevant request ${action}d by admin${comments ? `. Comments: ${comments}` : ''}`, created_by: user.name })}, NOW())
       `);
 
       res.json({ success: true, message: `Not relevant request ${action}d successfully` });
@@ -782,8 +867,8 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
 
       // Log the activity
       await db.execute(sql`
-        INSERT INTO activity_logs (id, tender_id, activity_type, description, created_by, created_at)
-        VALUES (gen_random_uuid(), ${id}, 'document_uploaded', ${`RFP documents uploaded: ${uploadedFiles.map(f => f.originalname).join(', ')}`}, 'System User', NOW())
+        INSERT INTO activity_logs (id, tender_id, action, details, created_at)
+        VALUES (gen_random_uuid(), ${id}, 'document_uploaded', ${JSON.stringify({ description: `RFP documents uploaded: ${uploadedFiles.map(f => f.originalname).join(', ')}`, created_by: 'System User' })}, NOW())
       `);
 
       // Update tender status to 'assigned' if it was 'active'
@@ -892,35 +977,68 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
     }
   });
 
-  // Get all tenders with optional missed opportunities and assigned user names
+  // Get all tenders with comprehensive filtering
   app.get("/api/tenders", async (req, res) => {
     try {
-      const { includeMissedOpportunities } = req.query;
+      const { 
+        includeMissedOpportunities,
+        search,
+        organization,
+        source,
+        minValue,
+        maxValue,
+        closingFrom,
+        closingTo,
+        status: filterStatus,
+        sortBy,
+        sortOrder
+      } = req.query;
       
-      // Use drizzle ORM select with conditional where clause
-      const baseQuery = db.select().from(tenders);
+      // Build base query with Drizzle
+      let baseQuery = db.select().from(tenders);
       
-      let result;
-      if (includeMissedOpportunities === 'true') {
-        result = await baseQuery.orderBy(tenders.deadline);
-      } else {
-        result = await baseQuery.where(ne(tenders.status, 'missed_opportunity')).orderBy(tenders.deadline);
+      // Apply filters using Drizzle where conditions
+      const whereConditions = [];
+      
+      // Exclude missed opportunities by default
+      if (includeMissedOpportunities !== 'true') {
+        whereConditions.push(ne(tenders.status, 'missed_opportunity'));
       }
       
-      console.log(`API tenders query result type:`, typeof result);
-      console.log(`Result is array:`, Array.isArray(result));
-      console.log(`Found ${result?.length || 0} tenders`);
+      // Build comprehensive SQL query with all filters
+      const searchTerm = search ? `%${search}%` : null;
+      const orgPattern = organization ? `%${organization}%` : null;
       
-      // Ensure result is always an array
-      const tendersArray = Array.isArray(result) ? result : [];
+      const result = await db.execute(sql`
+        SELECT * FROM tenders 
+        WHERE 1=1
+        ${includeMissedOpportunities !== 'true' ? sql`AND status != 'missed_opportunity'` : sql``}
+        ${searchTerm ? sql`AND (
+          reference_number ILIKE ${searchTerm} OR
+          title ILIKE ${searchTerm} OR
+          organization ILIKE ${searchTerm} OR
+          description ILIKE ${searchTerm}
+        )` : sql``}
+        ${orgPattern ? sql`AND organization ILIKE ${orgPattern}` : sql``}
+        ${source && source !== 'all' ? sql`AND source = ${source}` : sql``}
+        ${minValue ? sql`AND value >= ${parseFloat(minValue as string) * 100000}` : sql``}
+        ${maxValue ? sql`AND value <= ${parseFloat(maxValue as string) * 100000}` : sql``}
+        ${closingFrom ? sql`AND deadline >= ${closingFrom}` : sql``}
+        ${closingTo ? sql`AND deadline <= ${closingTo}` : sql``}
+        ${filterStatus && filterStatus !== 'all' ? sql`AND status = ${filterStatus}` : sql``}
+        ORDER BY ${sortBy === 'value' ? sql`value` : sortBy === 'aiScore' ? sql`ai_score` : sql`deadline`} 
+        ${sortOrder === 'desc' ? sql`DESC` : sql`ASC`}
+      `);
       
-      // Process requirements field to ensure it's properly formatted
+      // Extract rows from Drizzle Postgres result
+      const tendersArray = Array.isArray(result) ? result : (result?.rows || []);
+      
+      console.log(`Found ${tendersArray.length} tenders`);
+      
       const tendersWithNames = tendersArray.map(row => ({
         ...row,
         requirements: Array.isArray(row.requirements) ? row.requirements : 
-                     (typeof row.requirements === 'string' ? 
-                      (row.requirements.startsWith('[') ? JSON.parse(row.requirements) : []) : 
-                      [])
+                     (typeof row.requirements === 'string' && row.requirements.startsWith('[') ? JSON.parse(row.requirements) : [])
       }));
       
       res.json(tendersWithNames);
@@ -954,19 +1072,19 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
         WHERE id = ${tenderId}
       `);
       
-      // Get assignee name for logging
+      // Get assignee name for logging (assignedTo is username/role, not ID)
       const [assignee] = await db.execute(sql`
-        SELECT name FROM users WHERE id = ${assignedTo} LIMIT 1
+        SELECT name FROM users WHERE username = ${assignedTo} LIMIT 1
       `);
       
-      const assigneeName = assignee?.name || 'Unknown User';
+      const assigneeName = assignee?.name || assignedTo;
       
       // Log the assignment activity
       const description = `Tender assigned to ${assigneeName}${priority ? ` with priority: ${priority}` : ''}${budget ? `, Budget: ₹${budget}` : ''}`;
       
       await db.execute(sql`
-        INSERT INTO activity_logs (id, tender_id, activity_type, description, created_by, created_at, details)
-        VALUES (gen_random_uuid(), ${tenderId}, 'tender_assigned', ${description}, ${assignedBy || 'System'}, NOW(), ${JSON.stringify({ assignedTo, assigneeName, priority, budget, notes })})
+        INSERT INTO activity_logs (id, tender_id, action, details, created_at)
+        VALUES (gen_random_uuid(), ${tenderId}, 'tender_assigned', ${JSON.stringify({ description, created_by: assignedBy || 'System', assignedTo, assigneeName, priority, budget, notes })}, NOW())
       `);
       
       res.json({ 
@@ -988,6 +1106,54 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
       res.json(stats);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch dashboard stats" });
+    }
+  });
+
+  // Get tender statistics for active tenders page
+  app.get("/api/tenders/stats", async (req, res) => {
+    try {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+
+      // Today's tenders
+      const [todayCount] = await db.execute(sql`
+        SELECT COUNT(*) as count 
+        FROM tenders 
+        WHERE DATE(created_at) = CURRENT_DATE
+      `);
+
+      // Active tenders (not missed opportunities)
+      const [activeCount] = await db.execute(sql`
+        SELECT COUNT(*) as count 
+        FROM tenders 
+        WHERE status != 'missed_opportunity'
+      `);
+
+      // Closed/Submitted tenders
+      const [closedCount] = await db.execute(sql`
+        SELECT COUNT(*) as count 
+        FROM tenders 
+        WHERE status IN ('submitted', 'won', 'lost')
+      `);
+
+      // Interested tenders (assigned)
+      const [interestedCount] = await db.execute(sql`
+        SELECT COUNT(*) as count 
+        FROM tenders 
+        WHERE assigned_to IS NOT NULL
+      `);
+
+      res.json({
+        todayTenders: parseInt(todayCount?.count || 0),
+        activeTenders: parseInt(activeCount?.count || 0),
+        closedTenders: parseInt(closedCount?.count || 0),
+        interestedTenders: parseInt(interestedCount?.count || 0)
+      });
+    } catch (error) {
+      console.error("Tender stats error:", error);
+      res.status(500).json({ error: "Failed to fetch tender stats" });
     }
   });
 
@@ -1594,10 +1760,9 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
       
       // Add activity log for assignment update
       await db.execute(sql`
-        INSERT INTO activity_logs (id, tender_id, activity_type, description, created_by, created_at)
+        INSERT INTO activity_logs (id, tender_id, action, details, created_at)
         VALUES (gen_random_uuid(), ${updatedAssignment.tenderId}, 'assignment_updated', 
-                ${'Assignment updated - Priority: ' + priority + ', Budget: ₹' + (budget || 'Not specified') + ', Status: ' + (status || 'assigned')}, 
-                'System User', NOW())
+                ${JSON.stringify({ description: 'Assignment updated - Priority: ' + priority + ', Budget: ₹' + (budget || 'Not specified') + ', Status: ' + (status || 'assigned'), created_by: 'System User' })}, NOW())
       `);
       
       res.json(updatedAssignment);
@@ -1621,10 +1786,9 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
 
       // Add activity log before removing assignment
       await db.execute(sql`
-        INSERT INTO activity_logs (id, tender_id, activity_type, description, created_by, created_at)
+        INSERT INTO activity_logs (id, tender_id, action, details, created_at)
         VALUES (gen_random_uuid(), ${assignment.tenderId}, 'assignment_removed', 
-                'Assignment removed and tender returned to active status', 
-                'System User', NOW())
+                ${JSON.stringify({ description: 'Assignment removed and tender returned to active status', created_by: 'System User' })}, NOW())
       `);
       
       // Delete the assignment
@@ -1800,8 +1964,8 @@ export function registerRoutes(app: express.Application, storage: IStorage) {
       const activityDescription = `Documents uploaded: ${files.map(f => f.originalname).join(', ')}`;
       
       await db.execute(sql`
-        INSERT INTO activity_logs (id, tender_id, activity_type, description, created_by, created_at)
-        VALUES (${randomUUID()}, ${tenderId}, 'document_uploaded', ${activityDescription}, 'bidder-uuid-003', NOW())
+        INSERT INTO activity_logs (id, tender_id, action, details, created_at)
+        VALUES (${randomUUID()}, ${tenderId}, 'document_uploaded', ${JSON.stringify({ description: activityDescription, created_by: 'bidder-uuid-003' })}, NOW())
       `);
 
       res.json({ 

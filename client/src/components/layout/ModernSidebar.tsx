@@ -32,7 +32,9 @@ import {
   Target,
   TrendingUp,
   ChevronRight,
-  Activity
+  Activity,
+  CheckCircle,
+  FolderKanban
 } from "lucide-react";
 import { useState, useEffect } from "react";
 
@@ -63,7 +65,10 @@ const navigationSections = {
     { name: "Create Bid", href: "/create-bid", icon: Plus, description: "Start new proposal" },
     { name: "Bid Documents", href: "/bid-creation", icon: Package, description: "Document management" },
     { name: "Meetings", href: "/meetings", icon: Calendar, description: "Schedule and track" },
+    { name: "Calendar", href: "/calendar", icon: Calendar, description: "View schedule" },
     { name: "Finance", href: "/finance", icon: DollarSign, description: "Budget and costs" },
+    { name: "Documents", href: "/documents", icon: FolderKanban, description: "Manage documents" },
+    { name: "Approvals", href: "/approvals", icon: CheckCircle, description: "Approval workflow" },
   ],
   "Administration": [
     { name: "User Management", href: "/user-management", icon: UserCog, adminOnly: true, description: "Manage team access" },

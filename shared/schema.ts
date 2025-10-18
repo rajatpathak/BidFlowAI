@@ -31,6 +31,7 @@ export const tenders = pgTable("tenders", {
   deadline: timestamp("deadline").notNull(),
   status: text("status").notNull().default("draft"), // draft, in_progress, submitted, won, lost, assigned
   source: text("source").notNull().default("non_gem"), // gem, non_gem
+  referenceNumber: text("reference_number"), // T247 ID for duplicate detection
   aiScore: integer("ai_score").default(0), // 0-100
   requirements: json("requirements").default([]),
   documents: json("documents").default([]),
