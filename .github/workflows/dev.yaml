@@ -3,7 +3,7 @@ name: BidFlowAI Pipeline
 on:
   push:
     branches:
-      - production
+      - main
 env:
   KEY_NAME: "BidFlowAI" 
   FILE_PATH: "BidFlowAI" 
